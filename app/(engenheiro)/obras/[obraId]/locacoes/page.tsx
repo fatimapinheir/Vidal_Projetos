@@ -1,0 +1,189 @@
+import { createClient } from "@/lib/supabase/server";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { formatDateBR } from "@/lib/format-date";
+import { calcularCustoLocacao, hojeIso } from "@/lib/locacoes/calculo";
+import { LocacaoDialog } from "./locacao-dialog";
+import { DevolverButton, RemoverLocacaoButton } from "./locacoes-actions";
+
+function formatCurrency(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+export default async function LocacoesObraPage({
+  params,
+}: {
+  params: Promise<{ obraId: string }>;
+}) {
+  const { obraId } = await params;
+  const supabase = await createClient();
+
+  const [{ data: locacoes }, { data: fornecedores }] = await Promise.all([
+    supabase
+      .from("locacoes_equipamento")
+      .select("*, fornecedores(nome)")
+      .eq("obra_id", obraId)
+      .order("data_inicio", { ascending: false }),
+    supabase.from("fornecedores").select("id, nome").order("nome"),
+  ]);
+
+  // Uma única referência de "hoje" para a tela inteira, senão duas linhas
+  // podem ser calculadas em dias diferentes se a virada acontecer no meio.
+  const hoje = hojeIso();
+
+  const linhas = (locacoes ?? []).map((locacao) => {
+    const custo = calcularCustoLocacao(
+      {
+        quantidade: locacao.quantidade,
+        unidade: locacao.unidade,
+        valorUnitario: locacao.valor_unitario,
+        dataInicio: locacao.data_inicio,
+        horasUtilizadas: locacao.horas_utilizadas,
+        dataDevolucao: locacao.data_devolucao,
+      },
+      hoje
+    );
+    const fornecedor = locacao.fornecedores as unknown as { nome: string } | null;
+    return { locacao, custo, locadorNome: fornecedor?.nome ?? "—" };
+  });
+
+  const totalEmUso = linhas.filter((l) => l.custo.emUso).reduce((s, l) => s + l.custo.valor, 0);
+  const totalDevolvido = linhas.filter((l) => !l.custo.emUso).reduce((s, l) => s + l.custo.valor, 0);
+  const quantidadeEmUso = linhas.filter((l) => l.custo.emUso).length;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-heading text-lg font-semibold">Locação de equipamentos</h1>
+          <p className="text-sm text-muted-foreground">
+            Equipamentos alugados para a obra. O valor de cada locação{" "}
+            <strong>continua correndo</strong> enquanto o equipamento estiver aqui: por dia, o
+            sistema conta sozinho os dias desde a data inicial; por hora, o valor sai das horas que
+            você informar. Marcar como <strong>devolvido</strong> encerra a contagem e congela o
+            valor na data da devolução.
+          </p>
+        </div>
+        <LocacaoDialog obraId={obraId} fornecedores={fornecedores ?? []} />
+      </div>
+
+      {!!linhas.length && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card>
+            <CardContent className="flex items-center justify-between py-4">
+              <p className="text-sm text-muted-foreground">Em uso</p>
+              <p className="font-heading text-xl font-semibold">{quantidadeEmUso}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center justify-between py-4">
+              <p className="text-sm text-muted-foreground">Acumulado em uso</p>
+              <p className="font-heading text-xl font-semibold">{formatCurrency(totalEmUso)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center justify-between py-4">
+              <p className="text-sm text-muted-foreground">Já devolvido</p>
+              <p className="font-heading text-xl font-semibold">{formatCurrency(totalDevolvido)}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-xl border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Equipamento</TableHead>
+              <TableHead>Locador</TableHead>
+              <TableHead>Qtd.</TableHead>
+              <TableHead>Valor</TableHead>
+              <TableHead>Início</TableHead>
+              <TableHead>Devolução</TableHead>
+              <TableHead>Cobrado</TableHead>
+              <TableHead>Total</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {linhas.map(({ locacao, custo, locadorNome }) => (
+              <TableRow key={locacao.id}>
+                <TableCell className="font-medium">
+                  {locacao.equipamento}
+                  {custo.emUso ? (
+                    <Badge variant="outline" className="ml-2">
+                      Em uso
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="ml-2">
+                      Devolvido
+                    </Badge>
+                  )}
+                  {locacao.observacoes && (
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      {locacao.observacoes}
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell>{locadorNome}</TableCell>
+                <TableCell>{locacao.quantidade}</TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {formatCurrency(locacao.valor_unitario)}
+                  <span className="text-muted-foreground">
+                    {locacao.unidade === "dia" ? "/dia" : "/hora"}
+                  </span>
+                </TableCell>
+                <TableCell>{formatDateBR(locacao.data_inicio)}</TableCell>
+                <TableCell>
+                  {locacao.data_devolucao ? (
+                    formatDateBR(locacao.data_devolucao)
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-xs">
+                  {locacao.unidade === "dia"
+                    ? `${custo.dias} ${custo.dias === 1 ? "dia" : "dias"}`
+                    : `${custo.unidadesCobradas}h em ${custo.dias} ${custo.dias === 1 ? "dia" : "dias"}`}
+                </TableCell>
+                <TableCell className={custo.emUso ? "font-medium" : ""}>
+                  {formatCurrency(custo.valor)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <DevolverButton
+                      obraId={obraId}
+                      locacaoId={locacao.id}
+                      devolvido={!custo.emUso}
+                    />
+                    <LocacaoDialog
+                      obraId={obraId}
+                      fornecedores={fornecedores ?? []}
+                      locacao={locacao}
+                    />
+                    <RemoverLocacaoButton obraId={obraId} locacaoId={locacao.id} />
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+            {!linhas.length && (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center text-muted-foreground">
+                  Nenhuma locação registrada nessa obra ainda.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}

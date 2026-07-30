@@ -1,0 +1,20 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+# O runtime do Next.js no Netlify cuida do SSR, das Server Actions e do
+# proxy.ts (o middleware, renomeado no Next 16). O Netlify instala este plugin
+# sozinho para projetos Next, mas declarar deixa explícito e versionável.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  # Mesma versão usada em desenvolvimento — evita diferença de comportamento
+  # entre o que foi testado e o que vai ao ar.
+  NODE_VERSION = "24"
+
+# As variáveis de ambiente NÃO ficam aqui: NEXT_PUBLIC_SUPABASE_URL,
+# NEXT_PUBLIC_SUPABASE_ANON_KEY e principalmente SUPABASE_SERVICE_ROLE_KEY
+# são configuradas no painel do Netlify (Site configuration → Environment
+# variables). A service role ignora RLS — se ela entrar no repositório, quem
+# tiver o arquivo tem acesso total ao banco.

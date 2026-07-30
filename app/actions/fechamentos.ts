@@ -1,0 +1,336 @@
+"use server";
+
+import { z } from "zod";
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/require-role";
+import { sanitizeFilename } from "@/lib/sanitize-filename";
+
+const abrirFechamentoSchema = z.object({
+  trabalhador_id: z.uuid(),
+  periodo_inicio: z.string().min(1),
+  periodo_fim: z.string().min(1),
+});
+
+export type FechamentoFormState = { error: string | null; success?: boolean };
+
+export async function abrirFechamento(
+  obraId: string,
+  _prevState: FechamentoFormState,
+  formData: FormData
+): Promise<FechamentoFormState> {
+  const profile = await requireRole("engenheiro");
+
+  const parsed = abrirFechamentoSchema.safeParse({
+    trabalhador_id: formData.get("trabalhador_id"),
+    periodo_inicio: formData.get("periodo_inicio"),
+    periodo_fim: formData.get("periodo_fim"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const { trabalhador_id, periodo_inicio, periodo_fim } = parsed.data;
+  const supabase = await createClient();
+
+  const { data: alocacao } = await supabase
+    .from("obra_trabalhadores")
+    .select("valor_diaria")
+    .eq("obra_id", obraId)
+    .eq("trabalhador_id", trabalhador_id)
+    .single();
+
+  if (!alocacao) {
+    return { error: "Trabalhador não está alocado nessa obra." };
+  }
+
+  const { data: diasTrabalhados } = await supabase.rpc("calcular_dias_trabalhados", {
+    p_obra_id: obraId,
+    p_trabalhador_id: trabalhador_id,
+    p_inicio: periodo_inicio,
+    p_fim: periodo_fim,
+  });
+
+  const { error } = await supabase.from("fechamentos_periodo").insert({
+    obra_id: obraId,
+    trabalhador_id,
+    periodo_inicio,
+    periodo_fim,
+    dias_trabalhados: diasTrabalhados ?? 0,
+    valor_diaria: alocacao.valor_diaria,
+    criado_por: profile.id,
+  });
+
+  if (error) {
+    return { error: "Não foi possível abrir o fechamento (período já existe para esse trabalhador?)." };
+  }
+
+  revalidatePath(`/obras/${obraId}/fechamentos`);
+  return { error: null, success: true };
+}
+
+export async function marcarFechamentoPago(obraId: string, fechamentoId: string, formData: FormData) {
+  await requireRole("engenheiro");
+  const supabase = await createClient();
+
+  const comprovante = formData.get("comprovante") as File | null;
+  let comprovantePath: string | null = null;
+
+  if (comprovante && comprovante.size > 0) {
+    const path = `${obraId}/${fechamentoId}/${Date.now()}-${sanitizeFilename(comprovante.name)}`;
+    const { error: uploadError } = await supabase.storage
+      .from("comprovantes-fechamento")
+      .upload(path, comprovante);
+
+    if (!uploadError) comprovantePath = path;
+  }
+
+  await supabase
+    .from("fechamentos_periodo")
+    .update({
+      status: "pago",
+      data_pagamento: new Date().toISOString().slice(0, 10),
+      ...(comprovantePath ? { comprovante_path: comprovantePath } : {}),
+    })
+    .eq("id", fechamentoId);
+
+  revalidatePath(`/obras/${obraId}/fechamentos`);
+}
+
+const periodoSchema = z.object({
+  periodo_inicio: z.string().min(1, "Informe o início do período."),
+  periodo_fim: z.string().min(1, "Informe o fim do período."),
+});
+
+export type FechamentoEquipeFormState = { error: string | null; success?: boolean };
+
+/**
+ * Fecha uma equipe inteira de uma vez (contrato diária): insere um
+ * fechamentos_periodo por membro, com a mesma fórmula de sempre (dias x diária
+ * de cada um), todos marcados com o mesmo equipe_id para poderem ser agrupados
+ * e pagos juntos. Membros que já têm fechamento nesse período exato são pulados.
+ */
+export async function abrirFechamentoEquipeDiaria(
+  obraId: string,
+  equipeId: string,
+  _prevState: FechamentoEquipeFormState,
+  formData: FormData
+): Promise<FechamentoEquipeFormState> {
+  const profile = await requireRole("engenheiro");
+
+  const parsed = periodoSchema.safeParse({
+    periodo_inicio: formData.get("periodo_inicio"),
+    periodo_fim: formData.get("periodo_fim"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Informe o período." };
+  }
+  const { periodo_inicio, periodo_fim } = parsed.data;
+
+  const supabase = await createClient();
+
+  const { data: equipe } = await supabase
+    .from("equipes")
+    .select("id, tipo_contrato")
+    .eq("id", equipeId)
+    .eq("obra_id", obraId)
+    .single();
+
+  if (!equipe || equipe.tipo_contrato !== "diaria") {
+    return { error: "Equipe não encontrada ou não é do tipo diária." };
+  }
+
+  const { data: membros } = await supabase
+    .from("equipe_trabalhadores")
+    .select("trabalhador_id")
+    .eq("equipe_id", equipeId);
+
+  if (!membros?.length) return { error: "Essa equipe não tem membros." };
+  const membroIds = membros.map((m) => m.trabalhador_id);
+
+  const { data: alocacoes } = await supabase
+    .from("obra_trabalhadores")
+    .select("trabalhador_id, valor_diaria")
+    .eq("obra_id", obraId)
+    .in("trabalhador_id", membroIds);
+
+  const valorDiariaPorMembro = new Map(alocacoes?.map((a) => [a.trabalhador_id, a.valor_diaria]) ?? []);
+
+  const { data: existentes } = await supabase
+    .from("fechamentos_periodo")
+    .select("trabalhador_id")
+    .eq("obra_id", obraId)
+    .eq("periodo_inicio", periodo_inicio)
+    .eq("periodo_fim", periodo_fim)
+    .in("trabalhador_id", membroIds);
+
+  const jaFechados = new Set(existentes?.map((e) => e.trabalhador_id) ?? []);
+  const pendentes = membroIds.filter((id) => !jaFechados.has(id));
+
+  if (!pendentes.length) {
+    return { error: "Todos os membros dessa equipe já têm fechamento nesse período exato." };
+  }
+
+  const linhas = (
+    await Promise.all(
+      pendentes.map(async (trabalhadorId) => {
+        const valorDiaria = valorDiariaPorMembro.get(trabalhadorId);
+        if (valorDiaria === undefined) return null;
+        const { data: dias } = await supabase.rpc("calcular_dias_trabalhados", {
+          p_obra_id: obraId,
+          p_trabalhador_id: trabalhadorId,
+          p_inicio: periodo_inicio,
+          p_fim: periodo_fim,
+        });
+        return {
+          obra_id: obraId,
+          trabalhador_id: trabalhadorId,
+          equipe_id: equipeId,
+          periodo_inicio,
+          periodo_fim,
+          dias_trabalhados: dias ?? 0,
+          valor_diaria: valorDiaria,
+          criado_por: profile.id,
+        };
+      })
+    )
+  ).filter((linha): linha is NonNullable<typeof linha> => linha !== null);
+
+  if (!linhas.length) {
+    return { error: "Nenhum membro dessa equipe está alocado nessa obra." };
+  }
+
+  const { error } = await supabase.from("fechamentos_periodo").insert(linhas);
+  if (error) return { error: "Não foi possível abrir o fechamento da equipe." };
+
+  revalidatePath(`/obras/${obraId}/fechamentos`);
+  return { error: null, success: true };
+}
+
+/** Marca todos os fechamentos de uma equipe (mesmo período) como pagos de uma vez, com um comprovante só. */
+export async function marcarFechamentoEquipePago(
+  obraId: string,
+  equipeId: string,
+  periodoInicio: string,
+  periodoFim: string,
+  formData: FormData
+) {
+  await requireRole("engenheiro");
+  const supabase = await createClient();
+
+  const comprovante = formData.get("comprovante") as File | null;
+  let comprovantePath: string | null = null;
+
+  if (comprovante && comprovante.size > 0) {
+    const path = `${obraId}/equipe-${equipeId}/${Date.now()}-${sanitizeFilename(comprovante.name)}`;
+    const { error: uploadError } = await supabase.storage
+      .from("comprovantes-fechamento")
+      .upload(path, comprovante);
+    if (!uploadError) comprovantePath = path;
+  }
+
+  await supabase
+    .from("fechamentos_periodo")
+    .update({
+      status: "pago",
+      data_pagamento: new Date().toISOString().slice(0, 10),
+      ...(comprovantePath ? { comprovante_path: comprovantePath } : {}),
+    })
+    .eq("obra_id", obraId)
+    .eq("equipe_id", equipeId)
+    .eq("periodo_inicio", periodoInicio)
+    .eq("periodo_fim", periodoFim);
+
+  revalidatePath(`/obras/${obraId}/fechamentos`);
+}
+
+const entregaSchema = z.object({
+  periodo_inicio: z.string().min(1, "Informe o início do período."),
+  periodo_fim: z.string().min(1, "Informe o fim do período."),
+  quantidade_entregue: z.coerce.number().positive("Informe a quantidade entregue."),
+  observacoes: z.string().optional(),
+});
+
+export type FechamentoEntregaFormState = { error: string | null; success?: boolean };
+
+/** Fecha pagamento por entrega (empreitada): quantidade entregue no período x valor por unidade da equipe. */
+export async function abrirFechamentoEntrega(
+  obraId: string,
+  equipeId: string,
+  _prevState: FechamentoEntregaFormState,
+  formData: FormData
+): Promise<FechamentoEntregaFormState> {
+  const profile = await requireRole("engenheiro");
+
+  const parsed = entregaSchema.safeParse({
+    periodo_inicio: formData.get("periodo_inicio"),
+    periodo_fim: formData.get("periodo_fim"),
+    quantidade_entregue: formData.get("quantidade_entregue"),
+    observacoes: formData.get("observacoes") || undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const supabase = await createClient();
+
+  const { data: equipe } = await supabase
+    .from("equipes")
+    .select("id, tipo_contrato, unidade_medida, valor_unidade")
+    .eq("id", equipeId)
+    .eq("obra_id", obraId)
+    .single();
+
+  if (!equipe || equipe.tipo_contrato !== "empreitada" || !equipe.unidade_medida || !equipe.valor_unidade) {
+    return { error: "Equipe não encontrada ou não configurada para contrato por empreitada." };
+  }
+
+  const { error } = await supabase.from("fechamentos_entrega").insert({
+    obra_id: obraId,
+    equipe_id: equipeId,
+    periodo_inicio: parsed.data.periodo_inicio,
+    periodo_fim: parsed.data.periodo_fim,
+    quantidade_entregue: parsed.data.quantidade_entregue,
+    unidade_medida: equipe.unidade_medida,
+    valor_unidade: equipe.valor_unidade,
+    observacoes: parsed.data.observacoes || null,
+    criado_por: profile.id,
+  });
+
+  if (error) return { error: "Não foi possível abrir o fechamento por entrega." };
+
+  revalidatePath(`/obras/${obraId}/fechamentos`);
+  return { error: null, success: true };
+}
+
+export async function marcarFechamentoEntregaPago(
+  obraId: string,
+  fechamentoEntregaId: string,
+  formData: FormData
+) {
+  await requireRole("engenheiro");
+  const supabase = await createClient();
+
+  const comprovante = formData.get("comprovante") as File | null;
+  let comprovantePath: string | null = null;
+
+  if (comprovante && comprovante.size > 0) {
+    const path = `${obraId}/entrega-${fechamentoEntregaId}/${Date.now()}-${sanitizeFilename(comprovante.name)}`;
+    const { error: uploadError } = await supabase.storage
+      .from("comprovantes-fechamento")
+      .upload(path, comprovante);
+    if (!uploadError) comprovantePath = path;
+  }
+
+  await supabase
+    .from("fechamentos_entrega")
+    .update({
+      status: "pago",
+      data_pagamento: new Date().toISOString().slice(0, 10),
+      ...(comprovantePath ? { comprovante_path: comprovantePath } : {}),
+    })
+    .eq("id", fechamentoEntregaId);
+
+  revalidatePath(`/obras/${obraId}/fechamentos`);
+}
