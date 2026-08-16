@@ -118,7 +118,11 @@ export async function CompraDetail({
           )}
 
           {viewerRole === "cliente" && compra.status === "cotada" && (
-            <CompraAprovacaoActions compraId={compra.id} parcelaUnicaId={parcelaUnica?.id} />
+            <CompraAprovacaoActions
+              obraId={compra.obra_id}
+              compraId={compra.id}
+              parcelaUnicaId={parcelaUnica?.id}
+            />
           )}
           {viewerRole === "engenheiro" && compra.status === "cotada" && (
             <p className="text-sm text-muted-foreground">Aguardando aprovação do cliente.</p>
@@ -253,7 +257,7 @@ export async function CompraDetail({
                     </TableCell>
                     <TableCell className="text-right">
                       {compra.status === "aprovada" && p.status !== "paga" && (
-                        <PagarParcelaForm compraId={compra.id} parcelaId={p.id} />
+                        <PagarParcelaForm obraId={compra.obra_id} compraId={compra.id} parcelaId={p.id} />
                       )}
                     </TableCell>
                   </TableRow>

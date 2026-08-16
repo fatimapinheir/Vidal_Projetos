@@ -842,6 +842,10 @@ export interface Database {
         Args: { p_parcela_id: string; p_comprovante_path: string };
         Returns: undefined;
       };
+      aprovar_e_pagar_parcela: {
+        Args: { p_compra_id: string; p_parcela_id: string; p_comprovante_path: string };
+        Returns: undefined;
+      };
     };
     Enums: {
       user_role: UserRole;

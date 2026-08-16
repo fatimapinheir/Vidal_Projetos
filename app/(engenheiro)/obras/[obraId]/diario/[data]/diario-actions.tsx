@@ -14,7 +14,7 @@ import {
   registrarFotos,
   removerFoto,
 } from "@/app/actions/diario";
-import { enviarArquivoParaStorage } from "@/lib/storage/upload-direto";
+import { enviarArquivoParaStorage, removerArquivosDoStorage } from "@/lib/storage/upload-direto";
 
 export function FecharDiaButton({
   obraId,
@@ -109,7 +109,12 @@ export function FotosUpload({ obraId, data }: { obraId: string; data: string }) 
       const paths: string[] = [];
       for (const arquivo of arquivos) {
         const envio = await enviarArquivoParaStorage("diario-obra", `${obraId}/${data}`, arquivo);
-        if (envio.path === null) return setErro(envio.error);
+        if (envio.path === null) {
+          // Falhou no meio do lote: desfaz as que já subiram, senão elas ficam
+          // no bucket sem nenhuma linha apontando para elas.
+          await removerArquivosDoStorage("diario-obra", paths);
+          return setErro(envio.error);
+        }
         paths.push(envio.path);
       }
 

@@ -4,7 +4,6 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
-import { sanitizeFilename } from "@/lib/sanitize-filename";
 
 const abrirFechamentoSchema = z.object({
   trabalhador_id: z.uuid(),
@@ -45,6 +44,22 @@ export async function abrirFechamento(
     return { error: "Trabalhador não está alocado nessa obra." };
   }
 
+  // Mesma regra do fechamento por equipe: período que encosta em outro já
+  // fechado pagaria os dias em comum duas vezes.
+  const { data: sobreposto } = await supabase
+    .from("fechamentos_periodo")
+    .select("id")
+    .eq("obra_id", obraId)
+    .eq("trabalhador_id", trabalhador_id)
+    .lte("periodo_inicio", periodo_fim)
+    .gte("periodo_fim", periodo_inicio)
+    .limit(1)
+    .maybeSingle();
+
+  if (sobreposto) {
+    return { error: "Esse trabalhador já tem um fechamento que cobre parte desse período." };
+  }
+
   const { data: diasTrabalhados } = await supabase.rpc("calcular_dias_trabalhados", {
     p_obra_id: obraId,
     p_trabalhador_id: trabalhador_id,
@@ -70,23 +85,21 @@ export async function abrirFechamento(
   return { error: null, success: true };
 }
 
-export async function marcarFechamentoPago(obraId: string, fechamentoId: string, formData: FormData) {
+/**
+ * O comprovante chega como caminho: o navegador já o enviou ao Storage. Antes
+ * o arquivo trafegava por aqui (estoura o limite de payload em produção) e um
+ * erro de upload era descartado — o fechamento virava "pago" sem comprovante e
+ * ninguém ficava sabendo.
+ */
+export async function marcarFechamentoPago(
+  obraId: string,
+  fechamentoId: string,
+  comprovantePath: string | null
+): Promise<FechamentoFormState> {
   await requireRole("engenheiro");
   const supabase = await createClient();
 
-  const comprovante = formData.get("comprovante") as File | null;
-  let comprovantePath: string | null = null;
-
-  if (comprovante && comprovante.size > 0) {
-    const path = `${obraId}/${fechamentoId}/${Date.now()}-${sanitizeFilename(comprovante.name)}`;
-    const { error: uploadError } = await supabase.storage
-      .from("comprovantes-fechamento")
-      .upload(path, comprovante);
-
-    if (!uploadError) comprovantePath = path;
-  }
-
-  await supabase
+  const { error } = await supabase
     .from("fechamentos_periodo")
     .update({
       status: "pago",
@@ -95,7 +108,10 @@ export async function marcarFechamentoPago(obraId: string, fechamentoId: string,
     })
     .eq("id", fechamentoId);
 
+  if (error) return { error: "Não foi possível marcar o fechamento como pago." };
+
   revalidatePath(`/obras/${obraId}/fechamentos`);
+  return { error: null, success: true };
 }
 
 const periodoSchema = z.object({
@@ -157,19 +173,24 @@ export async function abrirFechamentoEquipeDiaria(
 
   const valorDiariaPorMembro = new Map(alocacoes?.map((a) => [a.trabalhador_id, a.valor_diaria]) ?? []);
 
+  // Sobreposição, não igualdade: fechar 01–15 e depois 01–30 pagaria os dias
+  // 01–15 duas vezes. Dois períodos se sobrepõem quando cada um começa antes
+  // (ou junto) do fim do outro.
   const { data: existentes } = await supabase
     .from("fechamentos_periodo")
     .select("trabalhador_id")
     .eq("obra_id", obraId)
-    .eq("periodo_inicio", periodo_inicio)
-    .eq("periodo_fim", periodo_fim)
+    .lte("periodo_inicio", periodo_fim)
+    .gte("periodo_fim", periodo_inicio)
     .in("trabalhador_id", membroIds);
 
   const jaFechados = new Set(existentes?.map((e) => e.trabalhador_id) ?? []);
   const pendentes = membroIds.filter((id) => !jaFechados.has(id));
 
   if (!pendentes.length) {
-    return { error: "Todos os membros dessa equipe já têm fechamento nesse período exato." };
+    return {
+      error: "Todos os membros dessa equipe já têm fechamento cobrindo parte desse período.",
+    };
   }
 
   const linhas = (
@@ -214,23 +235,12 @@ export async function marcarFechamentoEquipePago(
   equipeId: string,
   periodoInicio: string,
   periodoFim: string,
-  formData: FormData
-) {
+  comprovantePath: string | null
+): Promise<FechamentoFormState> {
   await requireRole("engenheiro");
   const supabase = await createClient();
 
-  const comprovante = formData.get("comprovante") as File | null;
-  let comprovantePath: string | null = null;
-
-  if (comprovante && comprovante.size > 0) {
-    const path = `${obraId}/equipe-${equipeId}/${Date.now()}-${sanitizeFilename(comprovante.name)}`;
-    const { error: uploadError } = await supabase.storage
-      .from("comprovantes-fechamento")
-      .upload(path, comprovante);
-    if (!uploadError) comprovantePath = path;
-  }
-
-  await supabase
+  const { error } = await supabase
     .from("fechamentos_periodo")
     .update({
       status: "pago",
@@ -242,7 +252,10 @@ export async function marcarFechamentoEquipePago(
     .eq("periodo_inicio", periodoInicio)
     .eq("periodo_fim", periodoFim);
 
+  if (error) return { error: "Não foi possível marcar o fechamento da equipe como pago." };
+
   revalidatePath(`/obras/${obraId}/fechamentos`);
+  return { error: null, success: true };
 }
 
 const entregaSchema = z.object({
@@ -307,23 +320,12 @@ export async function abrirFechamentoEntrega(
 export async function marcarFechamentoEntregaPago(
   obraId: string,
   fechamentoEntregaId: string,
-  formData: FormData
-) {
+  comprovantePath: string | null
+): Promise<FechamentoFormState> {
   await requireRole("engenheiro");
   const supabase = await createClient();
 
-  const comprovante = formData.get("comprovante") as File | null;
-  let comprovantePath: string | null = null;
-
-  if (comprovante && comprovante.size > 0) {
-    const path = `${obraId}/entrega-${fechamentoEntregaId}/${Date.now()}-${sanitizeFilename(comprovante.name)}`;
-    const { error: uploadError } = await supabase.storage
-      .from("comprovantes-fechamento")
-      .upload(path, comprovante);
-    if (!uploadError) comprovantePath = path;
-  }
-
-  await supabase
+  const { error } = await supabase
     .from("fechamentos_entrega")
     .update({
       status: "pago",
@@ -332,5 +334,8 @@ export async function marcarFechamentoEntregaPago(
     })
     .eq("id", fechamentoEntregaId);
 
+  if (error) return { error: "Não foi possível marcar a entrega como paga." };
+
   revalidatePath(`/obras/${obraId}/fechamentos`);
+  return { error: null, success: true };
 }

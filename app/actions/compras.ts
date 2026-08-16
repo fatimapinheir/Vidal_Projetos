@@ -6,7 +6,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { getProfile } from "@/lib/auth/get-profile";
-import { sanitizeFilename } from "@/lib/sanitize-filename";
 
 const parcelaSchema = z.object({
   valor: z.coerce.number().positive("Valor da parcela deve ser positivo."),
@@ -186,13 +185,11 @@ export async function createCompra(
     return { error: "Não foi possível criar a ordem de compra." };
   }
 
-  const anexo = formData.get("anexo_cotacao") as File | null;
-  if (anexo && anexo.size > 0) {
-    const path = `${obraId}/${compra.id}/${Date.now()}-${sanitizeFilename(anexo.name)}`;
-    const { error: uploadError } = await supabase.storage.from("cotacoes").upload(path, anexo);
-    if (!uploadError) {
-      await supabase.from("compras").update({ anexo_cotacao_path: path }).eq("id", compra.id);
-    }
+  // O navegador já enviou o anexo ao Storage e manda só o caminho: arquivo
+  // pela Server Action estoura o limite de payload em produção.
+  const anexoPath = (formData.get("anexo_cotacao_path") as string) || null;
+  if (anexoPath) {
+    await supabase.from("compras").update({ anexo_cotacao_path: anexoPath }).eq("id", compra.id);
   }
 
   const { error: itensError } = await supabase.from("compra_itens").insert(
@@ -306,29 +303,22 @@ export async function recusarCompraAction(compraId: string, formData: FormData) 
   if (error) throw new Error("Não foi possível recusar a compra.");
 }
 
-export async function pagarParcelaAction(compraId: string, parcelaId: string, formData: FormData) {
+export async function pagarParcelaAction(
+  compraId: string,
+  parcelaId: string,
+  comprovantePath: string
+) {
   const profile = await getProfile();
   if (!profile) redirect("/login");
 
+  if (!comprovantePath) throw new Error("Anexe o comprovante de pagamento.");
+
   const supabase = await createClient();
-  const comprovante = formData.get("comprovante") as File | null;
-
-  if (!comprovante || comprovante.size === 0) {
-    throw new Error("Anexe o comprovante de pagamento.");
-  }
-
   const obraId = await resolveObraIdForCompra(compraId);
-  const path = `${obraId}/${compraId}/${parcelaId}-${Date.now()}-${sanitizeFilename(comprovante.name)}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from("comprovantes-pagamento")
-    .upload(path, comprovante);
-
-  if (uploadError) throw new Error("Não foi possível enviar o comprovante.");
 
   const { error } = await supabase.rpc("pagar_parcela", {
     p_parcela_id: parcelaId,
-    p_comprovante_path: path,
+    p_comprovante_path: comprovantePath,
   });
 
   if (obraId) {
@@ -340,14 +330,36 @@ export async function pagarParcelaAction(compraId: string, parcelaId: string, fo
   if (error) throw new Error("Não foi possível marcar a parcela como paga.");
 }
 
-/** Aprova e paga em sequência — usado no botão "Pagar agora" de compras com 1 parcela. */
-export async function pagarCompraAgoraAction(compraId: string, parcelaId: string, formData: FormData) {
+/**
+ * "Pagar agora" (compra de parcela única): aprova e paga numa transação só.
+ *
+ * Antes eram duas chamadas em sequência. Falhando a segunda, a compra ficava
+ * aprovada e o cliente não conseguia mais recusá-la — recusar_compra exige
+ * status 'cotada'. O RPC faz as duas mudanças juntas ou nenhuma.
+ */
+export async function pagarCompraAgoraAction(
+  compraId: string,
+  parcelaId: string,
+  comprovantePath: string
+) {
   const profile = await getProfile();
   if (!profile) redirect("/login");
 
-  const supabase = await createClient();
-  const { error: approveError } = await supabase.rpc("aprovar_compra", { p_compra_id: compraId });
-  if (approveError) throw new Error("Não foi possível aprovar a compra.");
+  if (!comprovantePath) throw new Error("Anexe o comprovante de pagamento.");
 
-  await pagarParcelaAction(compraId, parcelaId, formData);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("aprovar_e_pagar_parcela", {
+    p_compra_id: compraId,
+    p_parcela_id: parcelaId,
+    p_comprovante_path: comprovantePath,
+  });
+
+  const obraId = await resolveObraIdForCompra(compraId);
+  if (obraId) {
+    const base = profile.role === "engenheiro" ? `/obras/${obraId}` : `/portal/obras/${obraId}`;
+    revalidatePath(`${base}/compras`);
+    revalidatePath(`${base}/compras/${compraId}`);
+  }
+
+  if (error) throw new Error("Não foi possível aprovar e pagar a ordem de compra.");
 }

@@ -16,6 +16,7 @@ import {
 } from "@/app/actions/fechamentos";
 import { formatDateBR } from "@/lib/format-date";
 import { AbrirFechamentoDialog } from "./abrir-fechamento-dialog";
+import { MarcarPagoForm } from "./marcar-pago-form";
 import { AbrirFechamentoEquipeDialog } from "./abrir-fechamento-equipe-dialog";
 import { AbrirFechamentoEntregaDialog } from "./abrir-fechamento-entrega-dialog";
 
@@ -160,17 +161,7 @@ export default async function FechamentosObraPage({
                     </TableCell>
                     <TableCell className="text-right">
                       {f.status === "aberto" && (
-                        <form action={marcarPago} className="flex items-center justify-end gap-2">
-                          <input
-                            type="file"
-                            name="comprovante"
-                            accept="image/*,application/pdf"
-                            className="w-40 text-xs"
-                          />
-                          <Button type="submit" size="sm" variant="outline">
-                            Marcar pago
-                          </Button>
-                        </form>
+                        <MarcarPagoForm prefixo={`${obraId}/${f.id}`} acao={marcarPago} />
                       )}
                     </TableCell>
                   </TableRow>
@@ -254,17 +245,7 @@ export default async function FechamentosObraPage({
                   </Table>
                 </div>
                 {status === "aberto" && (
-                  <form action={marcarPago} className="flex items-center justify-end gap-2">
-                    <input
-                      type="file"
-                      name="comprovante"
-                      accept="image/*,application/pdf"
-                      className="w-40 text-xs"
-                    />
-                    <Button type="submit" size="sm" variant="outline">
-                      Marcar equipe como paga
-                    </Button>
-                  </form>
+                  <MarcarPagoForm prefixo={`${obraId}/equipe-${g.equipeId}`} acao={marcarPago} />
                 )}
               </div>
             );
@@ -326,17 +307,7 @@ export default async function FechamentosObraPage({
                     </TableCell>
                     <TableCell className="text-right">
                       {f.status === "aberto" && (
-                        <form action={marcarPago} className="flex items-center justify-end gap-2">
-                          <input
-                            type="file"
-                            name="comprovante"
-                            accept="image/*,application/pdf"
-                            className="w-40 text-xs"
-                          />
-                          <Button type="submit" size="sm" variant="outline">
-                            Marcar pago
-                          </Button>
-                        </form>
+                        <MarcarPagoForm prefixo={`${obraId}/entrega-${f.id}`} acao={marcarPago} />
                       )}
                     </TableCell>
                   </TableRow>

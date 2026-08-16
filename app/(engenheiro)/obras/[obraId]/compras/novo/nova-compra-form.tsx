@@ -25,6 +25,7 @@ import {
 import { createCompra, type CompraFormState } from "@/app/actions/compras";
 import { ItemCompraPicker, type ItemCompraLocal } from "@/components/compras/item-compra-picker";
 import { Trash2 } from "lucide-react";
+import { enviarArquivoParaStorage } from "@/lib/storage/upload-direto";
 
 const initialState: CompraFormState = { error: null };
 
@@ -81,6 +82,32 @@ export function NovaCompraForm({
 }) {
   const action = createCompra.bind(null, obraId);
   const [state, formAction, pending] = useActionState(action, initialState);
+  const [anexo, setAnexo] = useState<File | null>(null);
+  const [erroAnexo, setErroAnexo] = useState<string | null>(null);
+  const [enviandoAnexo, setEnviandoAnexo] = useState(false);
+
+  /**
+   * O anexo sobe direto ao Storage antes da ação e o formulário leva só o
+   * caminho: arquivo pela Server Action estoura o limite de payload em
+   * produção. Antes, um erro de upload era descartado em silêncio e a ordem
+   * de compra nascia sem o anexo que o usuário achava ter enviado.
+   */
+  async function handleSubmit(formData: FormData) {
+    setErroAnexo(null);
+
+    if (anexo) {
+      setEnviandoAnexo(true);
+      const envio = await enviarArquivoParaStorage("cotacoes", obraId, anexo);
+      setEnviandoAnexo(false);
+      if (envio.path === null) {
+        setErroAnexo(envio.error);
+        return;
+      }
+      formData.set("anexo_cotacao_path", envio.path);
+    }
+
+    formAction(formData);
+  }
   const [rows, setRows] = useState([{ id: nextRowId++ }]);
   const [valoresParcelas, setValoresParcelas] = useState<Record<number, string>>({});
   const [parcelasEditadas, setParcelasEditadas] = useState<Set<number>>(new Set());
@@ -125,7 +152,7 @@ export function NovaCompraForm({
   }
 
   return (
-    <form action={formAction} encType="multipart/form-data">
+    <form action={handleSubmit} encType="multipart/form-data">
       <input type="hidden" name="itens" value={JSON.stringify(itens)} readOnly />
       <FieldGroup>
         <Field>
@@ -180,7 +207,13 @@ export function NovaCompraForm({
 
         <Field>
           <FieldLabel htmlFor="anexo_cotacao">Anexo da cotação (opcional)</FieldLabel>
-          <input id="anexo_cotacao" name="anexo_cotacao" type="file" className="text-sm" />
+          <input
+            id="anexo_cotacao"
+            type="file"
+            className="text-sm"
+            onChange={(e) => setAnexo(e.target.files?.[0] ?? null)}
+          />
+          {erroAnexo && <FieldError>{erroAnexo}</FieldError>}
         </Field>
 
         <Field orientation="horizontal">
@@ -360,8 +393,8 @@ export function NovaCompraForm({
 
         {state.error && <FieldError>{state.error}</FieldError>}
 
-        <Button type="submit" disabled={pending || !itens.length}>
-          {pending
+        <Button type="submit" disabled={pending || enviandoAnexo || !itens.length}>
+          {pending || enviandoAnexo
             ? "Salvando..."
             : `Registrar ordem de compra (${totalParcelas} parcela${totalParcelas > 1 ? "s" : ""})`}
         </Button>

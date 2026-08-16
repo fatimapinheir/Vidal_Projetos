@@ -35,3 +35,17 @@ export async function enviarArquivoParaStorage(
 
   return { path, error: null };
 }
+
+/**
+ * Remove do Storage arquivos que já subiram mas cuja operação não se completou.
+ *
+ * Sem isso, todo caminho de erro depois do upload deixa objeto órfão no bucket:
+ * ninguém o referencia, ele nunca aparece na tela e continua ocupando espaço
+ * pago. É best-effort de propósito — se a remoção falhar, o erro original é o
+ * que interessa ao usuário.
+ */
+export async function removerArquivosDoStorage(bucket: string, paths: string[]) {
+  if (!paths.length) return;
+  const supabase = createClient();
+  await supabase.storage.from(bucket).remove(paths);
+}

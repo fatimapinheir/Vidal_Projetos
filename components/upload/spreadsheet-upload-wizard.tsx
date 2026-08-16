@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Field, FieldLabel, FieldGroup } from "@/components/ui/field";
 import { parseNumeroBR } from "@/lib/parse-numero-br";
-import { enviarArquivoParaStorage } from "@/lib/storage/upload-direto";
+import { enviarArquivoParaStorage, removerArquivosDoStorage } from "@/lib/storage/upload-direto";
 
 export type CampoMapeavel = "codigo_sinapi" | "descricao" | "unidade" | "quantidade" | "preco_unitario";
 
@@ -168,7 +168,13 @@ export function SpreadsheetUploadWizard({
         arquivoPath: envio.path,
         mesReferencia: mostrarMesReferencia ? `${mesReferencia}-01` : undefined,
       });
-      if (result?.error) setError(result.error);
+      if (result?.error) {
+        // A ação recusou (mês já ativo, versão não é rascunho...). O arquivo já
+        // está no bucket e nada aponta para ele — desfaz, senão cada tentativa
+        // deixa mais uma cópia da planilha ocupando espaço.
+        await removerArquivosDoStorage(bucket, [envio.path]);
+        setError(result.error);
+      }
     });
   }
 

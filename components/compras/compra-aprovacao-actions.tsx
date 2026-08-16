@@ -17,11 +17,14 @@ import {
   recusarCompraAction,
   pagarCompraAgoraAction,
 } from "@/app/actions/compras";
+import { enviarArquivoParaStorage, removerArquivosDoStorage } from "@/lib/storage/upload-direto";
 
 export function CompraAprovacaoActions({
+  obraId,
   compraId,
   parcelaUnicaId,
 }: {
+  obraId: string;
   compraId: string;
   parcelaUnicaId?: string;
 }) {
@@ -54,12 +57,32 @@ export function CompraAprovacaoActions({
 
   function handlePagarAgora(formData: FormData) {
     if (!parcelaUnicaId) return;
+
+    const comprovante = formData.get("comprovante");
+    if (!(comprovante instanceof File) || comprovante.size === 0) {
+      toast.error("Anexe o comprovante de pagamento.");
+      return;
+    }
+
     startTransition(async () => {
+      // O comprovante sobe antes da ação: assim o único passo que resta é o
+      // RPC, que aprova e paga junto ou não faz nada.
+      const envio = await enviarArquivoParaStorage(
+        "comprovantes-pagamento",
+        `${obraId}/${compraId}`,
+        comprovante
+      );
+      if (envio.path === null) {
+        toast.error(envio.error);
+        return;
+      }
+
       try {
-        await pagarCompraAgoraAction(compraId, parcelaUnicaId, formData);
+        await pagarCompraAgoraAction(compraId, parcelaUnicaId, envio.path);
         toast.success("Ordem de compra aprovada e paga.");
         setPagarOpen(false);
       } catch (err) {
+        await removerArquivosDoStorage("comprovantes-pagamento", [envio.path]);
         toast.error(err instanceof Error ? err.message : "Erro ao pagar.");
       }
     });

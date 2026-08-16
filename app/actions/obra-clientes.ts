@@ -68,11 +68,30 @@ export async function vincularCliente(
 
     clienteId = created.user.id;
 
+    // A origem vem de configuração, não do header `Host` — que quem faz a
+    // requisição controla e poderia apontar o link do convite (com token) para
+    // outro domínio. O header só serve de rede de segurança em
+    // desenvolvimento, onde NEXT_PUBLIC_SITE_URL costuma não estar definida.
     const headersList = await headers();
-    const origin = `${headersList.get("x-forwarded-proto") ?? "http"}://${headersList.get("host")}`;
-    await admin.auth.resetPasswordForEmail(email, {
+    const origin =
+      process.env.NEXT_PUBLIC_SITE_URL ??
+      `${headersList.get("x-forwarded-proto") ?? "http"}://${headersList.get("host")}`;
+
+    const { error: conviteError } = await admin.auth.resetPasswordForEmail(email, {
       redirectTo: `${origin}/atualizar-senha`,
     });
+
+    // O envio pode falhar por limite de e-mails do provedor. A conta já existe
+    // e será vinculada — mas dizer "sucesso" faria o engenheiro acreditar que o
+    // cliente foi convidado, e ninguém descobriria até ele reclamar.
+    if (conviteError) {
+      await supabase.from("obra_clientes").insert({ obra_id: obraId, cliente_id: clienteId });
+      revalidatePath(`/obras/${obraId}/clientes`);
+      return {
+        error:
+          "Cliente vinculado, mas o e-mail de convite não foi enviado (limite do provedor?). Reenvie a definição de senha pelo painel do Supabase.",
+      };
+    }
   }
 
   const { error: linkError } = await supabase
