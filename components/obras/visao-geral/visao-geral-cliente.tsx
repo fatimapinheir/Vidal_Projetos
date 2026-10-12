@@ -43,6 +43,24 @@ import {
 import type { DiarioCondicao } from "@/lib/types/database.types";
 import { TrilhaEtapas } from "./trilha-etapas";
 
+/**
+ * O traje dos títulos desta tela.
+ *
+ * Negrito sozinho não estava destacando: no corpo de 16px, a diferença entre
+ * 600 e 400 some quando o título está cercado de cartões e números. Caixa
+ * alta resolve pela forma, não pelo peso — a palavra muda de silhueta e o
+ * olho encontra o começo de cada bloco antes de ler.
+ *
+ * Caixa alta por CSS e não no texto: o rótulo no DOM continua "Financeiro", e
+ * é assim que o leitor de tela anuncia. Texto gravado em maiúsculas seria
+ * lido letra por letra, como sigla.
+ *
+ * `tracking-wide` acompanha porque maiúscula sem respiro entre letras fecha a
+ * palavra, e o tamanho cai um degrau porque caixa alta ocupa mais largura
+ * para a mesma altura de letra.
+ */
+const TITULO = "text-[15px] font-bold tracking-wide uppercase";
+
 function moeda(valor: number) {
   return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -253,7 +271,7 @@ function CartaoRdo({
           <FileText className="size-5" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-heading text-lg leading-tight font-semibold">RDO</p>
+          <p className="font-heading text-lg leading-tight font-bold tracking-wide">RDO</p>
           <p className="text-[13px] text-white/65">Registro Diário de Obra</p>
         </div>
         {/*
@@ -704,7 +722,7 @@ export function VisaoGeralCliente({
                 <LineChart className="size-5 text-primary-texto" aria-hidden />
               </span>
               <div>
-                <CardTitle className="text-base">Obra executada x valores pagos</CardTitle>
+                <CardTitle className={TITULO}>Obra executada x valores pagos</CardTitle>
                 <p className="text-[13px] text-muted-foreground">
                   Acompanhe se o avanço da obra está à frente dos gastos.
                 </p>
@@ -746,7 +764,7 @@ export function VisaoGeralCliente({
               <Wallet className="size-5 text-primary-texto" aria-hidden />
             </span>
             <div>
-              <CardTitle className="text-base">Financeiro</CardTitle>
+              <CardTitle className={TITULO}>Financeiro</CardTitle>
               <p className="text-[13px] text-muted-foreground">
                 Confira as contas e o andamento do seu investimento.
               </p>
@@ -755,10 +773,10 @@ export function VisaoGeralCliente({
           <CardAction>
             <Link
               href={`${base}/compras`}
-              className="flex items-center gap-1 text-sm text-primary-texto underline-offset-4 hover:underline"
+              className="flex items-center gap-1 whitespace-nowrap text-xs text-primary-texto underline-offset-4 hover:underline sm:text-sm"
             >
               Ver todos
-              <ArrowRight className="size-3.5" aria-hidden />
+              <ArrowRight className="size-3.5 shrink-0" aria-hidden />
             </Link>
           </CardAction>
         </CardHeader>
@@ -777,19 +795,28 @@ export function VisaoGeralCliente({
                 <CalendarDays className="size-5 text-primary-texto" aria-hidden />
               </span>
               <div>
-                <CardTitle className="text-base">Cronograma</CardTitle>
+                <CardTitle className={TITULO}>Cronograma</CardTitle>
                 <p className="text-[13px] text-muted-foreground">
                   Veja o andamento das etapas da sua obra.
                 </p>
               </div>
             </div>
-            <CardAction>
+            {/*
+              No celular o link desce para a própria linha, encostado à direita.
+              
+              O cabeçalho do cartão é uma grade de duas colunas, e "Ver
+              cronograma completo" é longo: ao lado do título ele comia a
+              largura da primeira coluna, que então quebrava "CRONOGRAMA" e a
+              descrição em quatro linhas. Numa linha só abaixo, os dois cabem
+              inteiros. A partir de `sm` ele volta para o canto do cabeçalho.
+            */}
+            <CardAction className="col-start-1 row-start-3 justify-self-end sm:col-start-2 sm:row-span-2 sm:row-start-1">
               <Link
                 href={`${base}/cronograma`}
-                className="flex items-center gap-1 text-sm text-primary-texto underline-offset-4 hover:underline"
+                className="flex items-center gap-1 whitespace-nowrap text-xs text-primary-texto underline-offset-4 hover:underline sm:text-sm"
               >
                 Ver cronograma completo
-                <ArrowRight className="size-3.5" aria-hidden />
+                <ArrowRight className="size-3.5 shrink-0" aria-hidden />
               </Link>
             </CardAction>
           </CardHeader>
@@ -802,7 +829,7 @@ export function VisaoGeralCliente({
       {!!d.entregasPendentes.length && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className={cn("flex items-center gap-2", TITULO)}>
               <Truck className="size-4 text-muted-foreground" aria-hidden />
               Entregas previstas
             </CardTitle>
@@ -846,10 +873,12 @@ function PainelContas({ dados, base }: { dados: DadosVisaoGeral; base: string })
   return (
     <div className="flex flex-col gap-3 rounded-xl border p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="flex items-center gap-2 text-sm font-semibold">
+        <p className={cn("flex flex-wrap items-center gap-x-2 text-sm", TITULO)}>
           <CalendarDays className="size-4 text-primary-texto" aria-hidden />
           Contas a pagar
-          <span className="font-normal text-muted-foreground">(próximos 30 dias)</span>
+          <span className="text-xs font-normal tracking-normal text-muted-foreground normal-case">
+            (próximos 30 dias)
+          </span>
         </p>
         {!!contas.length && <Badge variant="outline">{contas.length} em aberto</Badge>}
       </div>
@@ -899,7 +928,7 @@ function PainelOrcamento({ dados }: { dados: DadosVisaoGeral }) {
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border p-4">
-      <p className="flex items-center gap-2 text-sm font-semibold">
+      <p className={cn("flex items-center gap-2 text-sm", TITULO)}>
         <PiggyBank className="size-4 text-primary-texto" aria-hidden />
         Orçamento x Gasto
       </p>
@@ -983,7 +1012,7 @@ function PainelCategorias({
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border p-4">
-      <p className="flex items-center gap-2 text-sm font-semibold">
+      <p className={cn("flex items-center gap-2 text-sm", TITULO)}>
         <Wallet className="size-4 text-primary-texto" aria-hidden />
         Gastos por categoria
       </p>
