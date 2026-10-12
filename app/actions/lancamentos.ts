@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireAuth } from "@/lib/auth/require-role";
+import { requireAuth, requireRole } from "@/lib/auth/require-role";
 import { parseNumeroBR } from "@/lib/parse-numero-br";
 import { lerAnexosDoForm, salvarAnexosDaCompra } from "@/lib/compras/anexos";
 import { etapaOrcamentoValida } from "@/lib/compras/etapa-orcamento";
@@ -237,5 +237,175 @@ export async function criarLancamento(
   revalidatePath(`/portal/obras/${obraId}/compras`);
   revalidatePath(`/portal/obras/${obraId}`);
   revalidatePath(`/obras/${obraId}`);
+  return { error: null, sucesso: true };
+}
+
+/** Os mesmos campos da criação, menos o comprovante — ele é gerido no detalhe. */
+const schemaEdicao = schema.omit({ comprovante_path: true });
+
+/**
+ * Edita um lançamento já registrado.
+ *
+ * Existe porque um lançamento nascia congelado: errar o valor, a data ou o
+ * fornecedor obrigava a excluir e digitar tudo de novo, destruindo o registro
+ * financeiro por causa de um dígito. Corrigir é mais barato e mais honesto que
+ * recriar.
+ *
+ * Só o engenheiro edita. O cliente registra o lançamento dele e pode anexar e
+ * excluir o próprio — mas mudar valor depois de lançado é outra conversa, e
+ * daria a ele um poder que a RLS hoje nega de propósito (ver 0049: nem update
+ * de `compras` ele tem).
+ *
+ * Os itens são apagados e regravados em vez de casados um a um: a lista chega
+ * inteira do formulário, sem identidade estável, e tentar adivinhar quem é
+ * quem erraria em silêncio. Quem recalcula o total continua sendo o gatilho.
+ */
+export async function atualizarLancamento(
+  compraId: string,
+  _prevState: LancamentoState,
+  formData: FormData
+): Promise<LancamentoState> {
+  await requireRole("engenheiro");
+
+  const parsed = schemaEdicao.safeParse({
+    fornecedor_id: formData.get("fornecedor_id"),
+    descricao: formData.get("descricao"),
+    categoria_id: formData.get("categoria_id") || undefined,
+    tipo_item: formData.get("tipo_item") || undefined,
+    nota_fiscal_numero: formData.get("nota_fiscal_numero") || undefined,
+    nota_fiscal_emissao: formData.get("nota_fiscal_emissao") || undefined,
+    forma_pagamento: formData.get("forma_pagamento"),
+    data_pagamento: formData.get("data_pagamento"),
+    valor: parseNumeroBR(String(formData.get("valor") ?? "")),
+    data_entrega_prevista: formData.get("data_entrega_prevista") || undefined,
+    data_entrega_real: formData.get("data_entrega_real") || undefined,
+    orcamento_etapa: formData.get("orcamento_etapa") || undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const supabase = await createClient();
+
+  const { data: compra } = await supabase
+    .from("compras")
+    .select("id, obra_id, eh_lancamento, recebimento_confirmado_por")
+    .eq("id", compraId)
+    .maybeSingle();
+
+  if (!compra) return { error: "Lançamento não encontrado." };
+  if (!compra.eh_lancamento) {
+    return { error: "Este registro é uma ordem de compra, não um lançamento." };
+  }
+
+  const etapa = await etapaOrcamentoValida(supabase, compra.obra_id, parsed.data.orcamento_etapa);
+  if (etapa.error) return { error: etapa.error };
+
+  let itens: z.infer<typeof itemSchema>[] = [];
+  const itensRaw = formData.get("itens");
+  if (itensRaw) {
+    try {
+      itens = z.array(itemSchema).parse(JSON.parse(String(itensRaw)));
+    } catch {
+      return { error: "Não foi possível ler os itens do lançamento." };
+    }
+  }
+
+  const { error: erroCompra } = await supabase
+    .from("compras")
+    .update({
+      fornecedor_id: parsed.data.fornecedor_id,
+      descricao: parsed.data.descricao,
+      forma_pagamento: parsed.data.forma_pagamento,
+      categoria_id: parsed.data.categoria_id ?? null,
+      tipo_item: parsed.data.tipo_item ?? null,
+      orcamento_etapa: etapa.nome,
+      nota_fiscal_numero: parsed.data.nota_fiscal_numero ?? null,
+      nota_fiscal_emissao: parsed.data.nota_fiscal_emissao ?? null,
+      data_cotacao: parsed.data.data_pagamento,
+      data_entrega_prevista: parsed.data.data_entrega_prevista ?? null,
+      data_entrega_real: parsed.data.data_entrega_real ?? null,
+      // Quem confirmou só faz sentido enquanto há entrega confirmada.
+      recebimento_confirmado_por: parsed.data.data_entrega_real
+        ? compra.recebimento_confirmado_por
+        : null,
+      recebimento_confirmado_em: parsed.data.data_entrega_real ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", compraId);
+
+  if (erroCompra) return { error: "Não foi possível salvar as alterações." };
+
+  const { error: erroApagar } = await supabase
+    .from("compra_itens")
+    .delete()
+    .eq("compra_id", compraId);
+  if (erroApagar) return { error: "Não foi possível atualizar os itens." };
+
+  let valorFinal = parsed.data.valor;
+
+  if (itens.length) {
+    const { error: erroItens } = await supabase.from("compra_itens").insert(
+      itens.map((item, i) => ({
+        compra_id: compraId,
+        orcamento_item_id: item.orcamento_item_id ?? null,
+        descricao: item.descricao,
+        unidade: item.unidade,
+        quantidade: item.quantidade,
+        preco_unitario: item.preco_unitario,
+        desconto_tipo: item.desconto_tipo ?? null,
+        desconto_valor: item.desconto_valor ?? null,
+        ordem: i + 1,
+      }))
+    );
+    if (erroItens) return { error: "Não foi possível salvar os itens do lançamento." };
+
+    const { data: atualizada } = await supabase
+      .from("compras")
+      .select("valor_total")
+      .eq("id", compraId)
+      .single();
+    if (atualizada) valorFinal = atualizada.valor_total;
+  } else {
+    /*
+     * Sem itens, o gatilho acabou de zerar o total — ele soma o que existe, e
+     * não existe nada. O valor digitado volta a ser a verdade, como na criação.
+     *
+     * O desconto da nota sai junto, e em DUAS etapas, nesta ordem. Um desconto
+     * sem itens não desconta de nada: ficaria no registro dizendo que houve
+     * abatimento sobre uma soma que não existe. E limpá-lo dispara
+     * `trg_compras_desconto_recalcula`, que recalcula o total a partir dos
+     * itens (nenhum) e o zera — por isso o valor é gravado depois, não junto.
+     */
+    await supabase
+      .from("compras")
+      .update({ desconto_tipo: null, desconto_valor: 0 })
+      .eq("id", compraId);
+    await supabase.from("compras").update({ valor_total: valorFinal }).eq("id", compraId);
+  }
+
+  // A parcela espelha o lançamento: valor e data têm de andar junto, senão a
+  // lista de pagamentos mostra um número que a tela de detalhe desmente.
+  const { error: erroParcela } = await supabase
+    .from("compra_parcelas")
+    .update({
+      valor: valorFinal,
+      data_vencimento: parsed.data.data_pagamento,
+      data_pagamento: parsed.data.data_pagamento,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("compra_id", compraId);
+
+  if (erroParcela) {
+    return { error: "Alterações salvas, mas houve erro ao atualizar o pagamento." };
+  }
+
+  revalidatePath(`/obras/${compra.obra_id}/compras`);
+  revalidatePath(`/obras/${compra.obra_id}/compras/${compraId}`);
+  revalidatePath(`/obras/${compra.obra_id}`);
+  revalidatePath(`/portal/obras/${compra.obra_id}/compras`);
+  revalidatePath(`/portal/obras/${compra.obra_id}/compras/${compraId}`);
+  revalidatePath(`/portal/obras/${compra.obra_id}`);
   return { error: null, sucesso: true };
 }

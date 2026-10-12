@@ -25,7 +25,11 @@ import { Trash2 } from "lucide-react";
 import { enviarArquivoParaStorage, removerArquivosDoStorage } from "@/lib/storage/upload-direto";
 import { SeletorAnexos } from "./seletor-anexos";
 import { MAX_ANEXOS_COMPRA } from "@/lib/compras/anexos";
-import { criarLancamento, type LancamentoState } from "@/app/actions/lancamentos";
+import {
+  criarLancamento,
+  atualizarLancamento,
+  type LancamentoState,
+} from "@/app/actions/lancamentos";
 import { hojeNoFuso } from "@/lib/fuso";
 
 const FORMAS = [
@@ -63,6 +67,24 @@ function totalDoItem(item: ItemCompraLocal) {
 
 const moeda = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+/** O lançamento como ele está gravado, para o formulário abrir preenchido. */
+export type LancamentoInicial = {
+  id: string;
+  fornecedorId: string;
+  categoriaId: string;
+  descricao: string;
+  tipoItem: string;
+  orcamentoEtapa: string;
+  formaPagamento: string;
+  valor: number;
+  dataPagamento: string;
+  notaNumero: string;
+  notaEmissao: string;
+  entregaPrevista: string;
+  entregaReal: string;
+  itens: ItemCompraLocal[];
+};
+
 export function LancamentoForm({
   obraId,
   fornecedores,
@@ -70,6 +92,7 @@ export function LancamentoForm({
   voltarPara,
   etapasOrcamento = [],
   permiteCadastrarFornecedor = true,
+  inicial,
 }: {
   obraId: string;
   fornecedores: { id: string; nome: string }[];
@@ -83,15 +106,29 @@ export function LancamentoForm({
   /** Para onde ir depois de salvar. */
   voltarPara: string;
   permiteCadastrarFornecedor?: boolean;
+  /**
+   * Presente = edição de um lançamento existente.
+   *
+   * O mesmo formulário serve aos dois casos de propósito: são os mesmos
+   * campos, e duplicá-lo garantiria que um dia só um dos dois ganhasse um
+   * campo novo. A diferença toda é a ação chamada e os arquivos — na edição
+   * eles são geridos na tela de detalhe, onde dá para remover também.
+   */
+  inicial?: LancamentoInicial;
 }) {
-  const acao = criarLancamento.bind(null, obraId);
+  const editando = !!inicial;
+  const acao = inicial
+    ? atualizarLancamento.bind(null, inicial.id)
+    : criarLancamento.bind(null, obraId);
   const [estado, enviar, pendente] = useActionState(acao, estadoInicial);
   const router = useRouter();
 
-  const [valor, setValor] = useState(0);
-  const [itens, setItens] = useState<(ItemCompraLocal & { localId: number })[]>([]);
+  const [valor, setValor] = useState(inicial?.valor ?? 0);
+  const [itens, setItens] = useState<(ItemCompraLocal & { localId: number })[]>(
+    () => (inicial?.itens ?? []).map((item) => ({ ...item, localId: proximoItemId++ }))
+  );
   const [comprovantes, setComprovantes] = useState<File[]>([]);
-  const [dataPagamento, setDataPagamento] = useState(hojeNoFuso());
+  const [dataPagamento, setDataPagamento] = useState(inicial?.dataPagamento ?? hojeNoFuso());
   const [erroArquivo, setErroArquivo] = useState<string | null>(null);
   const totalItens = itens.reduce((soma, item) => soma + totalDoItem(item), 0);
   const [enviandoArquivo, setEnviandoArquivo] = useState(false);
@@ -107,6 +144,13 @@ export function LancamentoForm({
    */
   async function aoEnviar(formData: FormData) {
     setErroArquivo(null);
+
+    if (editando) {
+      formData.set("itens", JSON.stringify(itens));
+      if (itens.length) formData.set("valor", String(totalItens));
+      enviar(formData);
+      return;
+    }
 
     if (!comprovantes.length) {
       setErroArquivo("Anexe o comprovante do pagamento.");
@@ -145,9 +189,9 @@ export function LancamentoForm({
 
   useEffect(() => {
     if (!estado.sucesso) return;
-    toast.success("Lançamento registrado.");
+    toast.success(editando ? "Lançamento atualizado." : "Lançamento registrado.");
     router.push(voltarPara);
-  }, [estado.sucesso, router, voltarPara]);
+  }, [estado.sucesso, editando, router, voltarPara]);
 
   return (
     <form action={aoEnviar}>
@@ -161,13 +205,14 @@ export function LancamentoForm({
             <FieldLabel htmlFor="fornecedor_id">Fornecedor / favorecido</FieldLabel>
             <CampoFornecedor
               fornecedores={fornecedores}
+              valorInicial={inicial?.fornecedorId}
               permiteCadastrar={permiteCadastrarFornecedor}
             />
           </Field>
 
           <Field>
             <FieldLabel htmlFor="categoria_id">Categoria</FieldLabel>
-            <CampoCategoria categorias={categorias} />
+            <CampoCategoria categorias={categorias} valorInicial={inicial?.categoriaId} />
             <FieldDescription>
               Se faltar alguma, digite o nome e crie na hora.
             </FieldDescription>
@@ -175,7 +220,13 @@ export function LancamentoForm({
 
           <Field className="sm:col-span-2">
             <FieldLabel htmlFor="descricao">Descrição</FieldLabel>
-            <Textarea id="descricao" name="descricao" rows={2} required />
+            <Textarea
+              id="descricao"
+              name="descricao"
+              rows={2}
+              defaultValue={inicial?.descricao}
+              required
+            />
           </Field>
 
           {/* Mesmo campo da ordem de compra, pela mesma razão: tipo e
@@ -186,7 +237,7 @@ export function LancamentoForm({
             <select
               id="tipo_item"
               name="tipo_item"
-              defaultValue=""
+              defaultValue={inicial?.tipoItem ?? ""}
               className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
             >
               <option value="">Não classificar</option>
@@ -205,7 +256,7 @@ export function LancamentoForm({
               <select
                 id="orcamento_etapa"
                 name="orcamento_etapa"
-                defaultValue=""
+                defaultValue={inicial?.orcamentoEtapa ?? ""}
                 className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
               >
                 <option value="">Não vincular</option>
@@ -226,6 +277,7 @@ export function LancamentoForm({
             <select
               id="forma_pagamento"
               name="forma_pagamento"
+              defaultValue={inicial?.formaPagamento}
               required
               className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
             >
@@ -272,9 +324,18 @@ export function LancamentoForm({
               quinta precisa dela; quem lança um IPTU, não. A data do
               pagamento entra como sugestão porque pagar e levar na hora é o
               caso mais comum de um lançamento. */}
-          <CamposEntrega className="sm:col-span-2" dataInicial={dataPagamento} />
+          <CamposEntrega
+            className="sm:col-span-2"
+            dataInicial={dataPagamento}
+            entregueInicial={inicial?.entregaReal}
+            previstaInicial={inicial?.entregaPrevista}
+          />
 
-          <CamposNotaFiscal className="sm:col-span-2" />
+          <CamposNotaFiscal
+            className="sm:col-span-2"
+            numeroInicial={inicial?.notaNumero}
+            emissaoInicial={inicial?.notaEmissao}
+          />
         </div>
 
         {/*
@@ -340,21 +401,32 @@ export function LancamentoForm({
           />
         </div>
 
-        <FieldSeparator>Comprovante</FieldSeparator>
+        {/*
+          Na edição os arquivos não aparecem aqui.
+          
+          Eles são geridos na tela de detalhe, onde dá para REMOVER também —
+          e a remoção apaga o arquivo do Storage, operação que não cabe num
+          formulário que pode ser abandonado sem salvar.
+        */}
+        {!editando && (
+          <>
+            <FieldSeparator>Comprovante</FieldSeparator>
 
-        <Field>
-          <FieldLabel htmlFor="comprovante">Comprovante do pagamento</FieldLabel>
-          <SeletorAnexos
-            id="comprovante"
-            arquivos={comprovantes}
-            aoMudar={setComprovantes}
-          />
-          <FieldDescription>
-            Obrigatório: o lançamento entra no sistema como pagamento já feito. Até{" "}
-            {MAX_ANEXOS_COMPRA} arquivos — comprovante, nota, foto do recibo.
-          </FieldDescription>
-          {erroArquivo && <FieldError>{erroArquivo}</FieldError>}
-        </Field>
+            <Field>
+              <FieldLabel htmlFor="comprovante">Comprovante do pagamento</FieldLabel>
+              <SeletorAnexos
+                id="comprovante"
+                arquivos={comprovantes}
+                aoMudar={setComprovantes}
+              />
+              <FieldDescription>
+                Obrigatório: o lançamento entra no sistema como pagamento já feito. Até{" "}
+                {MAX_ANEXOS_COMPRA} arquivos — comprovante, nota, foto do recibo.
+              </FieldDescription>
+              {erroArquivo && <FieldError>{erroArquivo}</FieldError>}
+            </Field>
+          </>
+        )}
 
         {estado.error && <FieldError>{estado.error}</FieldError>}
 
@@ -363,11 +435,15 @@ export function LancamentoForm({
           disabled={
             pendente ||
             enviandoArquivo ||
-            !comprovantes.length ||
+            (!editando && !comprovantes.length) ||
             (itens.length ? totalItens : valor) <= 0
           }
         >
-          {pendente || enviandoArquivo ? "Salvando..." : "Registrar lançamento"}
+          {pendente || enviandoArquivo
+            ? "Salvando..."
+            : editando
+              ? "Salvar alterações"
+              : "Registrar lançamento"}
         </Button>
       </FieldGroup>
     </form>

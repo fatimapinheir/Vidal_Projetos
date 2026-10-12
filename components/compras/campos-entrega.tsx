@@ -27,15 +27,20 @@ import { cn } from "@/lib/utils";
  */
 export function CamposEntrega({
   dataInicial = "",
+  entregueInicial = "",
+  previstaInicial = "",
   className,
 }: {
   /** Data sugerida ao marcar "já recebi" — normalmente a do pagamento. */
   dataInicial?: string;
+  /** Edição: a entrega que já está gravada, se houver. */
+  entregueInicial?: string;
+  previstaInicial?: string;
   className?: string;
 }) {
-  const [recebido, setRecebido] = useState(false);
-  const [prevista, setPrevista] = useState("");
-  const [entregue, setEntregue] = useState("");
+  const [recebido, setRecebido] = useState(!!entregueInicial);
+  const [prevista, setPrevista] = useState(previstaInicial);
+  const [entregue, setEntregue] = useState(entregueInicial);
 
   function alternar(marcado: boolean) {
     setRecebido(marcado);

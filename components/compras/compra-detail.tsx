@@ -18,6 +18,10 @@ import { CompraAprovacaoActions } from "./compra-aprovacao-actions";
 import { EtapaOrcamentoSelect } from "./etapa-orcamento-select";
 import { formatDateBR as formatDate } from "@/lib/format-date";
 import { getProfile } from "@/lib/auth/get-profile";
+import { AnexosCompra } from "./anexos-compra";
+import Link from "next/link";
+import { Pencil } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -161,7 +165,25 @@ export async function CompraDetail({
             <CardTitle>{compra.descricao}</CardTitle>
             <p className="text-sm text-muted-foreground">{fornecedor?.nome}</p>
           </div>
-          <CompraStatusBadge status={compra.status} />
+          <div className="flex shrink-0 items-center gap-2">
+            {/* Editar só o lançamento, e só para o engenheiro. A ordem de
+                compra tem plano de parcelas, aprovação e pagamento no meio —
+                corrigir aquilo é outra tela. */}
+            {viewerRole === "engenheiro" && compra.eh_lancamento && (
+              <Button
+                nativeButton={false}
+                variant="outline"
+                size="sm"
+                render={
+                  <Link href={`/obras/${compra.obra_id}/compras/${compra.id}/editar`}>
+                    <Pencil className="size-4" />
+                    Editar
+                  </Link>
+                }
+              />
+            )}
+            <CompraStatusBadge status={compra.status} />
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 text-sm">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -189,30 +211,20 @@ export async function CompraDetail({
                 <p className="font-medium">{compra.orcamento_etapa ?? "—"}</p>
               )}
             </div>
-            <div className="min-w-0">
-              <p className="text-muted-foreground">Anexos</p>
-              {anexosComUrl.length ? (
-                <ul className="flex flex-col">
-                  {anexosComUrl.map((anexo) => (
-                    <li key={anexo.id} className="min-w-0 truncate" title={anexo.nome}>
-                      {anexo.url ? (
-                        <a
-                          href={anexo.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-medium text-primary-texto underline underline-offset-4"
-                        >
-                          {anexo.nome}
-                        </a>
-                      ) : (
-                        <span className="font-medium">{anexo.nome}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="font-medium">—</p>
-              )}
+            {/*
+              Os anexos saem da grade de cinco colunas e ganham a linha
+              inteira: com adicionar e remover, a célula estreita espremia o
+              nome do arquivo contra o botão.
+            */}
+            <div className="col-span-2 min-w-0 sm:col-span-3 lg:col-span-5">
+              <p className="mb-1 text-muted-foreground">Anexos</p>
+              <AnexosCompra
+                compraId={compra.id}
+                obraId={compra.obra_id}
+                bucket={compra.eh_lancamento ? "comprovantes-pagamento" : "cotacoes"}
+                anexos={anexosComUrl.map((a) => ({ id: a.id, nome: a.nome, url: a.url }))}
+                podeEditar={viewerRole === "engenheiro"}
+              />
             </div>
           </div>
 
