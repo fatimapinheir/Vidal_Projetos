@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell, type NavEntry } from "@/components/layout/app-shell";
 import { lerLateralRecolhida } from "@/lib/lateral.server";
+import { buscarLogoEmpresa } from "@/lib/obras/logo-empresa";
 
 /**
  * Seções da obra no portal do cliente.
@@ -35,6 +36,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const lateralRecolhida = await lerLateralRecolhida();
 
   const supabase = await createClient();
+  const logo = await buscarLogoEmpresa(supabase);
   const { count: quantasObras } = await supabase
     .from("obra_clientes")
     .select("obra_id", { count: "exact", head: true });
@@ -63,6 +65,8 @@ export default async function PortalLayout({ children }: { children: React.React
       userName={profile.nome}
       userLabel="Cliente"
       lateralRecolhida={lateralRecolhida}
+      logoEmpresaUrl={logo.url}
+      logoEmpresaNome={logo.nome}
     >
       {children}
     </AppShell>

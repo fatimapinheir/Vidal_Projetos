@@ -37,7 +37,25 @@ export function RdoDocumento({ dados }: { dados: DadosRdo }) {
       <article className="rdo">
         <header className="rdo-cabecalho">
           <div>
-            <p className="rdo-marca">ANKORA</p>
+            {/*
+              A marca do cabeçalho é a da CONSTRUTORA, não a do sistema: o RDO
+              é documento dela, entregue ao cliente dela.
+
+              `<img>` cru em vez de `next/image`: esta folha é impressa e salva
+              em PDF, e o componente do Next entrega a imagem por uma rota do
+              servidor — num PDF reaberto depois, ou numa página salva, essa
+              rota não responde mais. Aqui o endereço é o do arquivo, direto.
+
+              A logo enviada é clara porque o menu é escuro; este cabeçalho
+              também é (`#1b2a4a` em rdo.css), e a impressão força o fundo
+              (`print-color-adjust: exact`), então ela sai certa no papel.
+            */}
+            {dados.logoEmpresaUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={dados.logoEmpresaUrl} alt="" className="rdo-logo" />
+            ) : (
+              <p className="rdo-marca">ANKORA</p>
+            )}
             <p className="rdo-titulo">RELATÓRIO DIÁRIO DE OBRA</p>
           </div>
           <div className="rdo-data-selo">

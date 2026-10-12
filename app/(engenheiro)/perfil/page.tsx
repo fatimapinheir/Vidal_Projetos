@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { PerfilForm } from "./perfil-form";
 import { AssinaturaUpload } from "./assinatura-upload";
+import { LogoUpload } from "./logo-upload";
 
 export default async function PerfilPage() {
   const profile = await requireRole("engenheiro");
@@ -10,7 +11,7 @@ export default async function PerfilPage() {
 
   const { data: dados } = await supabase
     .from("profiles")
-    .select("nome, telefone, email, crea, assinatura_path")
+    .select("nome, telefone, email, crea, assinatura_path, logo_path")
     .eq("id", profile.id)
     .single();
 
@@ -22,6 +23,12 @@ export default async function PerfilPage() {
       .createSignedUrl(dados.assinatura_path, 60 * 10);
     assinaturaUrl = data?.signedUrl ?? null;
   }
+
+  // A logo, ao contrário da assinatura, mora em bucket público: é marca, não
+  // documento, e URL que expira só criaria link morto na tela do cliente.
+  const logoUrl = dados?.logo_path
+    ? supabase.storage.from("logos").getPublicUrl(dados.logo_path).data.publicUrl
+    : null;
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
@@ -45,6 +52,18 @@ export default async function PerfilPage() {
               email: dados?.email ?? "",
             }}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Logo da empresa</CardTitle>
+          <CardDescription>
+            A marca que aparece no topo do menu — na sua tela e na dos seus clientes no portal.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LogoUpload urlAtual={logoUrl} />
         </CardContent>
       </Card>
 

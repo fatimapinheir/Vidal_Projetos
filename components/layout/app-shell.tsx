@@ -9,6 +9,7 @@ import { MobileNav } from "./mobile-nav";
 import { NavEntries } from "./nav-entries";
 import { Trilha } from "./trilha";
 import { LateralColapsavel } from "./lateral-colapsavel";
+import { LogoEmpresa } from "@/components/marca/logo-empresa";
 
 export type NavItem = {
   label: string;
@@ -56,30 +57,23 @@ function Avatar({ nome, className }: { nome: string; className?: string }) {
 }
 
 /**
- * O pé da lateral: a frase da marca e a montanha.
+ * O pé da lateral: quem fez o sistema.
  *
- * Não é enfeite sobrando — é o que fecha a coluna. Sem ela a lista de links
- * termina no vazio e a lateral parece cortada; a referência resolve do mesmo
- * jeito. Fica abaixo de tudo e não compete com nada: é o único texto da tela
- * que ninguém precisa ler.
+ * Era a frase da marca da Ankora. Virou a assinatura dela porque o topo da
+ * coluna passou a ser da construtora — e as duas marcas no mesmo lugar
+ * disputariam. Em cima, de quem é a obra; embaixo, de quem é a ferramenta.
+ *
+ * Continua fechando a coluna: sem nada aqui a lista de links termina no vazio
+ * e a lateral parece cortada.
  */
 function PeDaMarca() {
   return (
-    // Some quando a lateral está recolhida: numa régua de 68px a frase não
-    // cabe, e cortá-la em quatro linhas estreitas seria pior que não tê-la.
-    <div className="flex flex-col gap-3 px-5 pt-5 pb-6 group-data-[recolhida]/lateral:hidden">
+    // Some quando a lateral está recolhida: numa régua de 68px a assinatura
+    // sairia menor que o legível.
+    <div className="flex flex-col gap-2.5 px-5 pt-5 pb-6 group-data-[recolhida]/lateral:hidden">
       <div className="h-px bg-sidebar-border" />
-      <p className="text-[13px] leading-snug text-sidebar-suave">
-        Grandes resultados
-        <br />
-        são construídos
-        <br />
-        com organização.
-      </p>
-      <svg viewBox="0 0 64 28" aria-hidden className="h-5 w-auto">
-        <path d="M0,28 L17,4 L27,18 L34,9 L52,28 Z" className="fill-marca-ambar" opacity="0.85" />
-        <path d="M30,28 L44,10 L64,28 Z" className="fill-marca-ambar" opacity="0.5" />
-      </svg>
+      <p className="text-[11px] tracking-wide text-sidebar-suave/70">desenvolvido com</p>
+      <Logo className="h-5 opacity-90" />
     </div>
   );
 }
@@ -90,6 +84,8 @@ export function AppShell({
   userLabel,
   obraLembrada = null,
   lateralRecolhida = false,
+  logoEmpresaUrl = null,
+  logoEmpresaNome = null,
   children,
 }: {
   navItems: NavEntry[];
@@ -99,6 +95,9 @@ export function AppShell({
   obraLembrada?: string | null;
   /** Preferência vinda do cookie — ver `lib/lateral`. */
   lateralRecolhida?: boolean;
+  /** Logo da construtora, do perfil do engenheiro. Sem ela, cai na Ankora. */
+  logoEmpresaUrl?: string | null;
+  logoEmpresaNome?: string | null;
   children: React.ReactNode;
 }) {
   return (
@@ -112,18 +111,15 @@ export function AppShell({
           a página. Numa visão geral de 2000px, o menu saía de vista no
           primeiro rolar e voltar ao topo virava pré-requisito para navegar. */}
       <LateralColapsavel recolhidaInicial={lateralRecolhida}>
-        {/* Recolhida, a marca vira só o símbolo centralizado — o logotipo por
-            extenso não cabe em 68px e sairia cortado. */}
-        <div className="px-5 py-6 group-data-[recolhida]/lateral:flex group-data-[recolhida]/lateral:justify-center group-data-[recolhida]/lateral:px-0">
-          <Logo className="h-6 group-data-[recolhida]/lateral:hidden" />
-          <svg
-            viewBox="0 0 64 28"
-            aria-hidden
-            className="hidden h-5 w-auto group-data-[recolhida]/lateral:block"
-          >
-            <path d="M0,28 L17,4 L27,18 L34,9 L52,28 Z" className="fill-marca-ambar" opacity="0.85" />
-            <path d="M30,28 L44,10 L64,28 Z" className="fill-marca-ambar" opacity="0.5" />
-          </svg>
+        {/* A marca da construtora, não a do sistema. Recolhida, ela encolhe e
+            centraliza em vez de sumir: é o unico ponto da régua que diz de
+            quem é aquilo. */}
+        <div className="flex justify-center px-5 py-6 group-data-[recolhida]/lateral:px-0 group-data-[recolhida]/lateral:py-4">
+          <LogoEmpresa
+            url={logoEmpresaUrl}
+            nome={logoEmpresaNome}
+            className="group-data-[recolhida]/lateral:h-8"
+          />
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3 group-data-[recolhida]/lateral:px-2">
@@ -155,8 +151,12 @@ export function AppShell({
           <div className="min-w-0 flex-1">
             {/* No celular, a marca; no desktop, onde o usuário está. A lateral
                 já mostra a marca lá, repetir aqui seria ruído. */}
-            <span className="text-foreground md:hidden">
-              <Logo />
+            {/* No celular a lateral não existe, então é aqui que a marca da
+                construtora aparece. Sobre fundo claro — por isso o contêiner
+                escuro atrás dela: a logo enviada é clara, para funcionar no
+                navy do menu. */}
+            <span className="inline-flex items-center rounded-lg bg-sidebar px-2 py-1 md:hidden">
+              <LogoEmpresa url={logoEmpresaUrl} nome={logoEmpresaNome} className="h-6" />
             </span>
             <span className="hidden md:block">
               <Trilha entradas={navItems} obraLembrada={obraLembrada} />

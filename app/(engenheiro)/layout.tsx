@@ -2,6 +2,8 @@ import { requireRole } from "@/lib/auth/require-role";
 import { AppShell, type NavEntry } from "@/components/layout/app-shell";
 import { lerObraAtiva } from "@/lib/obra-ativa.server";
 import { lerLateralRecolhida } from "@/lib/lateral.server";
+import { buscarLogoEmpresa } from "@/lib/obras/logo-empresa";
+import { createClient } from "@/lib/supabase/server";
 import { SECOES_OBRA } from "@/lib/obra-secoes";
 
 /**
@@ -42,6 +44,7 @@ export default async function EngenheiroLayout({ children }: { children: React.R
     lerObraAtiva(),
     lerLateralRecolhida(),
   ]);
+  const logo = await buscarLogoEmpresa(await createClient());
 
   return (
     <AppShell
@@ -50,6 +53,8 @@ export default async function EngenheiroLayout({ children }: { children: React.R
       userLabel="Engenheiro"
       obraLembrada={obraLembrada}
       lateralRecolhida={lateralRecolhida}
+      logoEmpresaUrl={logo.url}
+      logoEmpresaNome={logo.nome}
     >
       {children}
     </AppShell>

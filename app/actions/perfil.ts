@@ -88,3 +88,49 @@ export async function removerAssinatura(): Promise<PerfilFormState> {
   revalidatePath("/perfil");
   return { error: null, success: true };
 }
+
+/**
+ * Grava o caminho da logo da empresa, já enviada ao Storage pelo navegador.
+ *
+ * Mesmo arranjo da assinatura — o binário não passa pela action. A diferença é
+ * o bucket: `logos` é público (0051), porque a marca existe para ser vista e
+ * guardá-la atrás de URL assinada só criaria link vencendo na cara do cliente.
+ *
+ * Revalida o layout inteiro, e não só /perfil: a logo aparece no topo do menu
+ * de TODAS as telas, nas duas áreas. Sem isso ela só trocaria onde foi
+ * enviada, e pareceria que o upload não funcionou.
+ */
+export async function salvarLogoEmpresa(path: string): Promise<PerfilFormState> {
+  const profile = await requireRole("engenheiro");
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ logo_path: path })
+    .eq("id", profile.id);
+
+  if (error) return { error: "Não foi possível salvar a logo." };
+
+  revalidatePath("/", "layout");
+  return { error: null, success: true };
+}
+
+export async function removerLogoEmpresa(): Promise<PerfilFormState> {
+  const profile = await requireRole("engenheiro");
+
+  const supabase = await createClient();
+  const { data: atual } = await supabase
+    .from("profiles")
+    .select("logo_path")
+    .eq("id", profile.id)
+    .single();
+
+  if (atual?.logo_path) {
+    await supabase.storage.from("logos").remove([atual.logo_path]);
+  }
+
+  await supabase.from("profiles").update({ logo_path: null }).eq("id", profile.id);
+
+  revalidatePath("/", "layout");
+  return { error: null, success: true };
+}

@@ -1,12 +1,12 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { AnkoraWordmark } from "./ankora-wordmark";
 
 /**
  * Selo compacto: o "Λ" da Ankora com a cunha âmbar, dentro de um quadrado navy.
  *
- * Existe para onde a palavra inteira não cabe — favicon, gaveta do celular
- * fechada, avatar da marca. É o mesmo desenho do primeiro "A" da assinatura,
- * então as duas peças são reconhecíveis uma na outra.
+ * Continua desenhado em SVG, e não recortado da imagem: aqui são duas formas
+ * geométricas simples, que em vetor ficam nítidas em qualquer tamanho e pesam
+ * nada. O desenho da palavra inteira é que não se reconstrói — ver `Logo`.
  */
 export function AnkoraSelo({ className }: { className?: string }) {
   return (
@@ -26,18 +26,15 @@ export function AnkoraSelo({ className }: { className?: string }) {
 }
 
 /**
- * A marca na tela.
+ * A assinatura da Ankora, como arquivo.
  *
- * É a assinatura inteira por padrão — "Ankora" é uma palavra curta e o
- * desenho já é largo o bastante para funcionar a 20px de altura, então não há
- * motivo para escondê-la atrás de um selo como fazia a marca anterior.
+ * Era um SVG reconstruído a partir da marca — letras montadas por coordenadas.
+ * A reconstrução errava justamente no que a marca tem de característico: o "A"
+ * saía sem travessão e o "R" sem perna, e ninguém reconhecia o desenho. Marca
+ * não se aproxima; ou é o arquivo, ou é outra coisa.
  *
- * A cor vem do contexto (`currentColor`): no navy da lateral ela é branca, na
- * tela de login é escura. O âmbar da perna do "R" é o único tom fixo — é o
- * acento da marca e não negocia com o fundo.
- *
- * O sistema continua sendo "Vidal Projetos" em pasta, repositório e banco. O
- * que a Ankora substitui é o que o usuário vê.
+ * O PNG tem fundo transparente e arte clara, então só funciona sobre superfície
+ * escura — que é onde ela aparece: o navy da lateral e a chapa do login.
  */
 export function Logo({
   somenteSelo = false,
@@ -47,5 +44,21 @@ export function Logo({
   className?: string;
 }) {
   if (somenteSelo) return <AnkoraSelo className={className} />;
-  return <AnkoraWordmark className={cn("h-5", className)} />;
+  return (
+    <Image
+      src="/marca/ankora.png"
+      alt="Ankora"
+      width={600}
+      height={222}
+      priority
+      /*
+        `self-start` não é enfeite: dentro de um contêiner flex em coluna — que
+        é o pé da lateral — a imagem estica para a largura toda por padrão
+        (`align-items: stretch`), e com a altura fixa pelo `h-*` a marca sai
+        achatada. `w-auto` sozinho não impede, porque quem manda no eixo
+        transversal é o alinhamento, não a largura.
+      */
+      className={cn("h-5 w-auto self-start", className)}
+    />
+  );
 }

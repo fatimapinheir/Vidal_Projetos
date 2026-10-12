@@ -17,6 +17,8 @@ export type DadosRdo = {
   contratante: string;
   responsavel: { nome: string; crea: string | null };
   assinaturaUrl: string | null;
+  /** Logo da construtora, para o cabeçalho. Nula, o cabeçalho usa texto. */
+  logoEmpresaUrl: string | null;
   temperatura: number | null;
   umidade: number | null;
   condicaoDia: DiarioCondicao | null;
@@ -114,16 +116,18 @@ export async function carregarRdo(
 
   let responsavel = { nome: "—", crea: null as string | null };
   let assinaturaUrl: string | null = null;
+  let logoPath: string | null = null;
 
   if (assinanteId) {
     const { data: perfil } = await admin
       .from("profiles")
-      .select("nome, crea, assinatura_path")
+      .select("nome, crea, assinatura_path, logo_path")
       .eq("id", assinanteId)
       .maybeSingle();
 
     if (perfil) {
       responsavel = { nome: perfil.nome, crea: perfil.crea };
+      logoPath = perfil.logo_path;
       if (perfil.assinatura_path) {
         const { data: url } = await admin.storage
           .from("assinaturas")
@@ -133,6 +137,16 @@ export async function carregarRdo(
     }
   }
 
+  /*
+   * A logo sai da mesma leitura administrativa do perfil, mas por URL pública
+   * e não assinada: o bucket `logos` é público (0051). Um RDO salvo em PDF ou
+   * reaberto semanas depois continua mostrando a marca — com link assinado, a
+   * imagem morreria junto com a validade dele.
+   */
+  const logoEmpresaUrl = logoPath
+    ? admin.storage.from("logos").getPublicUrl(logoPath).data.publicUrl
+    : null;
+
   return {
     data,
     obraNome: obra.nome,
@@ -140,6 +154,7 @@ export async function carregarRdo(
     contratante,
     responsavel,
     assinaturaUrl,
+    logoEmpresaUrl,
     temperatura: diario?.temperatura ?? null,
     umidade: diario?.umidade ?? null,
     condicaoDia: diario?.clima ?? null,

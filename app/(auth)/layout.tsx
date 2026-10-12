@@ -1,4 +1,4 @@
-import { AnkoraWordmark } from "@/components/marca/ankora-wordmark";
+import { Logo } from "@/components/marca/logo";
 
 /**
  * A primeira tela: metade navy com a marca, metade clara com o formulário.
@@ -23,7 +23,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           className="pointer-events-none absolute -top-32 -right-24 size-[28rem] rounded-full bg-marca-ambar/10 blur-3xl"
         />
 
-        <AnkoraWordmark className="relative h-7 self-start lg:h-9" />
+        <Logo className="relative h-7 self-start lg:h-9" />
 
         <div className="relative mt-8 hidden lg:block">
           <p className="font-heading text-3xl leading-tight font-semibold">

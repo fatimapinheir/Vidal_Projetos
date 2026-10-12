@@ -67,6 +67,9 @@
   border-radius: 0.57em;
 }
 .rdo-marca { font-size: 1.43em; font-weight: 700; letter-spacing: 0.04em; margin: 0; }
+/* Altura fixa, largura livre: a logo enviada pode ter qualquer proporção, e
+   é a altura que precisa casar com a do texto que ela substitui. */
+.rdo-logo { height: 2.9em; width: auto; display: block; object-fit: contain; }
 .rdo-titulo { font-size: 0.86em; letter-spacing: 0.18em; margin: 0.19em 0 0; opacity: 0.85; }
 .rdo-data-selo {
   background: #fff; color: #1b2a4a; border-radius: 0.38em;

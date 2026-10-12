@@ -56,6 +56,7 @@ export interface Database {
           cpf_cnpj: string | null;
           crea: string | null;
           assinatura_path: string | null;
+          logo_path: string | null;
           created_at: string;
         };
         Insert: {
@@ -68,6 +69,7 @@ export interface Database {
           cpf_cnpj?: string | null;
           crea?: string | null;
           assinatura_path?: string | null;
+          logo_path?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
@@ -1119,6 +1121,10 @@ export interface Database {
       cli_marcar_entrega_lancamento: {
         Args: { p_compra_id: string; p_entregue: boolean };
         Returns: undefined;
+      };
+      logo_da_empresa: {
+        Args: Record<string, never>;
+        Returns: { logo_path: string | null; nome: string }[];
       };
     };
     Enums: {
