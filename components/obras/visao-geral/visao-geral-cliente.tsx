@@ -906,30 +906,62 @@ function PainelOrcamento({ dados }: { dados: DadosVisaoGeral }) {
 
       {temOrcamento ? (
         <>
+          {/*
+            Os dois valores têm exatamente a mesma estrutura: rótulo em cima,
+            número embaixo, e nada mais.
+            
+            O percentual morava sob o "Já gasto" e era uma linha a mais só de
+            um lado — com `items-end`, essa linha extra empurrava o número da
+            direita para baixo e os dois deixavam de se alinhar. Ele desceu
+            para baixo da barra, que é de quem ele fala.
+          */}
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-xs text-muted-foreground">Orçamento total</p>
-              <p className="font-heading text-xl font-semibold">{moeda(dados.orcado)}</p>
+              {/* Verde o que a obra tem, âmbar o que já saiu. */}
+              <p className="font-heading text-xl font-semibold text-sucesso">
+                {moeda(dados.orcado)}
+              </p>
             </div>
             <div className="text-right">
               <p className="text-xs text-muted-foreground">Já gasto</p>
-              <p className="font-heading text-xl font-semibold">{moeda(dados.custoTotal)}</p>
-              <p className="text-xs text-muted-foreground">
-                ({dados.percentualFinanceiro.toFixed(1).replace(".", ",")}%)
+              <p className="font-heading text-xl font-semibold text-atencao">
+                {moeda(dados.custoTotal)}
               </p>
             </div>
           </div>
 
-          <div className="h-2 w-full overflow-hidden rounded-full bg-grafico-trilho">
-            <div
-              className="h-full rounded-full bg-chart-1"
-              style={{ width: `${Math.min(100, dados.percentualFinanceiro)}%` }}
-            />
+          <div className="flex flex-col gap-1">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-grafico-trilho">
+              {/* A barra é o gasto, então ela acompanha a cor do gasto. */}
+              <div
+                className="h-full rounded-full bg-grafico-a-vencer"
+                style={{ width: `${Math.min(100, dados.percentualFinanceiro)}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {dados.percentualFinanceiro.toFixed(1).replace(".", ",")}% do orçamento utilizado
+            </p>
           </div>
 
+          {/*
+            A frase muda conforme exista gasto ou não.
+            
+            Com a obra sem nenhum pagamento, "Você já utilizou 0% do orçamento"
+            é verdade e não serve para nada: anuncia um uso que não começou.
+          */}
           <Leitura>
-            Você já utilizou {porcento(dados.percentualFinanceiro)} do orçamento da sua obra.
-            Continue acompanhando para manter o controle dos custos.
+            {dados.custoTotal > 0 ? (
+              <>
+                Você já utilizou {porcento(dados.percentualFinanceiro)} do orçamento da sua obra.
+                Continue acompanhando para manter o controle dos custos.
+              </>
+            ) : (
+              <>
+                Ainda não existem pagamentos na sua obra. Continue acompanhando para manter o
+                controle dos custos.
+              </>
+            )}
           </Leitura>
         </>
       ) : (
