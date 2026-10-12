@@ -36,13 +36,50 @@ type LinhaEquipe = {
   equipes: { nome: string; responsavel: { nome: string } | null } | null;
 };
 
+import { Paginacao } from "@/components/ui/paginacao";
+import { faixaDaPagina, lerPagina, POR_PAGINA_PADRAO } from "@/lib/paginacao";
+
 export default async function FechamentosObraPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ obraId: string }>;
+  /*
+   * Uma página por lista, e não um `?pagina` só.
+   *
+   * São três listas independentes na mesma tela: avançar nos fechamentos
+   * individuais não pode arrastar os de equipe e os de entrega junto, porque
+   * não têm relação nenhuma entre si.
+   */
+  searchParams: Promise<{ individuais?: string; entregas?: string }>;
 }) {
   const { obraId } = await params;
+  const filtros = await searchParams;
   const supabase = await createClient();
+
+  const contagem = async (coluna: "individuais" | "entregas") => {
+    if (coluna === "entregas") {
+      const { count } = await supabase
+        .from("fechamentos_entrega")
+        .select("id", { count: "exact", head: true })
+        .eq("obra_id", obraId);
+      return count ?? 0;
+    }
+    const { count } = await supabase
+      .from("fechamentos_periodo")
+      .select("id", { count: "exact", head: true })
+      .eq("obra_id", obraId)
+      .is("equipe_id", null);
+    return count ?? 0;
+  };
+
+  const [totalIndividuais, totalEntregas] = await Promise.all([
+    contagem("individuais"),
+    contagem("entregas"),
+  ]);
+
+  const fIndividuais = faixaDaPagina(lerPagina(filtros.individuais), totalIndividuais);
+  const fEntregas = faixaDaPagina(lerPagina(filtros.entregas), totalEntregas);
 
   const [
     { data: fechamentosIndividuais },
@@ -56,7 +93,8 @@ export default async function FechamentosObraPage({
       .select("*, trabalhadores(nome)")
       .eq("obra_id", obraId)
       .is("equipe_id", null)
-      .order("periodo_inicio", { ascending: false }),
+      .order("periodo_inicio", { ascending: false })
+      .range(fIndividuais.de, fIndividuais.ate),
     supabase
       .from("obra_trabalhadores")
       .select("trabalhador_id, trabalhadores(id, nome)")
@@ -74,12 +112,22 @@ export default async function FechamentosObraPage({
       .select("*, trabalhadores(nome), equipes(nome, responsavel:trabalhadores!responsavel_id(nome))")
       .eq("obra_id", obraId)
       .not("equipe_id", "is", null)
+      /*
+       * Esta lista NÃO é paginada, e de propósito.
+       *
+       * As linhas são agrupadas por equipe e período logo abaixo: uma fatia de
+       * vinte e cinco linhas cortaria um fechamento ao meio, e metade dele
+       * apareceria na página seguinte como se fosse outro. Paginar aqui exige
+       * paginar por GRUPO, que é outra consulta — fica para quando o volume
+       * justificar.
+       */
       .order("periodo_inicio", { ascending: false }),
     supabase
       .from("fechamentos_entrega")
       .select("*, equipes(nome, responsavel:trabalhadores!responsavel_id(nome))")
       .eq("obra_id", obraId)
-      .order("periodo_inicio", { ascending: false }),
+      .order("periodo_inicio", { ascending: false })
+      .range(fEntregas.de, fEntregas.ate),
   ]);
 
   const trabalhadores = (alocados ?? []).map(
@@ -194,6 +242,15 @@ export default async function FechamentosObraPage({
             </TableBody>
           </Table>
         </div>
+
+      <Paginacao
+        pagina={fIndividuais.pagina}
+        total={totalIndividuais}
+        porPagina={POR_PAGINA_PADRAO}
+        caminho={`/obras/${obraId}/fechamentos`}
+        parametros={{ entregas: filtros.entregas }}
+        rotulo="fechamentos"
+      />
       </div>
 
       <div className="flex flex-col gap-4">
@@ -340,6 +397,15 @@ export default async function FechamentosObraPage({
             </TableBody>
           </Table>
         </div>
+
+      <Paginacao
+        pagina={fEntregas.pagina}
+        total={totalEntregas}
+        porPagina={POR_PAGINA_PADRAO}
+        caminho={`/obras/${obraId}/fechamentos`}
+        parametros={{ individuais: filtros.individuais }}
+        rotulo="fechamentos"
+      />
       </div>
     </div>
   );

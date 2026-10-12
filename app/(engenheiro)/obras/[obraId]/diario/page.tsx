@@ -7,6 +7,8 @@ import { hojeIso } from "@/lib/locacoes/calculo";
 import { CloudRain, Cloud, Sun, CloudOff } from "lucide-react";
 import type { DiarioCondicao } from "@/lib/types/database.types";
 import { AbrirDiaForm } from "./abrir-dia-form";
+import { Paginacao } from "@/components/ui/paginacao";
+import { faixaDaPagina, lerPagina, POR_PAGINA_PADRAO } from "@/lib/paginacao";
 
 const climaIcone: Record<DiarioCondicao, { icone: typeof Sun; titulo: string }> = {
   ensolarado: { icone: Sun, titulo: "Ensolarado" },
@@ -32,20 +34,46 @@ function ClimaDoDia({ clima }: { clima: DiarioCondicao | null }) {
 
 export default async function DiarioObraPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ obraId: string }>;
+  searchParams: Promise<{ pagina?: string }>;
 }) {
   const { obraId } = await params;
+  const { pagina: paginaParam } = await searchParams;
   const supabase = await createClient();
-
-  const { data: dias } = await supabase
-    .from("diario_obra")
-    .select("data, clima, atividades, ocorrencias, fechado_em")
-    .eq("obra_id", obraId)
-    .order("data", { ascending: false });
-
   const hoje = hojeIso();
-  const temHoje = (dias ?? []).some((d) => d.data === hoje);
+
+  const { count } = await supabase
+    .from("diario_obra")
+    .select("data", { count: "exact", head: true })
+    .eq("obra_id", obraId);
+
+  const total = count ?? 0;
+  const { pagina, de, ate } = faixaDaPagina(lerPagina(paginaParam), total);
+
+  const [{ data: dias }, { count: diasDeHoje }] = await Promise.all([
+    supabase
+      .from("diario_obra")
+      .select("data, clima, atividades, ocorrencias, fechado_em")
+      .eq("obra_id", obraId)
+      .order("data", { ascending: false })
+      .range(de, ate),
+    /*
+     * "Já existe folha de hoje?" é pergunta sobre a obra, não sobre a página.
+     *
+     * Saía de uma varredura na lista inteira, o que com paginação passaria a
+     * responder só pelo pedaço visível: da segunda página em diante o botão de
+     * abrir o dia reapareceria para um dia que já está aberto.
+     */
+    supabase
+      .from("diario_obra")
+      .select("data", { count: "exact", head: true })
+      .eq("obra_id", obraId)
+      .eq("data", hoje),
+  ]);
+
+  const temHoje = (diasDeHoje ?? 0) > 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -101,6 +129,14 @@ export default async function DiarioObraPage({
           </p>
         )}
       </div>
+
+      <Paginacao
+        pagina={pagina}
+        total={total}
+        porPagina={POR_PAGINA_PADRAO}
+        caminho={`/obras/${obraId}/diario`}
+        rotulo="dias"
+      />
     </div>
   );
 }

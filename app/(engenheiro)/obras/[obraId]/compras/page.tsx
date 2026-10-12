@@ -16,6 +16,8 @@ import {
   type LancamentoSemEtapa,
 } from "@/components/compras/lancamentos-sem-etapa";
 import { etapasDoOrcamentoAtivo } from "@/lib/compras/etapa-orcamento";
+import { Paginacao } from "@/components/ui/paginacao";
+import { faixaDaPagina, lerPagina, POR_PAGINA_PADRAO } from "@/lib/paginacao";
 import {
   SituacaoFinanceiraBadge,
   SituacaoEntregaBadge,
@@ -29,25 +31,50 @@ import {
 
 export default async function ComprasObraPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ obraId: string }>;
+  searchParams: Promise<{ pagina?: string }>;
 }) {
   const { obraId } = await params;
+  const { pagina: paginaParam } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: compras }, { data: parcelas }, etapasOrcamento] = await Promise.all([
-    supabase
-      .from("compras")
-      .select("*, fornecedores(nome)")
-      .eq("obra_id", obraId)
-      .order("created_at", { ascending: false }),
-    // As parcelas de todas as ordens da obra numa consulta, agrupadas abaixo.
-    // Uma consulta por linha da tabela seria uma dúzia de idas ao banco só para
-    // desenhar dois selos.
-    supabase
-      .from("vw_compra_parcelas")
-      .select("*, compras!inner(obra_id)")
-      .eq("compras.obra_id", obraId),
+  /*
+   * A contagem vem antes das linhas porque é ela que define a fatia.
+   *
+   * `head: true` não traz dado nenhum — só o total no cabeçalho —, então é uma
+   * consulta barata mesmo com a obra cheia.
+   */
+  const { count } = await supabase
+    .from("compras")
+    .select("id", { count: "exact", head: true })
+    .eq("obra_id", obraId);
+
+  const total = count ?? 0;
+  const { pagina, de, ate } = faixaDaPagina(lerPagina(paginaParam), total);
+
+  const { data: compras } = await supabase
+    .from("compras")
+    .select("*, fornecedores(nome)")
+    .eq("obra_id", obraId)
+    .order("created_at", { ascending: false })
+    .range(de, ate);
+
+  const idsNaPagina = (compras ?? []).map((c) => c.id);
+
+  const [{ data: parcelas }, etapasOrcamento] = await Promise.all([
+    /*
+     * Só as parcelas das ordens DESTA página.
+     *
+     * Antes vinham as da obra inteira, numa consulta sem limite: numa obra com
+     * algumas centenas de ordens isso passaria das 1000 linhas que o PostgREST
+     * devolve, e os selos de situação começariam a sair errados — sem erro
+     * nenhum, só parcela faltando.
+     */
+    idsNaPagina.length
+      ? supabase.from("vw_compra_parcelas").select("*").in("compra_id", idsNaPagina)
+      : Promise.resolve({ data: [] as never[] }),
     etapasDoOrcamentoAtivo(supabase, obraId),
   ]);
 
@@ -192,6 +219,14 @@ export default async function ComprasObraPage({
           </TableBody>
         </Table>
       </div>
+
+      <Paginacao
+        pagina={pagina}
+        total={total}
+        porPagina={POR_PAGINA_PADRAO}
+        caminho={`/obras/${obraId}/compras`}
+        rotulo="registros"
+      />
     </div>
   );
 }

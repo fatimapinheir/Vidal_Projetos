@@ -3,22 +3,51 @@ import { formatDateBR } from "@/lib/format-date";
 import { FolgasCalendario } from "./folgas-calendario";
 import { NovaFolgaDialog } from "./nova-folga-dialog";
 import { RemoverFolgaButton } from "./folgas-actions";
+import { Paginacao } from "@/components/ui/paginacao";
+import { faixaDaPagina, lerPagina, POR_PAGINA_PADRAO } from "@/lib/paginacao";
 
 export default async function FolgasObraPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ obraId: string }>;
+  searchParams: Promise<{ pagina?: string }>;
 }) {
   const { obraId } = await params;
+  const { pagina: paginaParam } = await searchParams;
   const supabase = await createClient();
 
-  const { data: folgas } = await supabase
+  const { count } = await supabase
     .from("cronograma_folgas")
-    .select("*")
-    .eq("obra_id", obraId)
-    .order("data_inicio", { ascending: false });
+    .select("id", { count: "exact", head: true })
+    .eq("obra_id", obraId);
 
-  const folgasResumo = (folgas ?? []).map((f) => ({ dataInicio: f.data_inicio, dataFim: f.data_fim }));
+  const total = count ?? 0;
+  const { pagina, de, ate } = faixaDaPagina(lerPagina(paginaParam), total);
+
+  const [{ data: folgas }, { data: todasAsDatas }] = await Promise.all([
+    supabase
+      .from("cronograma_folgas")
+      .select("*")
+      .eq("obra_id", obraId)
+      .order("data_inicio", { ascending: false })
+      .range(de, ate),
+    /*
+     * O calendário precisa de TODAS as folgas, não da página — uma folga fora
+     * da página atual deixaria de ser pintada e o mês mentiria. Por isso esta
+     * consulta fica sem paginar, e em troca pede só as duas datas: é a lista
+     * mais leve possível da mesma informação.
+     */
+    supabase
+      .from("cronograma_folgas")
+      .select("data_inicio, data_fim")
+      .eq("obra_id", obraId),
+  ]);
+
+  const folgasResumo = (todasAsDatas ?? []).map((f) => ({
+    dataInicio: f.data_inicio,
+    dataFim: f.data_fim,
+  }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -56,6 +85,14 @@ export default async function FolgasObraPage({
             Nenhuma folga registrada.
           </p>
         )}
+
+        <Paginacao
+          pagina={pagina}
+          total={total}
+          porPagina={POR_PAGINA_PADRAO}
+          caminho={`/obras/${obraId}/folgas`}
+          rotulo="folgas"
+        />
       </div>
     </div>
   );

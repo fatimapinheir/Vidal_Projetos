@@ -17,21 +17,35 @@ import { DevolverButton, RemoverLocacaoButton } from "./locacoes-actions";
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+import { Paginacao } from "@/components/ui/paginacao";
+import { faixaDaPagina, lerPagina, POR_PAGINA_PADRAO } from "@/lib/paginacao";
 
 export default async function LocacoesObraPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ obraId: string }>;
+  searchParams: Promise<{ pagina?: string }>;
 }) {
   const { obraId } = await params;
+  const { pagina: paginaParam } = await searchParams;
   const supabase = await createClient();
+
+  const { count } = await supabase
+    .from("locacoes_equipamento")
+    .select("id", { count: "exact", head: true })
+    .eq("obra_id", obraId);
+
+  const total = count ?? 0;
+  const { pagina, de, ate } = faixaDaPagina(lerPagina(paginaParam), total);
 
   const [{ data: locacoes }, { data: fornecedores }] = await Promise.all([
     supabase
       .from("locacoes_equipamento")
       .select("*, fornecedores(nome)")
       .eq("obra_id", obraId)
-      .order("data_inicio", { ascending: false }),
+      .order("data_inicio", { ascending: false })
+      .range(de, ate),
     supabase.from("fornecedores").select("id, nome").eq("ativo", true).order("nome"),
   ]);
 
@@ -184,6 +198,14 @@ export default async function LocacoesObraPage({
           </TableBody>
         </Table>
       </div>
+
+      <Paginacao
+        pagina={pagina}
+        total={total}
+        porPagina={POR_PAGINA_PADRAO}
+        caminho={`/obras/${obraId}/locacoes`}
+        rotulo="locações"
+      />
     </div>
   );
 }
