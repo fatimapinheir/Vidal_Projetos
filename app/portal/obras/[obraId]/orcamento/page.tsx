@@ -124,7 +124,13 @@ export default async function PortalOrcamentoPage({
         <Card>
           <CardContent className="py-4">
             <p className="text-sm text-muted-foreground">Valor orçado</p>
-            <p className="font-heading text-2xl font-semibold tabular-nums">{moeda(total)}</p>
+            {/* As três cores dizem papéis diferentes, e são as mesmas do painel
+                Orçamento x Gasto da tela inicial: verde o que a obra tem,
+                âmbar o que já saiu, azul o indicador de referência. Repetir a
+                convenção é o que a torna legível sem legenda. */}
+            <p className="font-heading text-2xl font-semibold tabular-nums text-sucesso">
+              {moeda(total)}
+            </p>
             <p className="text-xs text-muted-foreground">
               {lista.length} {lista.length === 1 ? "item" : "itens"} em {orcadoPorEtapa.size}{" "}
               {orcadoPorEtapa.size === 1 ? "etapa" : "etapas"}
@@ -134,7 +140,7 @@ export default async function PortalOrcamentoPage({
         <Card>
           <CardContent className="py-4">
             <p className="text-sm text-muted-foreground">Já comprado</p>
-            <p className="font-heading text-2xl font-semibold tabular-nums">
+            <p className="font-heading text-2xl font-semibold tabular-nums text-atencao">
               {moeda(totalComprado)}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -145,7 +151,7 @@ export default async function PortalOrcamentoPage({
         <Card>
           <CardContent className="py-4">
             <p className="text-sm text-muted-foreground">Custo por m²</p>
-            <p className="font-heading text-2xl font-semibold tabular-nums">
+            <p className="font-heading text-2xl font-semibold tabular-nums text-primary-texto">
               {metragem && metragem > 0 ? moeda(total / metragem) : "—"}
             </p>
             {!!metragem && metragem > 0 && (
@@ -155,6 +161,24 @@ export default async function PortalOrcamentoPage({
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/*
+        Os itens vêm ANTES dos gráficos.
+        
+        Estavam no fim, depois de duas análises, e a ordem contava a história
+        ao contrário: o cliente abre esta tela para ver o que foi orçado, item
+        por item — essa é a resposta. Distribuição por etapa e comparativo são
+        leitura sobre a resposta, e leitura sobre vem depois do que se lê.
+      */}
+      <div>
+        <h2 className="mb-2 font-heading text-base font-semibold">Itens do orçamento</h2>
+        <ListaPorEtapa
+          itens={lista}
+          etapasDeclaradas={versao.etapas}
+          rotuloTotal="Total do orçamento"
+          destacarTotal
+        />
       </div>
 
       <Card>
@@ -209,15 +233,6 @@ export default async function PortalOrcamentoPage({
         </Card>
       )}
 
-      <div>
-        <h2 className="mb-2 font-heading text-base font-semibold">Itens do orçamento</h2>
-        <ListaPorEtapa
-          itens={lista}
-          etapasDeclaradas={versao.etapas}
-          rotuloTotal="Total do orçamento"
-          destacarTotal
-        />
-      </div>
     </div>
   );
 }

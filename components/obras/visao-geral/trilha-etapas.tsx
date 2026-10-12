@@ -40,11 +40,13 @@ import type { EtapaResumo } from "@/lib/obras/visao-cliente";
  * círculo e o rótulo embaixo, nunca a matiz sozinha. Por isso elas podem ser
  * variadas sem virar código de significado.
  *
- * Mas a paleta não é livre: a etapa EM ANDAMENTO pinta o círculo inteiro e
- * põe o ícone branco por cima, e isso exige 3:1 de contraste. Medidos contra
- * branco, `chart-3` (2,5:1) e `grafico-a-vencer` (2,7:1) reprovam, então eles
- * ficam de fora daqui — restam sete matizes, o bastante para nenhuma etapa
- * repetir a cor da vizinha na sequência padrão.
+ * Elas aparecem só nas etapas A INICIAR, onde o ícone é desenhado sobre o
+ * fundo claro do cartão. Concluída e em andamento têm cor própria de estado —
+ * verde e azul — e lá a matiz da etapa não entra.
+ *
+ * `chart-3` e `grafico-a-vencer` ficam de fora: são claras demais sobre branco
+ * (2,5:1 e 2,7:1, abaixo dos 3:1 que um ícone precisa). Restam sete matizes, o
+ * bastante para nenhuma etapa repetir a cor da vizinha na sequência padrão.
  */
 const POR_PALAVRA: { chaves: string[]; Icone: LucideIcon; cor: string }[] = [
   { chaves: ["projeto", "planejamento", "aprovac"], Icone: PencilRuler, cor: "text-chart-2" },
@@ -96,44 +98,18 @@ const SITUACAO = {
 } as const;
 
 /**
- * O par "cor do texto" → "cor de preenchimento" de cada etapa.
- *
- * Tailwind monta as classes em tempo de compilação lendo o código-fonte: uma
- * string montada em tempo de execução (`cor.replace("text-", "bg-")`) nunca
- * apareceria no CSS final, e o círculo sairia transparente. Por isso o par
- * vem escrito por extenso.
- */
-const PREENCHIMENTO: Record<string, string> = {
-  "text-chart-1": "bg-chart-1",
-  "text-chart-2": "bg-chart-2",
-  "text-chart-4": "bg-chart-4",
-  "text-atencao": "bg-atencao",
-  "text-grafico-pago": "bg-grafico-pago",
-  "text-grafico-vencido": "bg-grafico-vencido",
-  "text-grafico-enviado": "bg-grafico-enviado",
-  "text-muted-foreground": "bg-muted-foreground",
-};
-
-/** Halo da etapa em andamento, na mesma matiz do preenchimento. */
-const HALO: Record<string, string> = {
-  "text-chart-1": "ring-chart-1/20",
-  "text-chart-2": "ring-chart-2/20",
-  "text-chart-4": "ring-chart-4/20",
-  "text-atencao": "ring-atencao/20",
-  "text-grafico-pago": "ring-grafico-pago/20",
-  "text-grafico-vencido": "ring-grafico-vencido/20",
-  "text-grafico-enviado": "ring-grafico-enviado/20",
-  "text-muted-foreground": "ring-muted-foreground/20",
-};
-
-/**
  * Um passo da trilha: o círculo e o que vem embaixo dele.
  *
- * O círculo diz o estado por PREENCHIMENTO, não por cor: cheio e verde com
- * visto para concluída, cheio e azul com halo para a que está rodando, claro
- * e contornado para as que ainda não começaram. A cor própria da etapa só
- * aparece nas que não começaram — nas outras, o estado tem precedência e
- * misturar as duas coisas tornaria as duas ilegíveis.
+ * Três estados, três desenhos: cheio e verde com visto para concluída, cheio
+ * e azul com halo para a que está rodando, claro e contornado para as que
+ * ainda não começaram.
+ *
+ * O estado tem UMA cor só, igual em toda obra. Chegou a usar a matiz da
+ * própria etapa no círculo em andamento, e o resultado foi que a cor passou a
+ * dizer duas coisas ao mesmo tempo — qual etapa é e em que pé ela está — e
+ * deixou de dizer qualquer uma com clareza: dois círculos cheios de cores
+ * diferentes parecem estados diferentes. A matiz da etapa fica para as que não
+ * começaram, onde não disputa com nada.
  */
 function Marcador({ etapa }: { etapa: EtapaResumo }) {
   const { Icone, cor } = visualDaEtapa(etapa.nome);
@@ -147,17 +123,8 @@ function Marcador({ etapa }: { etapa: EtapaResumo }) {
   }
 
   if (etapa.situacao === "andamento") {
-    // A etapa que está rodando usa a PRÓPRIA cor, cheia, com halo na mesma
-    // matiz. Era azul fixo: duas obras em etapas diferentes tinham o mesmo
-    // círculo, e a trilha perdia a variedade justamente no passo que importa.
     return (
-      <span
-        className={cn(
-          "relative z-10 flex size-12 shrink-0 items-center justify-center rounded-full text-white shadow-sm ring-4",
-          PREENCHIMENTO[cor] ?? "bg-primary",
-          HALO[cor] ?? "ring-primary/20"
-        )}
-      >
+      <span className="relative z-10 flex size-12 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-sm ring-4 ring-primary/20">
         <Icone className="size-5" strokeWidth={2.25} aria-hidden />
       </span>
     );
@@ -207,11 +174,10 @@ export function TrilhaEtapas({ etapas }: { etapas: EtapaResumo[] }) {
                   {etapa.situacao === "andamento" && (
                     <div className="flex items-center gap-1.5">
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-grafico-trilho">
+                        {/* Azul como o círculo: a barra fala do mesmo
+                            estado, e duas cores para uma coisa só confundem. */}
                         <div
-                          className={cn(
-                            "h-full rounded-full",
-                            PREENCHIMENTO[visualDaEtapa(etapa.nome).cor] ?? "bg-primary"
-                          )}
+                          className="h-full rounded-full bg-primary"
                           style={{ width: `${etapa.percentual}%` }}
                         />
                       </div>

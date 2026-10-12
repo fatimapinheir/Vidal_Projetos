@@ -84,69 +84,80 @@ export function Rosca({
   });
 
   return (
-    <div className={cn("flex flex-col items-center gap-4 sm:flex-row sm:items-center", className)}>
-      <svg
-        viewBox={`0 0 ${TAMANHO} ${TAMANHO}`}
-        className="h-40 w-40 shrink-0"
-        role="img"
-        aria-label={`${rotuloCentral}: ${valorCentral}. ${comValor
-          .map((f) => `${f.rotulo} ${formatarBRL(f.valor)}`)
-          .join(", ")}`}
-      >
-        {total === 0 ? (
-          <circle
-            cx={CENTRO}
-            cy={CENTRO}
-            r={RAIO}
-            fill="none"
-            strokeWidth={ESPESSURA}
-            className="stroke-grafico-trilho"
-          />
-        ) : (
-          arcos.map((a) => <path key={a.rotulo} d={a.d} className={a.cor} />)
-        )}
-
-        <text
-          x={CENTRO}
-          y={CENTRO - 4}
-          textAnchor="middle"
-          className="fill-foreground text-[15px] font-semibold"
+    /*
+      Consulta de CONTÊINER, não de viewport.
+      
+      Era `sm:flex-row`, que olha a largura da TELA: num painel de um terço de
+      cartão, a tela é larga, a rosca virava linha, e a legenda — que pedia
+      `w-full` ao lado de 160px de desenho — vazava para fora do cartão, com o
+      valor em reais cortado no meio. Quem decide o arranjo é o espaço que o
+      componente realmente tem.
+    */
+    <div className={cn("@container", className)}>
+      <div className="flex flex-col items-center gap-4 @md:flex-row">
+        <svg
+          viewBox={`0 0 ${TAMANHO} ${TAMANHO}`}
+          className="h-40 w-40 shrink-0"
+          role="img"
+          aria-label={`${rotuloCentral}: ${valorCentral}. ${comValor
+            .map((f) => `${f.rotulo} ${formatarBRL(f.valor)}`)
+            .join(", ")}`}
         >
-          {valorCentral}
-        </text>
-        <text
-          x={CENTRO}
-          y={CENTRO + 14}
-          textAnchor="middle"
-          className="fill-muted-foreground text-[10px]"
-        >
-          {rotuloCentral}
-        </text>
-      </svg>
+          {total === 0 ? (
+            <circle
+              cx={CENTRO}
+              cy={CENTRO}
+              r={RAIO}
+              fill="none"
+              strokeWidth={ESPESSURA}
+              className="stroke-grafico-trilho"
+            />
+          ) : (
+            arcos.map((a) => <path key={a.rotulo} d={a.d} className={a.cor} />)
+          )}
 
-      <ul className="flex w-full flex-col gap-2">
-        {fatias.map((fatia) => (
-          <li key={fatia.rotulo} className="flex items-center justify-between gap-3 text-sm">
-            <span className="flex min-w-0 items-center gap-2">
-              <span className={cn("size-2.5 shrink-0 rounded-[3px]", fatia.cor.replace("fill-", "bg-"))} />
-              <span className="shrink-0 text-muted-foreground">{fatia.icone}</span>
-              <span className="truncate">{fatia.rotulo}</span>
-            </span>
-            {/* Percentual antes do valor: a rosca é um gráfico de proporção,
-                e sem o número a proporção fica só no desenho — ilegível quando
-                duas fatias são parecidas. O valor em reais fica ao lado porque
-                é ele que o cliente confere contra a nota. */}
-            <span className="flex shrink-0 items-baseline gap-2 tabular-nums">
-              {total > 0 && (
-                <span className="text-xs text-muted-foreground">
-                  {Math.round((fatia.valor / total) * 100)}%
-                </span>
-              )}
-              <span className="font-medium">{formatarBRL(fatia.valor)}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
+          <text
+            x={CENTRO}
+            y={CENTRO - 4}
+            textAnchor="middle"
+            className="fill-foreground text-[15px] font-semibold"
+          >
+            {valorCentral}
+          </text>
+          <text
+            x={CENTRO}
+            y={CENTRO + 14}
+            textAnchor="middle"
+            className="fill-muted-foreground text-[10px]"
+          >
+            {rotuloCentral}
+          </text>
+        </svg>
+
+        <ul className="flex w-full min-w-0 flex-1 flex-col gap-2">
+          {fatias.map((fatia) => (
+            <li key={fatia.rotulo} className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className={cn("size-2.5 shrink-0 rounded-[3px]", fatia.cor.replace("fill-", "bg-"))} />
+                <span className="shrink-0 text-muted-foreground">{fatia.icone}</span>
+                <span className="truncate">{fatia.rotulo}</span>
+              </span>
+              {/* Percentual antes do valor: a rosca é um gráfico de proporção,
+                  e sem o número a proporção fica só no desenho — ilegível quando
+                  duas fatias são parecidas. O valor em reais fica ao lado porque
+                  é ele que o cliente confere contra a nota. */}
+              <span className="flex shrink-0 items-baseline gap-2 tabular-nums">
+                {total > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {Math.round((fatia.valor / total) * 100)}%
+                  </span>
+                )}
+                <span className="font-medium">{formatarBRL(fatia.valor)}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
