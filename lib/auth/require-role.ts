@@ -21,3 +21,16 @@ export async function requireRole(role: UserRole): Promise<Profile> {
 
   return profile;
 }
+
+/**
+ * Só exige sessão, sem olhar o papel.
+ *
+ * Para o punhado de ações que engenheiro e cliente compartilham — criar uma
+ * categoria financeira, registrar um lançamento. Quem restringe o que cada um
+ * pode gravar é a RLS; aqui só se garante que há alguém logado.
+ */
+export async function requireAuth(): Promise<Profile> {
+  const profile = await getProfile();
+  if (!profile) redirect("/login");
+  return profile;
+}

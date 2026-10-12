@@ -844,7 +844,7 @@ export function VisaoGeralCliente({
                 >
                   <span className="min-w-0 truncate font-medium">{compra?.descricao}</span>
                   <span className="shrink-0 text-muted-foreground">
-                    {formatDateBR(entrega.data_entrega_prevista)}
+                    {formatDateBR(entrega.entrega_prevista_ordem)}
                   </span>
                 </div>
               );

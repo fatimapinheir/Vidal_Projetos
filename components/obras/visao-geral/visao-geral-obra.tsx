@@ -251,7 +251,7 @@ export function VisaoGeralObra({
           <CardContent className="flex flex-col gap-2">
             {d.entregasPendentes.slice(0, 6).map((p) => {
               const compra = p.compras as unknown as { descricao: string } | null;
-              const atrasada = (p.data_entrega_prevista ?? "") < d.hoje;
+              const atrasada = (p.entrega_prevista_ordem ?? "") < d.hoje;
               return (
                 <Link
                   key={p.id}
@@ -262,7 +262,7 @@ export function VisaoGeralObra({
                 >
                   <p className="min-w-0 truncate font-medium">{compra?.descricao}</p>
                   <p className={atrasada ? "shrink-0 text-destructive" : "shrink-0 text-muted-foreground"}>
-                    Previsto para {formatDateBR(p.data_entrega_prevista)}
+                    Previsto para {formatDateBR(p.entrega_prevista_ordem)}
                   </p>
                 </Link>
               );

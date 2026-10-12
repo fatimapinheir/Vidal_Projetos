@@ -21,7 +21,11 @@ type ParcelaComStatusEfetivo = Tables<"compra_parcelas"> & {
  * que já pode ser pago.
  */
 function priorityBucket(parcela: ParcelaComStatusEfetivo): number {
+  // `situacaoFinanceiraParcela` não olha a entrega — só os campos de dinheiro.
+  // Os de entrega entram como nulos para satisfazer o tipo sem inventar dado.
   const situacao = situacaoFinanceiraParcela({
+    entrega_prevista_ordem: null,
+    entrega_real_ordem: null,
     ...parcela,
     liberada_para_pagamento: parcela.liberada_para_pagamento ?? true,
   } as ParcelaSituacao);

@@ -4,19 +4,20 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PackageCheck, Undo2 } from "lucide-react";
-import { confirmarRecebimentoParcela } from "@/app/actions/compras";
+import { confirmarRecebimentoOrdem } from "@/app/actions/compras";
 
 /**
- * Confirma o recebimento da mercadoria. Enquanto não for marcado, a parcela
- * não entra na lista de pagamentos nem vence.
+ * Confirma o recebimento da mercadoria da ORDEM inteira.
+ *
+ * Enquanto não for marcado, nenhuma parcela da ordem entra na lista de
+ * pagamentos nem vence. Era por parcela — ver a nota em
+ * `confirmarRecebimentoOrdem`.
  */
-export function RecebimentoParcela({
+export function RecebimentoOrdem({
   compraId,
-  parcelaId,
   recebidoEm,
 }: {
   compraId: string;
-  parcelaId: string;
   recebidoEm: string | null;
 }) {
   const [pending, startTransition] = useTransition();
@@ -25,12 +26,12 @@ export function RecebimentoParcela({
 
   function handleClick() {
     const mensagem = recebido
-      ? "Desfazer o recebimento? A parcela sai da lista de pagamentos até ser confirmada de novo."
-      : "Confirmar que a mercadoria chegou? A parcela passa a contar como pagamento pendente.";
+      ? "Desfazer o recebimento? As parcelas saem da lista de pagamentos até ser confirmado de novo."
+      : "Confirmar que a mercadoria chegou? As parcelas passam a contar como pagamento pendente.";
     if (!confirm(mensagem)) return;
 
     startTransition(() => {
-      confirmarRecebimentoParcela(compraId, parcelaId, !recebido).then(() => router.refresh());
+      confirmarRecebimentoOrdem(compraId, !recebido).then(() => router.refresh());
     });
   }
 

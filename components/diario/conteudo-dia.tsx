@@ -161,11 +161,11 @@ export function ConteudoDiaSecoes({
                 <span>
                   {entrega.descricao}
                   <span className="block text-xs text-muted-foreground">
-                    {entrega.fornecedor} · {entrega.parcela}
+                    {entrega.fornecedor}
                   </span>
                 </span>
-                {acaoEntrega && entrega.parcelaId ? (
-                  acaoEntrega(entrega.parcelaId, entrega.recebidoEm)
+                {acaoEntrega && entrega.compraId ? (
+                  acaoEntrega(entrega.compraId, entrega.recebidoEm)
                 ) : entrega.recebidoEm ? (
                   <Badge variant="secondary">Recebido</Badge>
                 ) : (

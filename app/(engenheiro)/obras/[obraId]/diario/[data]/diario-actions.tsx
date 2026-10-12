@@ -68,12 +68,12 @@ export function FecharDiaButton({
 export function RecebimentoToggle({
   obraId,
   data,
-  parcelaId,
+  compraId,
   recebidoEm,
 }: {
   obraId: string;
   data: string;
-  parcelaId: string;
+  compraId: string;
   recebidoEm: string | null;
 }) {
   const [pending, startTransition] = useTransition();
@@ -82,7 +82,7 @@ export function RecebimentoToggle({
 
   function handleClick() {
     startTransition(() => {
-      confirmarRecebimento(obraId, data, parcelaId, !recebido).then(() => router.refresh());
+      confirmarRecebimento(obraId, data, compraId, !recebido).then(() => router.refresh());
     });
   }
 

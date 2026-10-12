@@ -11,7 +11,7 @@ export default async function NovaCompraPage({
   const supabase = await createClient();
   // Só ativos: inativo não deve ser escolhível numa compra nova. As compras
   // já registradas seguem mostrando o fornecedor pelo vínculo, mesmo inativo.
-  const [{ data: fornecedores }, { data: versaoAtiva }] = await Promise.all([
+  const [{ data: fornecedores }, { data: versaoAtiva }, { data: categorias }] = await Promise.all([
     supabase.from("fornecedores").select("id, nome").eq("ativo", true).order("nome"),
     supabase
       .from("orcamento_versoes")
@@ -19,6 +19,11 @@ export default async function NovaCompraPage({
       .eq("obra_id", obraId)
       .eq("status", "ativa")
       .maybeSingle(),
+    supabase
+      .from("categorias_financeiras")
+      .select("id, nome, tipo_item")
+      .eq("ativo", true)
+      .order("nome"),
   ]);
 
   // As etapas declaradas na versão, mais as que só existem em item (vindas de
@@ -40,7 +45,7 @@ export default async function NovaCompraPage({
   ];
 
   return (
-    <Card className="max-w-3xl">
+    <Card className="max-w-5xl">
       <CardHeader>
         <CardTitle>Nova ordem de compra</CardTitle>
       </CardHeader>
@@ -48,6 +53,7 @@ export default async function NovaCompraPage({
         <NovaCompraForm
           obraId={obraId}
           fornecedores={fornecedores ?? []}
+          categorias={categorias ?? []}
           etapasOrcamento={etapasOrcamento}
         />
       </CardContent>

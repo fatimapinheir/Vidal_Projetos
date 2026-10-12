@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   HardHat,
@@ -5,9 +6,11 @@ import {
   Lightbulb,
   PackageCheck,
   PieChart,
+  Plus,
   Wallet,
   Wrench,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Rosca } from "@/components/charts/rosca";
@@ -85,18 +88,32 @@ export default async function PortalLancamentosPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start gap-3">
-        <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-accent">
-          <Wallet className="size-6 text-primary-texto" aria-hidden />
-        </span>
-        <div>
-          <h1 className="font-heading text-2xl leading-tight font-semibold">
-            Lançamentos financeiros
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Acompanhe os pagamentos da sua obra de forma simples e organizada.
-          </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-accent">
+            <Wallet className="size-6 text-primary-texto" aria-hidden />
+          </span>
+          <div>
+            <h1 className="font-heading text-2xl leading-tight font-semibold">
+              Lançamentos financeiros
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Acompanhe os pagamentos da sua obra de forma simples e organizada.
+            </p>
+          </div>
         </div>
+
+        {/* O cliente registra pagamento que ele mesmo fez. Ordem de compra
+            continua sendo do engenheiro. */}
+        <Button
+          nativeButton={false}
+          render={
+            <Link href={`${base}/lancamento`}>
+              <Plus className="size-4" aria-hidden />
+              Novo lançamento
+            </Link>
+          }
+        />
       </div>
 
       {/*

@@ -24,14 +24,29 @@ export function CampoMoeda({
   id,
   name,
   defaultValue = 0,
+  value,
+  onValueChange,
   required,
 }: {
   id: string;
-  name: string;
+  /** Omitido no modo controlado — ali o valor não viaja pelo formulário. */
+  name?: string;
   defaultValue?: number;
+  /**
+   * Modo controlado, em reais.
+   *
+   * Existe para os formulários que montam o objeto em estado React e não
+   * postam campos soltos — o picker de item da ordem de compra, por exemplo.
+   * Sem isto, aquele campo teria a própria máscara de centavos e as duas
+   * divergiriam na primeira correção feita só de um lado.
+   */
+  value?: number;
+  onValueChange?: (reais: number) => void;
   required?: boolean;
 }) {
-  const [centavos, setCentavos] = useState(() => Math.round((defaultValue || 0) * 100));
+  const controlado = onValueChange !== undefined;
+  const [interno, setInterno] = useState(() => Math.round((defaultValue || 0) * 100));
+  const centavos = controlado ? Math.round((value ?? 0) * 100) : interno;
 
   const formatado = (centavos / 100).toLocaleString("pt-BR", {
     minimumFractionDigits: 2,
@@ -40,7 +55,9 @@ export function CampoMoeda({
 
   function handleChange(evento: React.ChangeEvent<HTMLInputElement>) {
     const digitos = evento.target.value.replace(/\D/g, "").slice(0, 13);
-    setCentavos(digitos ? Number(digitos) : 0);
+    const novos = digitos ? Number(digitos) : 0;
+    if (controlado) onValueChange?.(novos / 100);
+    else setInterno(novos);
   }
 
   return (
@@ -84,17 +101,26 @@ export function CampoUnidade({
   id,
   name,
   defaultValue = "",
+  value,
+  onValueChange,
   required,
 }: {
   id: string;
-  name: string;
+  /** Omitido no modo controlado. */
+  name?: string;
   defaultValue?: string;
+  /** Modo controlado — ver a nota em `CampoMoeda`. */
+  value?: string;
+  onValueChange?: (unidade: string) => void;
   required?: boolean;
 }) {
   const conhecidas = UNIDADES.map((u) => u.valor) as readonly string[];
   const foraDaLista = !!defaultValue && !conhecidas.includes(defaultValue);
 
-  const [valor, setValor] = useState(defaultValue);
+  const controlado = onValueChange !== undefined;
+  const [interno, setInterno] = useState(defaultValue);
+  const valor = controlado ? (value ?? "") : interno;
+  const definir = (v: string) => (controlado ? onValueChange?.(v) : setInterno(v));
   const [livre, setLivre] = useState(false);
 
   if (livre) {
@@ -104,7 +130,7 @@ export function CampoUnidade({
           id={id}
           name={name}
           value={valor}
-          onChange={(e) => setValor(e.target.value)}
+          onChange={(e) => definir(e.target.value)}
           placeholder="Ex.: M2XMES"
           required={required}
           autoFocus
@@ -113,7 +139,7 @@ export function CampoUnidade({
           type="button"
           onClick={() => {
             setLivre(false);
-            setValor(defaultValue);
+            definir(defaultValue);
           }}
           className="shrink-0 text-xs text-primary-texto underline underline-offset-4"
         >
@@ -131,11 +157,11 @@ export function CampoUnidade({
       required={required}
       onChange={(e) => {
         if (e.target.value === "__outra__") {
-          setValor("");
+          definir("");
           setLivre(true);
           return;
         }
-        setValor(e.target.value);
+        definir(e.target.value);
       }}
       className={CLASSE_SELECT}
     >

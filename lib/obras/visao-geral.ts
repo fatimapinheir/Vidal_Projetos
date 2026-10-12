@@ -133,11 +133,24 @@ export async function carregarVisaoGeral(supabase: Cliente, obraId: string) {
   );
 
   // --- Entregas ---
-  const entregasPendentes = parcelas
-    .filter((p) => p.data_entrega_prevista && !p.data_entrega_real)
-    .sort((a, b) => (a.data_entrega_prevista ?? "").localeCompare(b.data_entrega_prevista ?? ""));
+  /*
+   * Entregas pendentes, agora pela data da ORDEM.
+   *
+   * A view copia `compras.data_entrega_*` para cada parcela, então duas
+   * parcelas da mesma compra trazem a mesma entrega — e a lista teria a
+   * compra repetida. O `Map` por `compra_id` deixa uma linha por ordem, que é
+   * o que "entregas previstas" sempre quis dizer.
+   */
+  const porOrdem = new Map<string, (typeof parcelas)[number]>();
+  for (const p of parcelas) {
+    if (!p.entrega_prevista_ordem || p.entrega_real_ordem) continue;
+    if (!porOrdem.has(p.compra_id)) porOrdem.set(p.compra_id, p);
+  }
+  const entregasPendentes = [...porOrdem.values()].sort((a, b) =>
+    (a.entrega_prevista_ordem ?? "").localeCompare(b.entrega_prevista_ordem ?? "")
+  );
   const entregasAtrasadas = entregasPendentes.filter(
-    (p) => (p.data_entrega_prevista ?? "") < hoje
+    (p) => (p.entrega_prevista_ordem ?? "") < hoje
   );
 
   // --- Ordens de compra ---

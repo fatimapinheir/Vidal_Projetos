@@ -19,11 +19,16 @@ export type EfetivoItem = {
 export type EquipamentoItem = { equipamento: string; quantidade: number; locador: string };
 export type TarefaItem = { nome: string; etapa: string; critica: boolean };
 export type EntregaItem = {
-  /** Id da parcela — só existe no dia aberto; no congelado a linha é histórica. */
-  parcelaId?: string;
+  /**
+   * Id da ORDEM — só existe no dia aberto; no congelado a linha é histórica.
+   *
+   * Era o id da parcela. A entrega passou a ser da ordem (0045): a mercadoria
+   * chega uma vez, e três parcelas da mesma compra geravam três linhas
+   * idênticas no diário, cada uma com o seu botão de confirmar.
+   */
+  compraId?: string;
   descricao: string;
   fornecedor: string;
-  parcela: string;
   recebidoEm: string | null;
 };
 
@@ -58,7 +63,13 @@ export async function derivarConteudoDia(
   obraId: string,
   data: string
 ): Promise<ConteudoDia> {
-  const [{ data: alocados }, { data: presencas }, { data: locacoes }, { data: tarefas }, { data: parcelas }] =
+  const [
+    { data: alocados },
+    { data: presencas },
+    { data: locacoes },
+    { data: tarefas },
+    { data: entregasDoDia },
+  ] =
     await Promise.all([
       // A equipe ativa da obra entra no efetivo mesmo sem presença lançada: é
       // ela que dá as linhas para confirmar o dia sem sair da folha.
@@ -85,11 +96,9 @@ export async function derivarConteudoDia(
         .lte("data_inicio_cedo", data)
         .gte("data_fim_cedo", data),
       supabase
-        .from("compra_parcelas")
-        .select(
-          "id, numero_parcela, data_entrega_real, compras!inner(obra_id, descricao, fornecedores(nome))"
-        )
-        .eq("compras.obra_id", obraId)
+        .from("compras")
+        .select("id, descricao, data_entrega_real, fornecedores(nome)")
+        .eq("obra_id", obraId)
         .eq("data_entrega_prevista", data),
     ]);
 
@@ -144,17 +153,13 @@ export async function derivarConteudoDia(
       return { nome: t.nome, etapa: etapa?.nome ?? "—", critica: t.critica };
     }),
 
-    entregas: (parcelas ?? []).map((p) => {
-      const compra = p.compras as unknown as {
-        descricao: string;
-        fornecedores: { nome: string } | null;
-      } | null;
+    entregas: (entregasDoDia ?? []).map((c) => {
+      const fornecedor = c.fornecedores as unknown as { nome: string } | null;
       return {
-        parcelaId: p.id,
-        descricao: compra?.descricao ?? "—",
-        fornecedor: compra?.fornecedores?.nome ?? "—",
-        parcela: `${p.numero_parcela}ª parcela`,
-        recebidoEm: p.data_entrega_real,
+        compraId: c.id,
+        descricao: c.descricao,
+        fornecedor: fornecedor?.nome ?? "—",
+        recebidoEm: c.data_entrega_real,
       };
     }),
   };

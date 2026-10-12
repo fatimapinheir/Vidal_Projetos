@@ -181,6 +181,25 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["obra_clientes"]["Insert"]>;
         Relationships: [];
       };
+      categorias_financeiras: {
+        Row: {
+          id: string;
+          nome: string;
+          /** Mapeia a categoria para o vocabulário de orcamento_itens. */
+          tipo_item: TipoItemOrcamento | null;
+          ativo: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          nome: string;
+          tipo_item?: TipoItemOrcamento | null;
+          ativo?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["categorias_financeiras"]["Insert"]>;
+        Relationships: [];
+      };
       fornecedores: {
         Row: {
           id: string;
@@ -688,8 +707,20 @@ export interface Database {
           pagamento_apos_recebimento: boolean;
           /** Nome da etapa do orçamento, para comparar orçado × comprado. */
           orcamento_etapa: string | null;
-          /** O que a ordem compra. Mesmo vocabulário de orcamento_itens. */
+          /** O que a ordem compra. Deduzido da categoria escolhida. */
           tipo_item: TipoItemOrcamento | null;
+          /** Categoria financeira — "que tipo de pagamento é este". */
+          categoria_id: string | null;
+          /** Entrega da ORDEM inteira, não de cada parcela. */
+          data_entrega_prevista: string | null;
+          data_entrega_real: string | null;
+          recebimento_confirmado_por: string | null;
+          recebimento_confirmado_em: string | null;
+          /** Despesa já paga, sem cotação, aprovação, entrega nem parcelamento. */
+          eh_lancamento: boolean;
+          /** Número da NF. Nulo quando a compra não tem nota. */
+          nota_fiscal_numero: string | null;
+          nota_fiscal_emissao: string | null;
           criado_por: string;
           created_at: string;
           updated_at: string;
@@ -713,6 +744,14 @@ export interface Database {
           pagamento_apos_recebimento?: boolean;
           orcamento_etapa?: string | null;
           tipo_item?: TipoItemOrcamento | null;
+          categoria_id?: string | null;
+          data_entrega_prevista?: string | null;
+          data_entrega_real?: string | null;
+          recebimento_confirmado_por?: string | null;
+          recebimento_confirmado_em?: string | null;
+          eh_lancamento?: boolean;
+          nota_fiscal_numero?: string | null;
+          nota_fiscal_emissao?: string | null;
           criado_por: string;
           created_at?: string;
           updated_at?: string;
@@ -759,8 +798,6 @@ export interface Database {
           numero_parcela: number;
           valor: number;
           data_vencimento: string;
-          data_entrega_prevista: string | null;
-          data_entrega_real: string | null;
           data_pagamento: string | null;
           status: ParcelaStatus;
           comprovante_pagamento_path: string | null;
@@ -776,8 +813,6 @@ export interface Database {
           numero_parcela: number;
           valor: number;
           data_vencimento: string;
-          data_entrega_prevista?: string | null;
-          data_entrega_real?: string | null;
           data_pagamento?: string | null;
           status?: ParcelaStatus;
           comprovante_pagamento_path?: string | null;
@@ -956,6 +991,9 @@ export interface Database {
           pagamento_apos_recebimento: boolean;
           /** Falsa enquanto a compra depende de recebimento e a mercadoria não chegou. */
           liberada_para_pagamento: boolean;
+          /** Entrega da ordem. A da parcela ficou obsoleta — ver 0045. */
+          entrega_prevista_ordem: string | null;
+          entrega_real_ordem: string | null;
         };
         Relationships: [];
       };

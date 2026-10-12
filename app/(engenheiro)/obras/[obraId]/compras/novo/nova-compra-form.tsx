@@ -9,9 +9,9 @@ import {
   Field,
   FieldContent,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
-  FieldError,
   FieldSeparator,
 } from "@/components/ui/field";
 import {
@@ -24,7 +24,10 @@ import {
 } from "@/components/ui/table";
 import { createCompra, type CompraFormState } from "@/app/actions/compras";
 import { ItemCompraPicker, type ItemCompraLocal } from "@/components/compras/item-compra-picker";
-import { Trash2 } from "lucide-react";
+import { CampoFornecedor } from "@/components/compras/campo-fornecedor";
+import { CampoCategoria, type Categoria } from "@/components/compras/campo-categoria";
+import { CamposNotaFiscal } from "@/components/compras/campos-nota-fiscal";
+import { Paperclip, Trash2 } from "lucide-react";
 import { enviarArquivoParaStorage } from "@/lib/storage/upload-direto";
 
 const initialState: CompraFormState = { error: null };
@@ -77,11 +80,13 @@ export function NovaCompraForm({
   obraId,
   fornecedores,
   etapasOrcamento,
+  categorias,
 }: {
   obraId: string;
   fornecedores: { id: string; nome: string }[];
   /** Etapas do orçamento ativo. Vazio quando a obra ainda não tem orçamento. */
   etapasOrcamento: string[];
+  categorias: Categoria[];
 }) {
   const action = createCompra.bind(null, obraId);
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -164,82 +169,96 @@ export function NovaCompraForm({
     <form action={handleSubmit}>
       <input type="hidden" name="itens" value={JSON.stringify(itens)} readOnly />
       <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor="fornecedor_id">Fornecedor</FieldLabel>
-          <select
-            id="fornecedor_id"
-            name="fornecedor_id"
-            required
-            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-          >
-            <option value="">Selecione...</option>
-            {fornecedores.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.nome}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field>
-          <FieldLabel htmlFor="descricao">Descrição (resumo da ordem de compra)</FieldLabel>
-          <Textarea id="descricao" name="descricao" rows={2} required />
-        </Field>
-
         {/*
-          Etapa do orçamento: é o que permite comparar orçado × comprado por
-          etapa na tela do orçamento. Opcional de propósito — compra que não
-          pertence a nenhuma etapa (uma ferramenta, um frete) não deve ser
-          forçada dentro de uma.
+          Três seções, cada uma numa grade de duas colunas.
+          
+          Era uma coluna só, com dezesseis campos empilhados numa faixa de
+          550px no meio de uma tela de 1400 — rolagem longa e nenhuma pista de
+          onde um assunto termina e o outro começa. Agrupar por pergunta ("o
+          que é a compra", "como se paga", "que condições tem") e emparelhar os
+          campos curtos corta a altura quase pela metade.
+          
+          Campo largo (descrição, anexo) ocupa a linha inteira com
+          `sm:col-span-2`: espremê-lo em meia largura não ajudaria ninguém.
         */}
-        <Field>
-          <FieldLabel htmlFor="orcamento_etapa">Etapa do orçamento (opcional)</FieldLabel>
-          <select
-            id="orcamento_etapa"
-            name="orcamento_etapa"
-            disabled={!etapasOrcamento.length}
-            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm disabled:opacity-60"
-          >
-            <option value="">Não vincular</option>
-            {etapasOrcamento.map((etapa) => (
-              <option key={etapa} value={etapa}>
-                {etapa}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-muted-foreground">
-            {etapasOrcamento.length
-              ? "Vinculando, esta ordem entra no comparativo orçado × comprado da etapa."
-              : "Essa obra ainda não tem orçamento ativo com etapas."}
-          </p>
-        </Field>
+        <FieldSeparator>Dados da compra</FieldSeparator>
 
-        {/*
-          O tipo fica ao lado da etapa, não junto da forma de pagamento: os
-          dois respondem "o que é esta compra", e a forma de pagamento responde
-          "como ela sai do caixa". Agrupar pelo que a pergunta é faz o
-          formulário ser preenchido sem voltar atrás.
-        */}
-        <Field>
-          <FieldLabel htmlFor="tipo_item">Tipo</FieldLabel>
-          <select
-            id="tipo_item"
-            name="tipo_item"
-            defaultValue=""
-            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-          >
-            <option value="">Não classificar</option>
-            <option value="material">Material</option>
-            <option value="servico">Serviço</option>
-            <option value="mao_de_obra">Mão de obra</option>
-          </select>
-          <p className="text-xs text-muted-foreground">
-            Aparece na lista de lançamentos do cliente e separa os gastos por tipo.
-          </p>
-        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor="fornecedor_id">Fornecedor</FieldLabel>
+            <CampoFornecedor fornecedores={fornecedores} />
+          </Field>
 
-        <Field orientation="responsive">
-          <div className="w-full">
+          <Field>
+            <FieldLabel htmlFor="categoria_id">Categoria</FieldLabel>
+            <CampoCategoria categorias={categorias} />
+            <FieldDescription>
+              Se faltar alguma, digite o nome e crie na hora.
+            </FieldDescription>
+          </Field>
+
+          <Field className="sm:col-span-2">
+            <FieldLabel htmlFor="descricao">Descrição (resumo da ordem de compra)</FieldLabel>
+            <Textarea id="descricao" name="descricao" rows={2} required />
+          </Field>
+
+          {/*
+            Etapa do orçamento: é o que permite comparar orçado × comprado por
+            etapa na tela do orçamento. Opcional de propósito — compra que não
+            pertence a nenhuma etapa (uma ferramenta, um frete) não deve ser
+            forçada dentro de uma.
+          */}
+          <Field>
+            <FieldLabel htmlFor="orcamento_etapa">Etapa do orçamento (opcional)</FieldLabel>
+            <select
+              id="orcamento_etapa"
+              name="orcamento_etapa"
+              disabled={!etapasOrcamento.length}
+              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm disabled:opacity-60"
+            >
+              <option value="">Não vincular</option>
+              {etapasOrcamento.map((etapa) => (
+                <option key={etapa} value={etapa}>
+                  {etapa}
+                </option>
+              ))}
+            </select>
+            <FieldDescription>
+              {etapasOrcamento.length
+                ? "Vinculando, esta ordem entra no comparativo orçado × comprado da etapa."
+                : "Essa obra ainda não tem orçamento ativo com etapas."}
+            </FieldDescription>
+          </Field>
+
+          {/*
+            Tipo e categoria convivem, por ora.
+            
+            Chegaram a ser um só — a categoria carrega um tipo e dava para
+            deduzir. Voltaram a ser dois porque o tipo vai descer para o ITEM:
+            uma ordem pode trazer material e serviço na mesma nota, e aí a
+            classificação deixa de ser da ordem.
+          */}
+          <Field>
+            <FieldLabel htmlFor="tipo_item">Tipo</FieldLabel>
+            <select
+              id="tipo_item"
+              name="tipo_item"
+              defaultValue=""
+              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            >
+              <option value="">Não classificar</option>
+              <option value="material">Material</option>
+              <option value="servico">Serviço</option>
+              <option value="mao_de_obra">Mão de obra</option>
+            </select>
+            <FieldDescription>Separa os gastos no comparativo com o orçamento.</FieldDescription>
+          </Field>
+        </div>
+
+        <FieldSeparator>Pagamento e documentos</FieldSeparator>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field>
             <FieldLabel htmlFor="forma_pagamento">Forma de pagamento</FieldLabel>
             <select
               id="forma_pagamento"
@@ -253,8 +272,9 @@ export function NovaCompraForm({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="w-full">
+          </Field>
+
+          <Field>
             <FieldLabel htmlFor="data_cotacao">Data da cotação</FieldLabel>
             <Input
               id="data_cotacao"
@@ -263,47 +283,75 @@ export function NovaCompraForm({
               defaultValue={new Date().toISOString().slice(0, 10)}
               required
             />
-          </div>
-        </Field>
+          </Field>
 
-        <Field>
-          <FieldLabel htmlFor="anexo_cotacao">Anexo da cotação (opcional)</FieldLabel>
-          <input
-            id="anexo_cotacao"
-            type="file"
-            className="text-sm"
-            onChange={(e) => setAnexo(e.target.files?.[0] ?? null)}
-          />
-          {erroAnexo && <FieldError>{erroAnexo}</FieldError>}
-        </Field>
+          {/*
+            Entrega da ORDEM, uma vez só.
+            
+            Era campo de cada parcela, e o formulário perguntava em todas —
+            três parcelas do mesmo cimento pediam três vezes quando o cimento
+            chega. A mercadoria chega uma vez.
+          */}
+          <Field>
+            <FieldLabel htmlFor="data_entrega_prevista">Entrega prevista (opcional)</FieldLabel>
+            <Input id="data_entrega_prevista" name="data_entrega_prevista" type="date" />
+          </Field>
 
-        <Field orientation="horizontal">
-          <Checkbox id="pagamento_apos_recebimento" name="pagamento_apos_recebimento" />
-          <FieldContent>
-            <FieldLabel htmlFor="pagamento_apos_recebimento">
-              Pagar somente após o recebimento da mercadoria
-            </FieldLabel>
-            <FieldDescription>
-              As parcelas dessa ordem só entram na lista de pagamentos depois que você confirmar
-              o recebimento. Até lá elas não aparecem como pendentes nem vencem, mesmo que a data
-              passe — o atraso seria do fornecedor.
-            </FieldDescription>
-          </FieldContent>
-        </Field>
+          <Field>
+            <FieldLabel htmlFor="anexo_cotacao">Anexo da cotação (opcional)</FieldLabel>
+            {/*
+              O `<input type="file">` nativo some no meio do formulário: o
+              navegador o desenha como um botão cinza colado num "Nenhum
+              arquivo escolhido", e ninguém o lê como ação. Escondido dentro de
+              um <label> estilizado, ele vira um botão igual aos outros.
+            */}
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium shadow-xs transition-colors hover:bg-muted">
+                <Paperclip className="size-4" aria-hidden />
+                {anexo ? "Trocar" : "Escolher arquivo"}
+                <input
+                  id="anexo_cotacao"
+                  type="file"
+                  className="sr-only"
+                  onChange={(e) => setAnexo(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                {anexo ? anexo.name : "Nenhum arquivo escolhido"}
+              </span>
+              {anexo && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAnexo(null)}>
+                  Remover
+                </Button>
+              )}
+            </div>
+            {erroAnexo && <FieldError>{erroAnexo}</FieldError>}
+          </Field>
 
-        <Field orientation="horizontal">
-          <Checkbox id="requer_aprovacao_cliente" name="requer_aprovacao_cliente" />
-          <FieldContent>
-            <FieldLabel htmlFor="requer_aprovacao_cliente">
-              Exigir aprovação do cliente antes do pagamento
-            </FieldLabel>
-            <FieldDescription>
-              Deixe desmarcado para o fluxo normal — a ordem já fica liberada para pagamento assim
-              que registrada. Marque só quando essa compra específica precisar passar pela
-              aprovação do cliente antes.
-            </FieldDescription>
-          </FieldContent>
-        </Field>
+          <CamposNotaFiscal className="sm:col-span-2" />
+        </div>
+
+        <FieldSeparator>Condições</FieldSeparator>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field orientation="horizontal">
+            <Checkbox id="pagamento_apos_recebimento" name="pagamento_apos_recebimento" />
+            <FieldContent>
+              <FieldLabel htmlFor="pagamento_apos_recebimento">
+                Pagar somente após o recebimento da mercadoria
+              </FieldLabel>
+            </FieldContent>
+          </Field>
+
+          <Field orientation="horizontal">
+            <Checkbox id="requer_aprovacao_cliente" name="requer_aprovacao_cliente" />
+            <FieldContent>
+              <FieldLabel htmlFor="requer_aprovacao_cliente">
+                Exigir aprovação do cliente antes do pagamento
+              </FieldLabel>
+            </FieldContent>
+          </Field>
+        </div>
 
         <FieldSeparator>Itens</FieldSeparator>
 
@@ -417,7 +465,7 @@ export function NovaCompraForm({
           {rows.map((row, i) => (
             <div
               key={row.id}
-              className="grid grid-cols-1 items-end gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_1fr_1fr_auto]"
+              className="grid grid-cols-1 items-end gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_1fr_auto]"
             >
               <div>
                 <FieldLabel htmlFor={`parcela_valor_${i}`}>Valor (R$)</FieldLabel>
@@ -444,10 +492,6 @@ export function NovaCompraForm({
                   type="date"
                   required
                 />
-              </div>
-              <div>
-                <FieldLabel htmlFor={`parcela_entrega_${i}`}>Entrega prevista</FieldLabel>
-                <Input id={`parcela_entrega_${i}`} name={`parcela_entrega_${i}`} type="date" />
               </div>
               <Button
                 type="button"

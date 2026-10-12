@@ -55,10 +55,23 @@ export default async function ComprasObraPage({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">Ordens de compra de material dessa obra.</p>
-        <Button
-          nativeButton={false}
-          render={<Link href={`/obras/${obraId}/compras/novo`}>Nova ordem de compra</Link>}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Lançamento antes da ordem na ordem de leitura? Não: a ordem de
+              compra é o fluxo principal e fica com o botão cheio. O
+              lançamento é o atalho para o que já foi pago, e botão de
+              contorno é o peso certo para ele. */}
+          <Button
+            nativeButton={false}
+            variant="outline"
+            render={
+              <Link href={`/obras/${obraId}/compras/lancamento`}>Novo lançamento</Link>
+            }
+          />
+          <Button
+            nativeButton={false}
+            render={<Link href={`/obras/${obraId}/compras/novo`}>Nova ordem de compra</Link>}
+          />
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl border">

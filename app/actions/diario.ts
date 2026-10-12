@@ -137,7 +137,6 @@ export async function fecharDia(obraId: string, data: string): Promise<DiarioFor
       entregas_snapshot: conteudo.entregas.map((entrega) => ({
         descricao: entrega.descricao,
         fornecedor: entrega.fornecedor,
-        parcela: entrega.parcela,
         recebidoEm: entrega.recebidoEm,
       })),
       fechado_em: new Date().toISOString(),
@@ -186,20 +185,33 @@ export async function reabrirDia(obraId: string, data: string): Promise<DiarioFo
   return { error: null, success: true };
 }
 
-/** Marca (ou desmarca) o recebimento de uma entrega prevista para o dia. */
+/**
+ * Marca (ou desmarca) o recebimento de uma entrega prevista para o dia.
+ *
+ * Grava na ORDEM, não na parcela — a mercadoria chega uma vez. É a mesma
+ * coluna que o botão da tela de compras preenche, e é ela que libera as
+ * parcelas quando a compra é "pagar após o recebimento".
+ */
 export async function confirmarRecebimento(
   obraId: string,
   data: string,
-  parcelaId: string,
+  compraId: string,
   recebido: boolean
 ) {
-  await requireRole("engenheiro");
+  const profile = await requireRole("engenheiro");
   const supabase = await createClient();
 
   await supabase
-    .from("compra_parcelas")
-    .update({ data_entrega_real: recebido ? data : null, updated_at: new Date().toISOString() })
-    .eq("id", parcelaId);
+    .from("compras")
+    .update({
+      data_entrega_real: recebido ? data : null,
+      recebimento_confirmado_por: recebido ? profile.id : null,
+      recebimento_confirmado_em: recebido ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", compraId)
+    // Sem isto, um id de compra de outra obra seria aceito.
+    .eq("obra_id", obraId);
 
   revalidatePath(`/obras/${obraId}/diario/${data}`);
   revalidatePath(`/obras/${obraId}/compras`);

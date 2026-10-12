@@ -20,8 +20,16 @@ export type ParcelaSituacao = {
   liberada_para_pagamento: boolean;
   pagamento_enviado_em: string | null;
   data_vencimento: string;
-  data_entrega_prevista: string | null;
-  data_entrega_real: string | null;
+  /**
+   * Entrega da ORDEM, não da parcela.
+   *
+   * Vem da view, que a copia de `compras` para cada linha. As colunas de
+   * entrega da parcela ficaram obsoletas na 0045 — a mercadoria chega uma vez,
+   * e lê-las aqui faria duas parcelas da mesma compra discordarem sobre se o
+   * material chegou.
+   */
+  entrega_prevista_ordem: string | null;
+  entrega_real_ordem: string | null;
 };
 
 export type ChaveFinanceira =
@@ -100,28 +108,29 @@ export function situacaoFinanceiraParcela(parcela: ParcelaSituacao): SituacaoFin
 
 /** Situação da mercadoria de uma parcela. Sem entrega prevista, não há o que dizer. */
 export function situacaoEntregaParcela(parcela: ParcelaSituacao): SituacaoEntrega {
-  if (parcela.data_entrega_real) {
-    const atrasou =
-      parcela.data_entrega_prevista && parcela.data_entrega_real > parcela.data_entrega_prevista;
+  return situacaoEntregaOrdem(parcela.entrega_prevista_ordem, parcela.entrega_real_ordem);
+}
+
+/** Situação da mercadoria de uma ordem. Sem entrega prevista, não há o que dizer. */
+export function situacaoEntregaOrdem(
+  prevista: string | null,
+  real: string | null
+): SituacaoEntrega {
+  if (real) {
+    const atrasou = prevista && real > prevista;
     return {
       chave: "recebida",
-      data: parcela.data_entrega_real,
-      dias: atrasou
-        ? diasEntre(parcela.data_entrega_prevista!, parcela.data_entrega_real)
-        : undefined,
+      data: real,
+      dias: atrasou ? diasEntre(prevista!, real) : undefined,
     };
   }
-  if (!parcela.data_entrega_prevista) return { chave: "sem_previsao" };
+  if (!prevista) return { chave: "sem_previsao" };
 
   const hoje = hojeLocal();
-  if (parcela.data_entrega_prevista < hoje) {
-    return {
-      chave: "atrasada",
-      dias: diasEntre(parcela.data_entrega_prevista, hoje),
-      data: parcela.data_entrega_prevista,
-    };
+  if (prevista < hoje) {
+    return { chave: "atrasada", dias: diasEntre(prevista, hoje), data: prevista };
   }
-  return { chave: "prevista", data: parcela.data_entrega_prevista };
+  return { chave: "prevista", data: prevista };
 }
 
 /** Hoje no fuso da obra — ver `lib/fuso`. */

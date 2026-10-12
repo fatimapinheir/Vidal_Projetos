@@ -284,3 +284,32 @@ export async function definirAtivoFornecedor(fornecedorId: string, ativo: boolea
 
   revalidatePath("/fornecedores");
 }
+
+/**
+ * Cadastro mínimo de fornecedor, feito de dentro da ordem de compra.
+ *
+ * Só o nome. O cadastro completo (CNPJ, contatos, condição de pagamento) tem
+ * tela própria — exigir tudo aqui transformaria "falta o fornecedor na lista"
+ * num desvio de cinco minutos no meio de um formulário já começado. O que
+ * falta se completa depois, em Fornecedores.
+ */
+export async function criarFornecedorRapido(
+  nome: string
+): Promise<{ error: string | null; criadoId?: string }> {
+  await requireRole("engenheiro");
+
+  const limpo = nome.trim();
+  if (limpo.length < 2) return { error: "Informe o nome do fornecedor." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("fornecedores")
+    .insert({ nome: limpo })
+    .select("id")
+    .single();
+
+  if (error) return { error: "Não foi possível criar o fornecedor." };
+
+  revalidatePath("/fornecedores");
+  return { error: null, criadoId: data.id };
+}

@@ -13,6 +13,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { buscarItensPlanejamento } from "@/app/actions/compras";
+import { CampoMoeda, CampoUnidade } from "@/components/orcamento/campos-item";
 
 export type ItemCompraLocal = {
   orcamento_item_id?: string;
@@ -44,14 +45,14 @@ function FormularioItem({
   const [descricao, setDescricao] = useState(inicial.descricao);
   const [unidade, setUnidade] = useState(inicial.unidade);
   const [quantidade, setQuantidade] = useState("");
-  const [precoUnitario, setPrecoUnitario] = useState(String(inicial.preco_unitario || ""));
+  const [precoUnitario, setPrecoUnitario] = useState(inicial.preco_unitario || 0);
   const [descontoTipo, setDescontoTipo] = useState<"" | "valor" | "percentual">("");
   const [descontoValor, setDescontoValor] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   function handleSubmit() {
     const q = Number(quantidade);
-    const p = Number(precoUnitario);
+    const p = precoUnitario;
     if (!descricao.trim()) return setError("Informe a descrição.");
     if (!unidade.trim()) return setError("Informe a unidade.");
     if (!q || q <= 0) return setError("Informe uma quantidade válida.");
@@ -78,7 +79,10 @@ function FormularioItem({
         <Field orientation="responsive">
           <div className="w-full">
             <FieldLabel htmlFor="item_unidade">Unidade</FieldLabel>
-            <Input id="item_unidade" value={unidade} onChange={(e) => setUnidade(e.target.value)} />
+            {/* A mesma lista fechada do orçamento. O campo era livre aqui, e
+                "un"/"UN"/"und" voltavam a aparecer justamente na compra, que é
+                onde o item vira gasto. */}
+            <CampoUnidade id="item_unidade" value={unidade} onValueChange={setUnidade} />
           </div>
           <div className="w-full">
             <FieldLabel htmlFor="item_quantidade">Quantidade</FieldLabel>
@@ -94,15 +98,10 @@ function FormularioItem({
         </Field>
         <Field orientation="responsive">
           <div className="w-full">
-            <FieldLabel htmlFor="item_preco">Preço unitário pago (R$)</FieldLabel>
-            <Input
-              id="item_preco"
-              type="number"
-              step="0.01"
-              min="0"
-              value={precoUnitario}
-              onChange={(e) => setPrecoUnitario(e.target.value)}
-            />
+            <FieldLabel htmlFor="item_preco">Preço unitário pago</FieldLabel>
+            {/* Mesma máscara de centavos do orçamento: digita-se 1250 e sai
+                12,50, sem ponto nem vírgula para acertar. */}
+            <CampoMoeda id="item_preco" value={precoUnitario} onValueChange={setPrecoUnitario} />
           </div>
           <div className="w-full">
             <FieldLabel htmlFor="item_desconto_tipo">Desconto no item</FieldLabel>
@@ -256,8 +255,8 @@ export function ItemCompraPicker({
               {!resultados.length && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Nenhum item planejado encontrado com esse termo. Use "Item avulso" se não
-                    estiver no planejamento dessa obra.
+                    Nenhum item planejado encontrado com esse termo. Use &ldquo;Item
+                    avulso&rdquo; se não estiver no planejamento dessa obra.
                   </TableCell>
                 </TableRow>
               )}

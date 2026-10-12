@@ -120,11 +120,11 @@ export default async function DiarioDiaPage({
         acaoEntrega={
           fechado
             ? undefined
-            : (parcelaId, recebidoEm) => (
+            : (compraId, recebidoEm) => (
                 <RecebimentoToggle
                   obraId={obraId}
                   data={data}
-                  parcelaId={parcelaId}
+                  compraId={compraId}
                   recebidoEm={recebidoEm}
                 />
               )

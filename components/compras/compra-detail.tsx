@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableHeader,
@@ -10,9 +10,9 @@ import {
 } from "@/components/ui/table";
 import { CompraStatusBadge } from "./status-badges";
 import { SituacaoFinanceiraBadge, SituacaoEntregaBadge } from "./situacao-badges";
-import { situacaoFinanceiraParcela, situacaoEntregaParcela } from "@/lib/compras/situacao";
+import { situacaoFinanceiraParcela, situacaoEntregaOrdem } from "@/lib/compras/situacao";
 import { PagarParcelaForm } from "./pagar-parcela-form";
-import { RecebimentoParcela } from "./recebimento-parcela";
+import { RecebimentoOrdem } from "./recebimento-ordem";
 import { PagamentoEnviadoParcela } from "./pagamento-enviado-parcela";
 import { CompraAprovacaoActions } from "./compra-aprovacao-actions";
 import { EtapaOrcamentoSelect } from "./etapa-orcamento-select";
@@ -254,6 +254,28 @@ export async function CompraDetail({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Parcelas</CardTitle>
+          {/*
+            A entrega mora aqui, no cabeçalho, e não em cada linha: ela é da
+            ordem. Com "pagar após o recebimento", é este botão que libera
+            TODAS as parcelas de uma vez — antes dele nenhuma vence.
+          */}
+          <CardAction>
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Entrega</p>
+                <SituacaoEntregaBadge
+                  situacao={situacaoEntregaOrdem(
+                    compra.data_entrega_prevista,
+                    compra.data_entrega_real
+                  )}
+                  simplificado={viewerRole === "cliente"}
+                />
+              </div>
+              {viewerRole === "engenheiro" && compra.pagamento_apos_recebimento && (
+                <RecebimentoOrdem compraId={compra.id} recebidoEm={compra.data_entrega_real} />
+              )}
+            </div>
+          </CardAction>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -263,8 +285,6 @@ export async function CompraDetail({
                   <TableHead>#</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Vencimento</TableHead>
-                  <TableHead>Entrega prevista</TableHead>
-                  <TableHead>Entrega</TableHead>
                   <TableHead>Financeiro</TableHead>
                   <TableHead>Comprovante</TableHead>
                   <TableHead />
@@ -276,13 +296,6 @@ export async function CompraDetail({
                     <TableCell>{p.numero_parcela}</TableCell>
                     <TableCell>{formatCurrency(p.valor)}</TableCell>
                     <TableCell>{formatDate(p.data_vencimento)}</TableCell>
-                    <TableCell>{formatDate(p.data_entrega_prevista)}</TableCell>
-                    <TableCell>
-                      <SituacaoEntregaBadge
-                        situacao={situacaoEntregaParcela(p)}
-                        simplificado={viewerRole === "cliente"}
-                      />
-                    </TableCell>
                     <TableCell>
                       <SituacaoFinanceiraBadge
                         situacao={situacaoFinanceiraParcela(p)}
@@ -305,15 +318,6 @@ export async function CompraDetail({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-wrap items-center justify-end gap-2">
-                        {viewerRole === "engenheiro" &&
-                          compra.pagamento_apos_recebimento &&
-                          p.status !== "paga" && (
-                            <RecebimentoParcela
-                              compraId={compra.id}
-                              parcelaId={p.id}
-                              recebidoEm={p.data_entrega_real}
-                            />
-                          )}
                         {/* O passo do meio: liberada, lançada, depois paga. */}
                         {viewerRole === "engenheiro" &&
                           p.status !== "paga" &&

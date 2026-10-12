@@ -6,11 +6,11 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { getProfile } from "@/lib/auth/get-profile";
+import { hojeNoFuso } from "@/lib/fuso";
 
 const parcelaSchema = z.object({
   valor: z.coerce.number().positive("Valor da parcela deve ser positivo."),
   data_vencimento: z.string().min(1, "Informe o vencimento da parcela."),
-  data_entrega_prevista: z.string().optional(),
 });
 
 const compraSchema = z.object({
@@ -27,9 +27,16 @@ const compraSchema = z.object({
     "outro",
   ]),
   data_cotacao: z.string().min(1),
-  // Opcional: a ordem pode não se encaixar em nenhum dos três (um frete, uma
-  // taxa). Forçar uma classificação errada é pior que não ter nenhuma.
+  // Opcional: nem toda ordem se encaixa numa categoria já cadastrada, e
+  // forçar uma classificação errada é pior que não ter nenhuma.
+  categoria_id: z.uuid().optional(),
+  // Separado da categoria por ora: vai descer para o item, porque uma mesma
+  // nota pode trazer material e serviço.
   tipo_item: z.enum(["material", "servico", "mao_de_obra"]).optional(),
+  // Entrega da ORDEM. Era de cada parcela — ver a migração 0045.
+  data_entrega_prevista: z.string().optional(),
+  nota_fiscal_numero: z.string().trim().min(1).optional(),
+  nota_fiscal_emissao: z.string().min(1).optional(),
   // Etapa do orçamento é texto livre validado contra a lista da versão ativa
   // na hora de gravar — ver `etapaOrcamentoValida`.
   orcamento_etapa: z.string().optional(),
@@ -78,7 +85,7 @@ function calcularTotalItem(item: {
 
 export type CompraFormState = { error: string | null };
 
-type ParcelaInput = { valor: number; data_vencimento: string; data_entrega_prevista?: string };
+type ParcelaInput = { valor: number; data_vencimento: string };
 type ParseParcelasResult = { error: string; parcelas?: undefined } | { error?: undefined; parcelas: ParcelaInput[] };
 
 function parseParcelas(formData: FormData): ParseParcelasResult {
@@ -88,7 +95,6 @@ function parseParcelas(formData: FormData): ParseParcelasResult {
     const parsed = parcelaSchema.safeParse({
       valor: formData.get(`parcela_valor_${index}`),
       data_vencimento: formData.get(`parcela_vencimento_${index}`),
-      data_entrega_prevista: formData.get(`parcela_entrega_${index}`) || undefined,
     });
     if (!parsed.success) {
       const message: string = parsed.error.issues[0]?.message ?? "Parcela inválida.";
@@ -187,7 +193,11 @@ export async function createCompra(
     descricao: formData.get("descricao"),
     forma_pagamento: formData.get("forma_pagamento"),
     data_cotacao: formData.get("data_cotacao"),
+    categoria_id: formData.get("categoria_id") || undefined,
     tipo_item: formData.get("tipo_item") || undefined,
+    data_entrega_prevista: formData.get("data_entrega_prevista") || undefined,
+    nota_fiscal_numero: formData.get("nota_fiscal_numero") || undefined,
+    nota_fiscal_emissao: formData.get("nota_fiscal_emissao") || undefined,
     orcamento_etapa: formData.get("orcamento_etapa") || undefined,
   });
 
@@ -265,7 +275,11 @@ export async function createCompra(
       requer_aprovacao_cliente: requerAprovacaoCliente,
       pagamento_apos_recebimento: pagamentoAposRecebimento,
       orcamento_etapa: etapa.nome,
+      categoria_id: parsed.data.categoria_id ?? null,
       tipo_item: parsed.data.tipo_item ?? null,
+      data_entrega_prevista: parsed.data.data_entrega_prevista ?? null,
+      nota_fiscal_numero: parsed.data.nota_fiscal_numero ?? null,
+      nota_fiscal_emissao: parsed.data.nota_fiscal_emissao ?? null,
       status: requerAprovacaoCliente ? "cotada" : "aprovada",
       aprovado_por: requerAprovacaoCliente ? null : profile.id,
       aprovado_em: requerAprovacaoCliente ? null : new Date().toISOString(),
@@ -309,7 +323,6 @@ export async function createCompra(
       numero_parcela: i + 1,
       valor: p.valor,
       data_vencimento: p.data_vencimento,
-      data_entrega_prevista: p.data_entrega_prevista || null,
     }))
   );
 
@@ -397,30 +410,30 @@ export async function recusarCompraAction(compraId: string, formData: FormData) 
 }
 
 /**
- * Confirma (ou desfaz) o recebimento da mercadoria de uma parcela.
+ * Confirma (ou desfaz) o recebimento da mercadoria de uma ORDEM.
  *
- * Quando a compra é "pagamento após recebimento", é isto que libera a parcela
- * para a lista de pagamentos — antes disso ela não aparece como pendente nem
- * vence. A mesma coluna é preenchida pelo diário de obra, que é o outro lugar
- * onde o recebimento aparece naturalmente.
+ * Era por parcela, e isso significava liberar o pagamento aos pedaços: numa
+ * compra de cimento em três vezes, confirmar o recebimento soltava só a
+ * primeira parcela e as outras duas seguiam travadas sem motivo visível. A
+ * mercadoria chega uma vez; quando chega, a ordem inteira passa a poder ser
+ * paga.
+ *
+ * Quando a compra é "pagamento após recebimento", é isto que libera as
+ * parcelas — antes disso nenhuma aparece como pendente nem vence.
  */
-export async function confirmarRecebimentoParcela(
-  compraId: string,
-  parcelaId: string,
-  recebido: boolean
-) {
-  await requireRole("engenheiro");
+export async function confirmarRecebimentoOrdem(compraId: string, recebido: boolean) {
+  const profile = await requireRole("engenheiro");
   const supabase = await createClient();
 
   await supabase
-    .from("compra_parcelas")
+    .from("compras")
     .update({
-      data_entrega_real: recebido ? new Date().toISOString().slice(0, 10) : null,
+      data_entrega_real: recebido ? hojeNoFuso() : null,
+      recebimento_confirmado_por: recebido ? profile.id : null,
+      recebimento_confirmado_em: recebido ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", parcelaId)
-    // Sem isto, um id de parcela de outra compra seria aceito.
-    .eq("compra_id", compraId);
+    .eq("id", compraId);
 
   const obraId = await resolveObraIdForCompra(compraId);
   if (obraId) {
