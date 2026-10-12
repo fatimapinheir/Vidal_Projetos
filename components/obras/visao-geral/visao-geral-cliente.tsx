@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowRight,
   Building2,
   CalendarDays,
@@ -13,6 +14,7 @@ import {
   FileText,
   LineChart,
   HardHat,
+  Hourglass,
   Moon,
   NotebookPen,
   PackageCheck,
@@ -34,6 +36,10 @@ import { formatDateBR } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import type { DadosVisaoGeral } from "@/lib/obras/visao-geral";
 import type { DadosClienteExtra, EtapaResumo } from "@/lib/obras/visao-cliente";
+import {
+  diagnosticarExecucao,
+  type DiagnosticoExecucao,
+} from "@/lib/obras/diagnostico-execucao";
 import type { DiarioCondicao } from "@/lib/types/database.types";
 import { TrilhaEtapas } from "./trilha-etapas";
 
@@ -89,6 +95,69 @@ function Barra({
           className={cn("h-full rounded-full", cor)}
           style={{ width: `${Math.min(100, Math.max(0, percentual))}%` }}
         />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * As quatro mensagens de "obra executada x valores pagos".
+ *
+ * Cada situação tem cor, ícone e texto próprios — e as cores não são enfeite:
+ * verde é "siga", vermelho é "olhe isto", azul é "fique sabendo", âmbar é "o
+ * sistema ainda não sabe". Quem lê de relance precisa saber se há algo a
+ * fazer antes de ler a frase.
+ *
+ * Título em cor de texto normal e só o ícone colorido: parágrafo inteiro
+ * colorido cansa e, no caso do vermelho, soa como erro de sistema em vez de
+ * observação sobre a obra.
+ */
+const DIAGNOSTICO: Record<
+  DiagnosticoExecucao,
+  { Icone: typeof CheckCircle2; cor: string; chapa: string; titulo: string; corpo: string }
+> = {
+  positivo: {
+    Icone: CheckCircle2,
+    cor: "text-sucesso",
+    chapa: "border-sucesso/25 bg-sucesso/10",
+    titulo: "Ótimo! A obra está avançando conforme o esperado.",
+    corpo:
+      "O avanço da obra está à frente dos valores pagos em mão de obra e materiais, indicando um bom equilíbrio entre execução e gastos.",
+  },
+  mao_de_obra_adiantada: {
+    Icone: AlertTriangle,
+    cor: "text-destructive",
+    chapa: "border-destructive/25 bg-destructive/10",
+    titulo: "Atenção: os pagamentos de mão de obra estão adiantados.",
+    corpo:
+      "O percentual pago em mão de obra está acima do avanço físico da obra. É importante acompanhar a execução dos serviços para garantir que os pagamentos estejam compatíveis com o andamento.",
+  },
+  materiais_adiantados: {
+    Icone: PackageCheck,
+    cor: "text-primary-texto",
+    chapa: "border-primary/25 bg-primary/10",
+    titulo: "Informação: há mais materiais pagos do que serviços executados.",
+    corpo:
+      "Os gastos com materiais estão à frente do avanço físico da obra. Isso pode indicar a formação de estoque para as próximas etapas. Acompanhe se os materiais adquiridos estão disponíveis e armazenados adequadamente.",
+  },
+  sem_dados: {
+    Icone: Hourglass,
+    cor: "text-atencao",
+    chapa: "border-atencao/25 bg-atencao/10",
+    titulo: "Ainda não há dados suficientes para esta análise.",
+    corpo:
+      "A comparação aparece quando a obra tiver orçamento ativo e a primeira medição de avanço registrada pelo engenheiro.",
+  },
+};
+
+function MensagemDiagnostico({ situacao }: { situacao: DiagnosticoExecucao }) {
+  const { Icone, cor, chapa, titulo, corpo } = DIAGNOSTICO[situacao];
+  return (
+    <div className={cn("flex items-start gap-3 rounded-xl border p-3", chapa)}>
+      <Icone className={cn("mt-0.5 size-[18px] shrink-0", cor)} aria-hidden />
+      <div className="flex flex-col gap-1">
+        <p className="text-sm leading-snug font-semibold">{titulo}</p>
+        <p className="text-[13px] leading-snug text-muted-foreground">{corpo}</p>
       </div>
     </div>
   );
@@ -434,7 +503,6 @@ export function VisaoGeralCliente({
 }) {
   const d = dados;
   const base = `/portal/obras/${obraId}`;
-  const temOrcamento = d.orcado > 0;
 
   const SaudacaoIcone = saudacao === "Boa noite" ? Moon : Sun;
 
@@ -450,9 +518,16 @@ export function VisaoGeralCliente({
   const orcadoMaoDeObra = extra.orcadoPorTipo.maoDeObra;
   const pctMaterial = orcadoMaterial ? (d.materiais / orcadoMaterial) * 100 : 0;
   const pctMaoDeObra = orcadoMaoDeObra ? (d.custoMaoDeObra / orcadoMaoDeObra) * 100 : 0;
-  const mediaPaga =
-    orcadoMaterial || orcadoMaoDeObra ? (pctMaterial + pctMaoDeObra) / 2 : d.percentualFinanceiro;
-  const avancoAdiantado = d.percentualFisico >= mediaPaga;
+  const situacao = diagnosticarExecucao({
+    percentualFisico: d.percentualFisico,
+    percentualMaoDeObra: pctMaoDeObra,
+    percentualMaterial: pctMaterial,
+    temOrcamento: orcadoMaoDeObra > 0 || orcadoMaterial > 0,
+    // Sem medição, 0% de avanço não quer dizer "obra parada": quer dizer que
+    // ninguém mediu ainda. Comparar contra isso acusaria descompasso em toda
+    // obra recém-cadastrada.
+    temMedicao: d.ultimaMedicao != null,
+  });
 
   // Ícone em toda fatia: a `Rosca` não comunica status só por cor, e a
   // legenda é onde essa promessa se cumpre.
@@ -656,17 +731,7 @@ export function VisaoGeralCliente({
               <Barra rotulo="Materiais pagos" percentual={pctMaterial} cor="bg-grafico-pago" />
             )}
 
-            {temOrcamento ? (
-              <Leitura tom={avancoAdiantado ? "bom" : "neutro"}>
-                {avancoAdiantado
-                  ? "Ótimo! A obra avançou mais do que os valores pagos em mão de obra e materiais."
-                  : "A obra segue em execução. Os valores pagos acompanham o que já foi contratado."}
-              </Leitura>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                As comparações aparecem assim que o orçamento da obra for ativado.
-              </p>
-            )}
+            <MensagemDiagnostico situacao={situacao} />
           </CardContent>
         </Card>
       </div>
