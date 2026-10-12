@@ -9,10 +9,23 @@ import { PERIODOS, janelaDoPeriodo, encaixarNosDados, type PeriodoId } from "@/l
 
 const MS_POR_DIA = 86_400_000;
 const ALTURA_LINHA = 30;
-const ALTURA_CABECALHO = 40;
+/*
+ * O cabeçalho tem três faixas: mês, dia da semana e dia do mês.
+ *
+ * A letra do dia da semana entra entre as outras duas, e não ao lado do
+ * número, porque é desse par que se lê "o dia 12 cai numa segunda" — e é essa
+ * leitura que diz, de relance, por que uma barra pula de sexta para segunda.
+ */
+const ALTURA_FAIXA_MES = 19;
+const ALTURA_FAIXA_SEMANA = 12;
+const ALTURA_FAIXA_DIA = 19;
+const ALTURA_CABECALHO = ALTURA_FAIXA_MES + ALTURA_FAIXA_SEMANA + ALTURA_FAIXA_DIA;
 const LARGURA_MINIMA_BARRA = 4;
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+/** Inicial do dia da semana, indexada por `getUTCDay()` — 0 é domingo. */
+const INICIAIS_SEMANA = ["D", "S", "T", "Q", "Q", "S", "S"];
 
 /** Pixels por dia mínimos — abaixo disso a barra some e o cabeçalho embola. */
 const PX_MINIMO = 2;
@@ -234,7 +247,7 @@ export function CronogramaTimeline({
   // Tudo derivado da string ISO em UTC — formatar um Date em hora local
   // deslocaria o dia num fuso negativo (America/Sao_Paulo).
   const meses: { rotulo: string; dias: number }[] = [];
-  const marcasDia: { dia: number; rotulo: string; forte: boolean }[] = [];
+  const marcasDia: { dia: number; rotulo: string; semana: string; forte: boolean }[] = [];
   for (let d = intervalo.inicio; d <= intervalo.fim; d++) {
     const iso = diaParaIso(d);
     const ano = iso.slice(0, 4);
@@ -244,10 +257,17 @@ export function CronogramaTimeline({
     if (ultimo?.rotulo === rotulo) ultimo.dias += 1;
     else meses.push({ rotulo, dias: 1 });
 
-    const segunda = new Date(`${iso}T00:00:00Z`).getUTCDay() === 1;
-    if (px >= 20) marcasDia.push({ dia: d, rotulo: String(diaDoMes), forte: segunda });
-    else if (px >= 8 && segunda) marcasDia.push({ dia: d, rotulo: String(diaDoMes), forte: true });
-    else if (px < 8 && diaDoMes === 1) marcasDia.push({ dia: d, rotulo: "", forte: true });
+    const diaDaSemana = new Date(`${iso}T00:00:00Z`).getUTCDay();
+    const segunda = diaDaSemana === 1;
+    const inicial = INICIAIS_SEMANA[diaDaSemana];
+    if (px >= 20) {
+      marcasDia.push({ dia: d, rotulo: String(diaDoMes), semana: inicial, forte: segunda });
+    } else if (px >= 8 && segunda) {
+      marcasDia.push({ dia: d, rotulo: String(diaDoMes), semana: inicial, forte: true });
+    } else if (px < 8 && diaDoMes === 1) {
+      // Marca de virada de mês: sem número e sem letra, só o traço.
+      marcasDia.push({ dia: d, rotulo: "", semana: "", forte: true });
+    }
   }
 
   const diasDeFolga: number[] = [];
@@ -350,18 +370,37 @@ export function CronogramaTimeline({
               className="relative flex shrink-0 flex-col border-b bg-muted"
               style={{ width: larguraCanvas }}
             >
-              <div className="flex flex-1 items-center overflow-hidden">
+              <div
+                className="flex items-center overflow-hidden"
+                style={{ height: ALTURA_FAIXA_MES }}
+              >
                 {meses.map((mes, i) => (
                   <div
                     key={`${mes.rotulo}-${i}`}
                     className="h-full shrink-0 truncate border-r px-1 text-[11px] font-medium capitalize"
-                    style={{ width: mes.dias * px, lineHeight: `${ALTURA_CABECALHO / 2}px` }}
+                    style={{ width: mes.dias * px, lineHeight: `${ALTURA_FAIXA_MES}px` }}
                   >
                     {mes.dias * px >= 34 ? mes.rotulo : ""}
                   </div>
                 ))}
               </div>
-              <div className="relative flex-1">
+              {/*
+                A letra fica sempre mais apagada que o número, mesmo na
+                segunda-feira: ela é referência, não dado. Dois pesos iguais
+                empilhados fariam o cabeçalho competir com as barras.
+              */}
+              <div className="relative" style={{ height: ALTURA_FAIXA_SEMANA }}>
+                {marcasDia.map((marca) => (
+                  <div
+                    key={`semana-${marca.dia}`}
+                    className="absolute inset-y-0 flex items-center justify-center text-[9px] leading-none text-muted-foreground/70"
+                    style={{ left: x(marca.dia), width: px }}
+                  >
+                    {marca.semana}
+                  </div>
+                ))}
+              </div>
+              <div className="relative" style={{ height: ALTURA_FAIXA_DIA }}>
                 {marcasDia.map((marca) => (
                   <div
                     key={marca.dia}
