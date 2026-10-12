@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/auth/require-role";
 import { parseNumeroBR } from "@/lib/parse-numero-br";
 import { lerAnexosDoForm, salvarAnexosDaCompra } from "@/lib/compras/anexos";
+import { etapaOrcamentoValida } from "@/lib/compras/etapa-orcamento";
 
 const itemSchema = z.object({
   orcamento_item_id: z.uuid().optional(),
@@ -45,6 +46,15 @@ const schema = z.object({
    * de obrigatório com data inventada.
    */
   data_entrega_prevista: z.string().min(1).optional(),
+  /*
+   * Entrega já recebida, vinda do checkbox do formulário.
+   *
+   * Nasce fechada em vez de obrigar o passo seguinte: num lançamento, pagar e
+   * levar na hora é o caso comum, e exigir que a pessoa salve e depois volte
+   * para confirmar o recebimento seria cerimônia por nada.
+   */
+  data_entrega_real: z.string().min(1).optional(),
+  orcamento_etapa: z.string().min(1).optional(),
   valor: z.number().positive("O valor precisa ser maior que zero."),
   // O primeiro arquivo anexado. Continua obrigatório e continua indo para a
   // parcela — ver o insert da parcela, mais abaixo.
@@ -85,6 +95,8 @@ export async function criarLancamento(
     forma_pagamento: formData.get("forma_pagamento"),
     data_pagamento: formData.get("data_pagamento"),
     data_entrega_prevista: formData.get("data_entrega_prevista") || undefined,
+    data_entrega_real: formData.get("data_entrega_real") || undefined,
+    orcamento_etapa: formData.get("orcamento_etapa") || undefined,
     valor: parseNumeroBR(String(formData.get("valor") ?? "")),
     comprovante_path: formData.get("comprovante_path"),
   });
@@ -94,6 +106,11 @@ export async function criarLancamento(
   }
 
   const supabase = await createClient();
+
+  // O nome da etapa viaja como texto; sem conferir, um valor qualquer criaria
+  // etapa fantasma no comparativo orçado × gasto.
+  const etapa = await etapaOrcamentoValida(supabase, obraId, parsed.data.orcamento_etapa);
+  if (etapa.error) return { error: etapa.error };
 
   /*
    * Itens, opcionais.
@@ -125,7 +142,13 @@ export async function criarLancamento(
       tipo_item: parsed.data.tipo_item ?? null,
       nota_fiscal_numero: parsed.data.nota_fiscal_numero ?? null,
       nota_fiscal_emissao: parsed.data.nota_fiscal_emissao ?? null,
+      orcamento_etapa: etapa.nome,
       data_entrega_prevista: parsed.data.data_entrega_prevista ?? null,
+      data_entrega_real: parsed.data.data_entrega_real ?? null,
+      // Quem marcou o checkbox é quem está registrando — a mesma dupla de
+      // colunas que `confirmarRecebimentoOrdem` preenche depois.
+      recebimento_confirmado_por: parsed.data.data_entrega_real ? profile.id : null,
+      recebimento_confirmado_em: parsed.data.data_entrega_real ? new Date().toISOString() : null,
       eh_lancamento: true,
       // Já pago: nasce aprovado e sem exigir aprovação de ninguém.
       status: "paga",

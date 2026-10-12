@@ -145,7 +145,11 @@ export async function CompraDetail({
    */
   const podeMarcarEntrega =
     viewerRole === "engenheiro"
-      ? compra.pagamento_apos_recebimento || !!compra.data_entrega_prevista
+      ? compra.pagamento_apos_recebimento ||
+        !!compra.data_entrega_prevista ||
+        // Já recebida também mostra o botão, senão o lançamento criado com
+        // "já recebi" e sem previsão nasceria sem como desfazer.
+        !!compra.data_entrega_real
       : compra.eh_lancamento && !!profile && compra.criado_por === profile.id;
 
 

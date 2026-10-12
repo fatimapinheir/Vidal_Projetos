@@ -18,6 +18,7 @@ import { CampoMoeda } from "@/components/orcamento/campos-item";
 import { CampoFornecedor } from "./campo-fornecedor";
 import { CampoCategoria, type Categoria } from "./campo-categoria";
 import { CamposNotaFiscal } from "./campos-nota-fiscal";
+import { CamposEntrega } from "./campos-entrega";
 import { ItemCompraPicker, type ItemCompraLocal } from "./item-compra-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trash2 } from "lucide-react";
@@ -67,11 +68,18 @@ export function LancamentoForm({
   fornecedores,
   categorias,
   voltarPara,
+  etapasOrcamento = [],
   permiteCadastrarFornecedor = true,
 }: {
   obraId: string;
   fornecedores: { id: string; nome: string }[];
   categorias: Categoria[];
+  /**
+   * Etapas do orçamento ativo. Vazio esconde o campo — é o caso do portal:
+   * classificar gasto por etapa é trabalho de engenharia, e na tela de
+   * detalhe o cliente também só vê a etapa, não escolhe.
+   */
+  etapasOrcamento?: string[];
   /** Para onde ir depois de salvar. */
   voltarPara: string;
   permiteCadastrarFornecedor?: boolean;
@@ -83,6 +91,7 @@ export function LancamentoForm({
   const [valor, setValor] = useState(0);
   const [itens, setItens] = useState<(ItemCompraLocal & { localId: number })[]>([]);
   const [comprovantes, setComprovantes] = useState<File[]>([]);
+  const [dataPagamento, setDataPagamento] = useState(hojeNoFuso());
   const [erroArquivo, setErroArquivo] = useState<string | null>(null);
   const totalItens = itens.reduce((soma, item) => soma + totalDoItem(item), 0);
   const [enviandoArquivo, setEnviandoArquivo] = useState(false);
@@ -188,6 +197,30 @@ export function LancamentoForm({
             <FieldDescription>Separa os gastos no comparativo com o orçamento.</FieldDescription>
           </Field>
 
+          {/* Só aparece com orçamento ativo: um select vazio seria um campo
+              que não responde nada. */}
+          {!!etapasOrcamento.length && (
+            <Field>
+              <FieldLabel htmlFor="orcamento_etapa">Etapa do orçamento (opcional)</FieldLabel>
+              <select
+                id="orcamento_etapa"
+                name="orcamento_etapa"
+                defaultValue=""
+                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+              >
+                <option value="">Não vincular</option>
+                {etapasOrcamento.map((etapa) => (
+                  <option key={etapa} value={etapa}>
+                    {etapa}
+                  </option>
+                ))}
+              </select>
+              <FieldDescription>
+                Vinculando, este gasto entra no comparativo orçado × gasto da etapa.
+              </FieldDescription>
+            </Field>
+          )}
+
           <Field>
             <FieldLabel htmlFor="forma_pagamento">Forma de pagamento</FieldLabel>
             <select
@@ -228,19 +261,18 @@ export function LancamentoForm({
               id="data_pagamento"
               name="data_pagamento"
               type="date"
-              defaultValue={hojeNoFuso()}
+              value={dataPagamento}
+              onChange={(e) => setDataPagamento(e.target.value)}
               required
             />
           </Field>
 
           {/* Entrega: mesma pergunta da ordem de compra, mesma coluna no
               banco. Quem paga material no balcão e combina a entrega para
-              quinta precisa dela; quem lança um IPTU, não — daí opcional. */}
-          <Field>
-            <FieldLabel htmlFor="data_entrega_prevista">Entrega prevista (opcional)</FieldLabel>
-            <Input id="data_entrega_prevista" name="data_entrega_prevista" type="date" />
-            <FieldDescription>Deixe vazio se não há mercadoria a receber.</FieldDescription>
-          </Field>
+              quinta precisa dela; quem lança um IPTU, não. A data do
+              pagamento entra como sugestão porque pagar e levar na hora é o
+              caso mais comum de um lançamento. */}
+          <CamposEntrega className="sm:col-span-2" dataInicial={dataPagamento} />
 
           <CamposNotaFiscal className="sm:col-span-2" />
         </div>

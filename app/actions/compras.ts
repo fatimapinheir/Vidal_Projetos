@@ -13,6 +13,7 @@ import {
   lerAnexosDoForm,
   salvarAnexosDaCompra,
 } from "@/lib/compras/anexos";
+import { etapaOrcamentoValida } from "@/lib/compras/etapa-orcamento";
 import { hojeNoFuso } from "@/lib/fuso";
 
 const parcelaSchema = z.object({
@@ -123,35 +124,6 @@ function parseParcelas(formData: FormData): ParseParcelasResult {
  * Aceita tanto as etapas declaradas na versão quanto as que só existem em item
  * (vindas de importação de planilha): as duas aparecem na tela do orçamento.
  */
-async function etapaOrcamentoValida(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  obraId: string,
-  escolhida: string | undefined
-): Promise<{ nome: string | null; error?: string }> {
-  if (!escolhida) return { nome: null };
-
-  const { data: versao } = await supabase
-    .from("orcamento_versoes")
-    .select("id, etapas")
-    .eq("obra_id", obraId)
-    .eq("status", "ativa")
-    .maybeSingle();
-
-  if (!versao) return { nome: null, error: "Essa obra não tem orçamento ativo." };
-
-  if (versao.etapas.includes(escolhida)) return { nome: escolhida };
-
-  const { data: emItem } = await supabase
-    .from("orcamento_itens")
-    .select("etapa")
-    .eq("orcamento_versao_id", versao.id)
-    .eq("etapa", escolhida)
-    .limit(1)
-    .maybeSingle();
-
-  if (emItem) return { nome: escolhida };
-  return { nome: null, error: "Essa etapa não existe no orçamento ativo." };
-}
 
 /**
  * Vincula (ou desvincula, com etapa vazia) uma ordem de compra já criada a uma
