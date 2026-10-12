@@ -18,6 +18,21 @@ import { registrarAvancoTarefa, concluirEtapa } from "@/app/actions/avanco";
  * na hora: o número verdadeiro é o do servidor, e quando o refresh chega o
  * campo volta a segui-lo sozinho — inclusive quando quem mudou foi o botão de
  * concluir a etapa inteira.
+ *
+ * SÃO DOIS ESTADOS, e precisam ser dois.
+ *
+ * `rascunho` é o que está sendo digitado; `valorOtimista` é o que o servidor
+ * vai gravar. Estavam fundidos num `useOptimistic` só, e isso quebrava o
+ * campo inteiro: o React recusa atualização otimista fora de uma transição
+ * ("An optimistic state update occurred outside a transition or action") e
+ * descartava cada tecla. Como o input é controlado por esse valor, digitar
+ * não mudava nada na tela — e, com o número intacto, o blur comparava o valor
+ * com ele mesmo e saía sem salvar. Na prática, não dava para registrar avanço
+ * nenhum digitando.
+ *
+ * `rascunho === null` significa "não estou editando", e aí o campo mostra o
+ * servidor. É o que faz o valor voltar a seguir o servidor sozinho, sem
+ * efeito nenhum sincronizando os dois.
  */
 export function PercentualTarefa({
   obraId,
@@ -31,15 +46,18 @@ export function PercentualTarefa({
   dataMedicao: string;
 }) {
   const [pending, startTransition] = useTransition();
-  const [valor, setValor] = useOptimistic(percentual);
+  const [valorOtimista, setValorOtimista] = useOptimistic(percentual);
+  const [rascunho, setRascunho] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const router = useRouter();
 
+  const exibido = rascunho ?? String(valorOtimista);
+
   function salvar(novo: number) {
-    if (novo === percentual) return;
+    if (novo === valorOtimista) return;
 
     startTransition(async () => {
-      setValor(novo);
+      setValorOtimista(novo);
       setErro(null);
       const resultado = await registrarAvancoTarefa(obraId, {
         tarefaId,
@@ -52,7 +70,12 @@ export function PercentualTarefa({
   }
 
   function handleBlur(evento: React.FocusEvent<HTMLInputElement>) {
-    const bruto = Number(evento.target.value);
+    const texto = evento.target.value.trim();
+    setRascunho(null);
+    // Campo esvaziado é desistência, não zero: quem quer zerar digita 0.
+    if (texto === "") return;
+
+    const bruto = Number(texto);
     if (Number.isNaN(bruto)) return;
     salvar(Math.min(100, Math.max(0, Math.round(bruto))));
   }
@@ -64,12 +87,12 @@ export function PercentualTarefa({
         min={0}
         max={100}
         step={5}
-        value={valor}
+        value={exibido}
         disabled={pending}
         aria-label="Percentual executado"
         aria-invalid={!!erro}
         title={erro ?? undefined}
-        onChange={(e) => setValor(Number(e.target.value))}
+        onChange={(e) => setRascunho(e.target.value)}
         onBlur={handleBlur}
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();
@@ -79,7 +102,7 @@ export function PercentualTarefa({
         }`}
       />
       <span className="text-xs text-muted-foreground">%</span>
-      {valor < 100 && (
+      {valorOtimista < 100 && (
         <Button
           onClick={() => salvar(100)}
           disabled={pending}
