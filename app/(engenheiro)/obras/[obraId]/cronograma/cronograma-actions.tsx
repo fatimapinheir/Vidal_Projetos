@@ -12,8 +12,9 @@ export function RemoverEtapaButton({ obraId, etapaId }: { obraId: string; etapaI
 
   function handleClick() {
     if (!confirm("Remover essa etapa e todas as tarefas dentro dela?")) return;
-    startTransition(() => {
-      removerEtapa(obraId, etapaId).then(() => router.refresh());
+    startTransition(async () => {
+      await removerEtapa(obraId, etapaId);
+      router.refresh();
     });
   }
 
@@ -35,8 +36,9 @@ export function FixarLinhaDeBaseButton({ obraId }: { obraId: string }) {
       )
     )
       return;
-    startTransition(() => {
-      fixarLinhaDeBase(obraId).then(() => router.refresh());
+    startTransition(async () => {
+      await fixarLinhaDeBase(obraId);
+      router.refresh();
     });
   }
 
@@ -51,10 +53,21 @@ export function RemoverTarefaButton({ obraId, tarefaId }: { obraId: string; tare
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
+  /*
+   * O `await` fica DENTRO da transição, e não num `.then` pendurado.
+   *
+   * Com `.then`, o callback da transição devolvia `undefined` e o React a
+   * encerrava na hora; o `router.refresh()` disparava depois, fora de qualquer
+   * transição, e às vezes era descartado — a linha excluída continuava na tela
+   * até recarregar a página na mão. Com callback assíncrono a transição só
+   * termina depois do refresh.
+   */
   function handleClick() {
     if (!confirm("Remover essa tarefa?")) return;
-    startTransition(() => {
-      removerTarefa(obraId, tarefaId).then(() => router.refresh());
+    startTransition(async () => {
+      const resultado = await removerTarefa(obraId, tarefaId);
+      if (resultado?.error) alert(resultado.error);
+      router.refresh();
     });
   }
 

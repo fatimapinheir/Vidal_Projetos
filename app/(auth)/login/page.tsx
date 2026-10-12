@@ -34,10 +34,12 @@ export default async function LoginPage({
   const { erro } = await searchParams;
 
   return (
-    <Card className="w-full max-w-sm">
+    // A chapa navy ao lado já mostra a marca; repetir "Ankora" no título
+    // deixaria o nome duas vezes na mesma dobra.
+    <Card className="w-full border-0 shadow-none sm:border sm:shadow-sm">
       <CardHeader>
-        <CardTitle className="text-xl">Vidal Projetos</CardTitle>
-        <CardDescription>Gestão de obras — acesse sua conta</CardDescription>
+        <CardTitle className="font-heading text-2xl">Acesse sua conta</CardTitle>
+        <CardDescription>Entre para acompanhar o andamento da sua obra.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {erro && (

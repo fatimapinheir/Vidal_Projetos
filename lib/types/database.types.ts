@@ -11,11 +11,15 @@ export type Json =
   | Json[];
 
 export type UserRole = "engenheiro" | "cliente";
-export type ObraTipo = "residencial" | "comercial";
+export type TipoPessoa = "pf" | "pj";
+export type TipoItemOrcamento = "material" | "servico" | "mao_de_obra";
 export type ObraStatus = "planejamento" | "em_andamento" | "pausada" | "concluida";
 export type PresencaStatus = "presente" | "falta" | "meia_diaria";
 export type FechamentoStatus = "aberto" | "pago";
 export type TipoContratoEquipe = "diaria" | "empreitada";
+/** Em que condição o colaborador trabalha — diferente de `FormaPagamento`, que é por onde o dinheiro sai. */
+export type RegimePagamento = "diaria" | "pacote_servico";
+export type CondicaoPagamento = "a_vista" | "prazo";
 export type FormaPagamento =
   | "dinheiro"
   | "pix"
@@ -30,7 +34,8 @@ export type ParcelaStatus = "pendente" | "paga" | "vencida";
 export type DescontoTipo = "valor" | "percentual";
 export type OrcamentoVersaoStatus = "rascunho" | "ativa" | "substituida";
 export type LocacaoUnidade = "dia" | "hora";
-export type DiarioClima = "praticavel" | "chuva" | "impraticavel";
+/** Condição do tempo, como aparece no RDO. */
+export type DiarioCondicao = "ensolarado" | "nublado" | "chuvoso" | "chuva_forte";
 export type DependenciaTipo =
   | "termino_inicio"
   | "inicio_inicio"
@@ -47,6 +52,10 @@ export interface Database {
           nome: string;
           telefone: string | null;
           email: string | null;
+          tipo_pessoa: TipoPessoa | null;
+          cpf_cnpj: string | null;
+          crea: string | null;
+          assinatura_path: string | null;
           created_at: string;
         };
         Insert: {
@@ -55,6 +64,10 @@ export interface Database {
           nome: string;
           telefone?: string | null;
           email?: string | null;
+          tipo_pessoa?: TipoPessoa | null;
+          cpf_cnpj?: string | null;
+          crea?: string | null;
+          assinatura_path?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
@@ -64,28 +77,94 @@ export interface Database {
         Row: {
           id: string;
           nome: string;
-          endereco: string | null;
-          tipo: ObraTipo;
           status: ObraStatus;
           data_inicio: string | null;
           data_fim_prevista: string | null;
           criado_por: string;
           created_at: string;
           updated_at: string;
+          // Localização
+          cep: string | null;
+          logradouro: string | null;
+          numero: string | null;
+          complemento: string | null;
+          bairro: string | null;
+          cidade: string | null;
+          uf: string | null;
+          link_maps: string | null;
+          // Dados municipais
+          setor: string | null;
+          quadra: string | null;
+          lote: string | null;
+          cadastro_municipal: string | null;
+          alvara_construcao: string | null;
+          art_rrt_execucao: string | null;
+          cno: string | null;
+          // Características
+          categoria: string;
+          tipo_obra_id: string | null;
+          metragem_quadrada: number | null;
+          padrao_acabamento: string | null;
+          faixa: string | null;
+          quartos: number;
+          suites: number;
+          banheiros: number;
+          financiada: boolean;
+          // Imagens (path no bucket privado `obra-imagens`, não URL)
+          imagem_capa_path: string | null;
+          imagem_rdo_path: string | null;
         };
         Insert: {
           id?: string;
           nome: string;
-          endereco?: string | null;
-          tipo?: ObraTipo;
           status?: ObraStatus;
           data_inicio?: string | null;
           data_fim_prevista?: string | null;
           criado_por: string;
           created_at?: string;
           updated_at?: string;
+          cep?: string | null;
+          logradouro?: string | null;
+          numero?: string | null;
+          complemento?: string | null;
+          bairro?: string | null;
+          cidade?: string | null;
+          uf?: string | null;
+          link_maps?: string | null;
+          setor?: string | null;
+          quadra?: string | null;
+          lote?: string | null;
+          cadastro_municipal?: string | null;
+          alvara_construcao?: string | null;
+          art_rrt_execucao?: string | null;
+          cno?: string | null;
+          categoria?: string;
+          tipo_obra_id?: string | null;
+          metragem_quadrada?: number | null;
+          padrao_acabamento?: string | null;
+          faixa?: string | null;
+          quartos?: number;
+          suites?: number;
+          banheiros?: number;
+          financiada?: boolean;
+          imagem_capa_path?: string | null;
+          imagem_rdo_path?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["obras"]["Insert"]>;
+        Relationships: [];
+      };
+      obra_tipos: {
+        Row: {
+          id: string;
+          nome: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          nome: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["obra_tipos"]["Insert"]>;
         Relationships: [];
       };
       obra_clientes: {
@@ -110,6 +189,7 @@ export interface Database {
           telefone: string | null;
           email: string | null;
           observacoes: string | null;
+          ativo: boolean;
           created_at: string;
         };
         Insert: {
@@ -119,9 +199,60 @@ export interface Database {
           telefone?: string | null;
           email?: string | null;
           observacoes?: string | null;
+          ativo?: boolean;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["fornecedores"]["Insert"]>;
+        Relationships: [];
+      };
+      fornecedor_contatos: {
+        Row: {
+          id: string;
+          fornecedor_id: string;
+          nome: string;
+          telefone: string | null;
+          email: string | null;
+          principal: boolean;
+          observacoes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          fornecedor_id: string;
+          nome: string;
+          telefone?: string | null;
+          email?: string | null;
+          principal?: boolean;
+          observacoes?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["fornecedor_contatos"]["Insert"]>;
+        Relationships: [];
+      };
+      /**
+       * Separada de `fornecedores` de propósito: aquela tabela é legível por
+       * qualquer autenticado (o portal do cliente precisa do nome), e RLS é
+       * por linha, não por coluna. Dados bancários e prazo negociado não podem
+       * sair junto com o nome.
+       */
+      fornecedor_pagamento: {
+        Row: {
+          fornecedor_id: string;
+          forma_pagamento: FormaPagamento | null;
+          dados_pagamento: string | null;
+          condicao_pagamento: CondicaoPagamento | null;
+          condicao_prazo: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          fornecedor_id: string;
+          forma_pagamento?: FormaPagamento | null;
+          dados_pagamento?: string | null;
+          condicao_pagamento?: CondicaoPagamento | null;
+          condicao_prazo?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["fornecedor_pagamento"]["Insert"]>;
         Relationships: [];
       };
       trabalhadores: {
@@ -132,6 +263,9 @@ export interface Database {
           funcao: string | null;
           valor_diaria_padrao: number | null;
           telefone: string | null;
+          regime_pagamento: RegimePagamento;
+          forma_pagamento: FormaPagamento | null;
+          dados_pagamento: string | null;
           ativo: boolean;
           created_at: string;
         };
@@ -142,6 +276,9 @@ export interface Database {
           funcao?: string | null;
           valor_diaria_padrao?: number | null;
           telefone?: string | null;
+          regime_pagamento?: RegimePagamento;
+          forma_pagamento?: FormaPagamento | null;
+          dados_pagamento?: string | null;
           ativo?: boolean;
           created_at?: string;
         };
@@ -232,27 +369,41 @@ export interface Database {
       equipes: {
         Row: {
           id: string;
-          obra_id: string;
           nome: string;
-          tipo_contrato: TipoContratoEquipe;
           responsavel_id: string | null;
+          ativo: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          nome: string;
+          responsavel_id?: string | null;
+          ativo?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["equipes"]["Insert"]>;
+        Relationships: [];
+      };
+      obra_equipes: {
+        Row: {
+          obra_id: string;
+          equipe_id: string;
+          tipo_contrato: TipoContratoEquipe;
           unidade_medida: string | null;
           valor_unidade: number | null;
           ativo: boolean;
           created_at: string;
         };
         Insert: {
-          id?: string;
           obra_id: string;
-          nome: string;
+          equipe_id: string;
           tipo_contrato?: TipoContratoEquipe;
-          responsavel_id?: string | null;
           unidade_medida?: string | null;
           valor_unidade?: number | null;
           ativo?: boolean;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["equipes"]["Insert"]>;
+        Update: Partial<Database["public"]["Tables"]["obra_equipes"]["Insert"]>;
         Relationships: [];
       };
       equipe_trabalhadores: {
@@ -395,12 +546,13 @@ export interface Database {
           id: string;
           obra_id: string;
           data: string;
-          clima_manha: DiarioClima | null;
-          clima_tarde: DiarioClima | null;
-          clima_noite: DiarioClima | null;
+          /** Condição do tempo do dia. Substituiu clima_manha/tarde/noite. */
+          clima: DiarioCondicao | null;
           atividades: string | null;
           ocorrencias: string | null;
           visitas: string | null;
+          temperatura: number | null;
+          umidade: number | null;
           efetivo_snapshot: Json | null;
           equipamentos_snapshot: Json | null;
           tarefas_snapshot: Json | null;
@@ -416,12 +568,12 @@ export interface Database {
           id?: string;
           obra_id: string;
           data: string;
-          clima_manha?: DiarioClima | null;
-          clima_tarde?: DiarioClima | null;
-          clima_noite?: DiarioClima | null;
+          clima?: DiarioCondicao | null;
           atividades?: string | null;
           ocorrencias?: string | null;
           visitas?: string | null;
+          temperatura?: number | null;
+          umidade?: number | null;
           efetivo_snapshot?: Json | null;
           equipamentos_snapshot?: Json | null;
           tarefas_snapshot?: Json | null;
@@ -533,6 +685,11 @@ export interface Database {
           desconto_tipo: DescontoTipo | null;
           desconto_valor: number | null;
           requer_aprovacao_cliente: boolean;
+          pagamento_apos_recebimento: boolean;
+          /** Nome da etapa do orçamento, para comparar orçado × comprado. */
+          orcamento_etapa: string | null;
+          /** O que a ordem compra. Mesmo vocabulário de orcamento_itens. */
+          tipo_item: TipoItemOrcamento | null;
           criado_por: string;
           created_at: string;
           updated_at: string;
@@ -553,6 +710,9 @@ export interface Database {
           desconto_tipo?: DescontoTipo | null;
           desconto_valor?: number | null;
           requer_aprovacao_cliente?: boolean;
+          pagamento_apos_recebimento?: boolean;
+          orcamento_etapa?: string | null;
+          tipo_item?: TipoItemOrcamento | null;
           criado_por: string;
           created_at?: string;
           updated_at?: string;
@@ -604,6 +764,9 @@ export interface Database {
           data_pagamento: string | null;
           status: ParcelaStatus;
           comprovante_pagamento_path: string | null;
+          /** Data em que o pagamento foi lançado. Null = ainda não foi enviado. */
+          pagamento_enviado_em: string | null;
+          pagamento_enviado_por: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -618,6 +781,8 @@ export interface Database {
           data_pagamento?: string | null;
           status?: ParcelaStatus;
           comprovante_pagamento_path?: string | null;
+          pagamento_enviado_em?: string | null;
+          pagamento_enviado_por?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -645,6 +810,7 @@ export interface Database {
           id: string;
           obra_id: string;
           titulo: string | null;
+          etapas: string[];
           mes_referencia: string | null;
           arquivo_original_path: string | null;
           status: OrcamentoVersaoStatus;
@@ -656,6 +822,7 @@ export interface Database {
           id?: string;
           obra_id: string;
           titulo?: string | null;
+          etapas?: string[];
           mes_referencia?: string | null;
           arquivo_original_path?: string | null;
           status?: OrcamentoVersaoStatus;
@@ -736,6 +903,7 @@ export interface Database {
           preco_unitario: number;
           preco_total: number;
           etapa: string | null;
+          tipo_item: TipoItemOrcamento | null;
           created_at: string;
         };
         Insert: {
@@ -748,6 +916,7 @@ export interface Database {
           quantidade?: number;
           preco_unitario?: number;
           etapa?: string | null;
+          tipo_item?: TipoItemOrcamento | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["orcamento_itens"]["Insert"]>;
@@ -757,9 +926,11 @@ export interface Database {
         Row: {
           id: string;
           obra_id: string;
-          orcamento_item_id: string;
+          /** O avanço é medido na tarefa do cronograma, não no item do orçamento. */
+          cronograma_tarefa_id: string;
           data_medicao: string;
-          quantidade_executada_acumulada: number;
+          /** 0 a 100, informado pelo engenheiro. */
+          percentual: number;
           observacoes: string | null;
           registrado_por: string;
           created_at: string;
@@ -767,9 +938,9 @@ export interface Database {
         Insert: {
           id?: string;
           obra_id: string;
-          orcamento_item_id: string;
+          cronograma_tarefa_id: string;
           data_medicao?: string;
-          quantidade_executada_acumulada: number;
+          percentual: number;
           observacoes?: string | null;
           registrado_por: string;
           created_at?: string;
@@ -782,7 +953,21 @@ export interface Database {
       vw_compra_parcelas: {
         Row: Database["public"]["Tables"]["compra_parcelas"]["Row"] & {
           status_efetivo: ParcelaStatus;
+          pagamento_apos_recebimento: boolean;
+          /** Falsa enquanto a compra depende de recebimento e a mercadoria não chegou. */
+          liberada_para_pagamento: boolean;
         };
+        Relationships: [];
+      };
+      vw_custo_mao_de_obra: {
+        Row: {
+          obra_id: string;
+          total: number | null;
+          pago: number | null;
+          aberto: number | null;
+        };
+        Insert: never;
+        Update: never;
         Relationships: [];
       };
       vw_equipe_ativa_obra: {
@@ -794,20 +979,23 @@ export interface Database {
       };
       vw_avanco_atual: {
         Row: {
-          orcamento_item_id: string;
+          cronograma_tarefa_id: string;
           obra_id: string;
           data_medicao: string;
-          quantidade_executada_acumulada: number;
+          percentual: number;
         };
         Relationships: [];
       };
       vw_progresso_obra: {
         Row: {
           obra_id: string;
-          orcamento_versao_id: string;
+          /** Null quando a obra não tem orçamento ativo. */
+          orcamento_versao_id: string | null;
           valor_orcado_total: number;
           valor_executado_ponderado: number;
           percentual_fisico: number;
+          total_tarefas: number;
+          tarefas_concluidas: number;
         };
         Relationships: [];
       };
@@ -849,7 +1037,6 @@ export interface Database {
     };
     Enums: {
       user_role: UserRole;
-      obra_tipo: ObraTipo;
       obra_status: ObraStatus;
       presenca_status: PresencaStatus;
       fechamento_status: FechamentoStatus;
@@ -858,8 +1045,10 @@ export interface Database {
       parcela_status: ParcelaStatus;
       orcamento_versao_status: OrcamentoVersaoStatus;
       desconto_tipo: DescontoTipo;
+      regime_pagamento: RegimePagamento;
+      condicao_pagamento: CondicaoPagamento;
       locacao_unidade: LocacaoUnidade;
-      diario_clima: DiarioClima;
+      diario_clima: DiarioCondicao;
     };
   };
 }

@@ -1,0 +1,194 @@
+/*
+ * Folha do RDO.
+ *
+ * CSS próprio em vez de utilitários: esta página existe para virar papel, e o
+ * layout impresso precisa de controle de quebra de página — coisa que não se
+ * expressa bem em classe utilitária. Cores em hex literal, e não nos tokens do
+ * tema, porque o papel é sempre branco: o RDO impresso no tema escuro sairia
+ * com fundo preto.
+ *
+ * TUDO é dimensionado em `em`, relativo ao `font-size` de `.rdo`.
+ *
+ * Essa é a peça central do arquivo. A folha tem dois tamanhos muito
+ * diferentes — na tela ela ocupa a largura do conteúdo, no papel ela tem
+ * 210 mm — e antes só a largura mudava: o corpo continuava em 10,5px, que é
+ * tamanho de impressão. Na tela o documento saía minúsculo, perdido no meio
+ * de uma faixa de espaço em branco.
+ *
+ * Com tudo em `em`, trocar uma única declaração reescala o documento inteiro,
+ * proporções intactas. É também o que impede o conserto de hoje de virar o
+ * desalinho de amanhã: não há como aumentar a fonte e esquecer de aumentar o
+ * padding junto.
+ */
+
+.rdo-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  width: 100%;
+}
+
+.rdo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.rdo {
+  /*
+   * Na tela, a base acompanha a largura da janela — é o que mantém a mesma
+   * proporção da folha impressa em qualquer monitor. A conta vem da
+   * impressão: 210mm ÷ 10,5px ≈ 75 unidades de largura por pixel de corpo,
+   * então uma área de conteúdo de ~1160px pede corpo de ~15px.
+   *
+   * O teto de 16px casa com o `max-width` abaixo: passando disso, a folha
+   * pararia de crescer e só a letra aumentaria.
+   */
+  font-size: clamp(11px, 1.06vw, 16px);
+  width: 100%;
+  max-width: 1200px;
+  background: #fff;
+  color: #1a1a1a;
+  line-height: 1.45;
+  padding: 2.3em;
+  border: 1px solid #d8dbe2;
+  border-radius: 8px;
+}
+
+.rdo-cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1b2a4a;
+  color: #fff;
+  padding: 0.76em 1.14em;
+  border-radius: 0.57em;
+}
+.rdo-marca { font-size: 1.43em; font-weight: 700; letter-spacing: 0.04em; margin: 0; }
+.rdo-titulo { font-size: 0.86em; letter-spacing: 0.18em; margin: 0.19em 0 0; opacity: 0.85; }
+.rdo-data-selo {
+  background: #fff; color: #1b2a4a; border-radius: 0.38em;
+  padding: 0.38em 0.95em; text-align: center;
+}
+.rdo-data-selo span { display: block; font-size: 0.67em; letter-spacing: 0.1em; }
+.rdo-data-selo strong { font-size: 1.24em; }
+
+.rdo-secao { margin-top: 0.76em; break-inside: avoid; }
+.rdo-secao h2 {
+  display: flex; align-items: center; gap: 0.57em;
+  background: #1b2a4a; color: #fff;
+  font-size: 0.86em; letter-spacing: 0.1em; font-weight: 600;
+  margin: 0 0 0.45em; padding: 0.45em 0.9em; border-radius: 0.45em;
+}
+.rdo-secao h2 span {
+  background: #e8821e; border-radius: 0.33em;
+  width: 1.55em; height: 1.55em; display: inline-flex;
+  align-items: center; justify-content: center; font-size: 1em;
+}
+
+.rdo-grade {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.19em 1.52em;
+  border: 1px solid #d8dbe2; border-radius: 0.38em; padding: 0.57em 0.76em;
+}
+.rdo-grade p { margin: 0; }
+.rdo-grade span { color: #5a6273; font-weight: 600; font-size: 0.86em; }
+
+.rdo-clima { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.76em; }
+.rdo-clima div {
+  border: 1px solid #d8dbe2; border-radius: 0.38em; padding: 0.57em 0.76em; text-align: center;
+}
+.rdo-clima span { display: block; color: #5a6273; font-size: 0.76em; letter-spacing: 0.08em; }
+.rdo-clima strong { font-size: 1.24em; }
+
+.rdo-tabela { width: 100%; border-collapse: collapse; }
+.rdo-tabela th, .rdo-tabela td {
+  border: 1px solid #d8dbe2; padding: 0.33em 0.76em; text-align: left;
+}
+.rdo-tabela th { background: #f1f3f7; font-size: 0.76em; letter-spacing: 0.08em; }
+.rdo-tabela .num { text-align: center; }
+.rdo-tabela tfoot td { font-weight: 700; background: #f1f3f7; }
+
+.rdo-duas-colunas { display: grid; grid-template-columns: 1fr 1fr; gap: 0.76em; }
+/* `list-style` explícito: o reset do Tailwind zera o marcador das listas, e
+   o RDO da referência usa bolinha em atividades e ocorrências. */
+.rdo-lista {
+  margin: 0; border: 1px solid #d8dbe2; border-radius: 0.38em;
+  padding: 0.57em 0.76em 0.57em 2.1em; list-style: disc;
+}
+.rdo-lista li { margin-bottom: 0.19em; }
+.vazio { color: #8a90a0; font-style: italic; list-style: none; margin-left: -0.95em; }
+
+.rdo-fotos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.57em; }
+.rdo-fotos figure { margin: 0; break-inside: avoid; }
+.rdo-fotos img {
+  width: 100%; height: 9em; object-fit: cover;
+  border: 1px solid #d8dbe2; border-radius: 0.29em;
+}
+.rdo-fotos figcaption {
+  font-size: 0.67em; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #5a6273; text-align: center; margin-top: 0.19em;
+}
+
+.rdo-assinatura {
+  border: 1px solid #d8dbe2; border-radius: 0.38em;
+  padding: 0.95em; display: flex; flex-direction: column; align-items: center;
+}
+.rdo-rubrica { height: 4.57em; width: auto; object-fit: contain; }
+.rdo-rubrica-vazia { height: 4.57em; }
+.rdo-linha-assinatura {
+  border-top: 1px solid #1a1a1a; padding-top: 0.29em; margin-top: 0.19em;
+  min-width: 19em; text-align: center; display: flex; flex-direction: column;
+}
+.rdo-linha-assinatura strong { font-size: 0.95em; }
+.rdo-linha-assinatura span { font-size: 0.76em; color: #5a6273; letter-spacing: 0.05em; }
+
+/*
+ * Tela estreita: as grades de duas e quatro colunas não cabem.
+ *
+ * Só na tela — a regra de impressão vem depois e as devolve, porque no papel
+ * a largura é sempre A4, não importa em que aparelho a pessoa mandou imprimir.
+ */
+@media screen and (max-width: 640px) {
+  .rdo { padding: 1.4em; }
+  .rdo-grade,
+  .rdo-duas-colunas { grid-template-columns: 1fr; }
+  .rdo-clima { grid-template-columns: 1fr 1fr; }
+  .rdo-fotos { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media print {
+  /*
+   * Força a impressão dos fundos.
+   *
+   * Navegador não imprime cor de fundo por padrão — existe uma caixa
+   * "Gráficos de segundo plano" na janela de impressão, desmarcada de fábrica.
+   * Sem isto, as faixas azuis e os números laranja somem e o RDO sai como uma
+   * lista de linhas, nada parecido com a referência. `print-color-adjust`
+   * tira essa decisão do usuário.
+   */
+  .rdo, .rdo * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Fora a folha, nada vai para o papel: nem a barra lateral, nem o botão. */
+  body * { visibility: hidden; }
+  .rdo, .rdo * { visibility: visible; }
+  .rdo {
+    /* De volta ao corpo de impressão: a folha cabe em A4 com esta medida, e é
+       dela que todos os `em` acima derivam. */
+    font-size: 10.5px;
+    position: absolute; inset: 0; margin: 0;
+    width: 100%; max-width: none;
+    border: none; border-radius: 0; padding: 0;
+  }
+  /* A tela estreita não manda no papel. */
+  .rdo-grade, .rdo-duas-colunas { grid-template-columns: 1fr 1fr; }
+  .rdo-clima { grid-template-columns: repeat(3, 1fr); }
+  .rdo-fotos { grid-template-columns: repeat(4, 1fr); }
+  .rdo-fotos img { height: 6.67em; }
+  .rdo-acoes { display: none; }
+  @page { size: A4 portrait; margin: 10mm; }
+}

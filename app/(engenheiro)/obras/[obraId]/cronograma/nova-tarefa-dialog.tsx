@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,133 +19,157 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { criarTarefa, type CronogramaFormState } from "@/app/actions/cronograma";
+import { useRouter } from "next/navigation";
+import { criarTarefa } from "@/app/actions/cronograma";
 
-const initialState: CronogramaFormState = { error: null };
+const CLASSE_SELECT = "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm";
 
+/**
+ * Nova tarefa — só o planejado.
+ *
+ * A predecessora virou uma pergunta direta: tem ou não tem, e qual. Antes era
+ * uma caixa "iniciar automaticamente após <última tarefa cadastrada>", que
+ * adivinhava a ligação pela ordem de cadastro — e ligava a tarefa a qualquer
+ * coisa criada por último, mesmo de outra etapa.
+ *
+ * O lembrete saiu daqui: avisar que uma tarefa vai começar é acompanhamento de
+ * execução, não planejamento.
+ */
 export function NovaTarefaDialog({
   obraId,
   etapaId,
   itensOrcamento,
-  ultimaTarefaNome,
+  tarefasDaEtapa,
 }: {
   obraId: string;
   etapaId: string;
   itensOrcamento: { id: string; descricao: string }[];
-  /** Nome da última tarefa cadastrada na obra (qualquer etapa) — null se essa for a primeira. */
-  ultimaTarefaNome: string | null;
+  /** Candidatas a predecessora: só as tarefas desta etapa. */
+  tarefasDaEtapa: { id: string; nome: string }[];
 }) {
   const [open, setOpen] = useState(false);
-  const [dependeDaAnterior, setDependeDaAnterior] = useState(!!ultimaTarefaNome);
-  const [lembreteAtivo, setLembreteAtivo] = useState(false);
-  const action = criarTarefa.bind(null, obraId, etapaId);
-  const [state, formAction, pending] = useActionState(action, initialState);
+  const [temPredecessora, setTemPredecessora] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
-  useEffect(() => {
-    if (state.success) setOpen(false);
-  }, [state.success]);
+  /*
+   * A action é chamada direto, e não por `useActionState` + efeito que fecha o
+   * diálogo quando `state.success` muda. Fechar dentro do próprio fluxo evita
+   * o render em cascata que o efeito provoca — e é o padrão que o resto do
+   * app já usa.
+   */
+  function salvar(formData: FormData) {
+    setErro(null);
 
-  // Reidrata o padrão toda vez que o diálogo abre — evita ficar com o valor
-  // inicial "congelado" de quando o componente montou (ex: obra sem nenhuma
-  // tarefa ainda, e depois a primeira tarefa foi criada).
-  useEffect(() => {
-    if (open) {
-      setDependeDaAnterior(!!ultimaTarefaNome);
-      setLembreteAtivo(false);
+    // Mesma checagem do diálogo de edição: a mensagem precisa aparecer junto
+    // do campo que falta, não voltar do servidor.
+    if (temPredecessora && !formData.get("predecessora_id")) {
+      return setErro("Selecione qual tarefa precede esta.");
     }
-  }, [open, ultimaTarefaNome]);
+    if (!temPredecessora && !formData.get("restricao_inicio_nao_antes_de")) {
+      return setErro("Sem predecessora, informe a data de início da tarefa.");
+    }
 
-  const precisaDeAncora = !ultimaTarefaNome || !dependeDaAnterior;
+    startTransition(async () => {
+      const resultado = await criarTarefa(obraId, etapaId, { error: null }, formData);
+      if (resultado.error) return setErro(resultado.error);
+      setOpen(false);
+      router.refresh();
+    });
+  }
+
+  function handleOpenChange(proximo: boolean) {
+    setOpen(proximo);
+    if (proximo) {
+      setTemPredecessora(false);
+      setErro(null);
+    }
+  }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button variant="outline" size="sm">Nova tarefa</Button>} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Nova tarefa</DialogTitle>
         </DialogHeader>
-        <form action={formAction}>
+        <form action={salvar}>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="nome">Nome da tarefa</FieldLabel>
               <Input id="nome" name="nome" placeholder="Escavação e sapatas" required />
             </Field>
-            <Field>
-              <FieldLabel htmlFor="duracao_dias">Duração (dias)</FieldLabel>
-              <Input id="duracao_dias" name="duracao_dias" type="number" min="1" step="1" defaultValue="1" required />
-            </Field>
 
-            {ultimaTarefaNome && (
+            {!!tarefasDaEtapa.length && (
               <Field orientation="horizontal">
                 <Checkbox
-                  id="depende_da_anterior"
-                  name="depende_da_anterior"
-                  checked={dependeDaAnterior}
-                  onCheckedChange={(checked) => setDependeDaAnterior(checked === true)}
+                  id="tem_predecessora"
+                  name="tem_predecessora"
+                  checked={temPredecessora}
+                  onCheckedChange={(marcado) => {
+                    setTemPredecessora(marcado === true);
+                    setErro(null);
+                  }}
                 />
                 <FieldContent>
-                  <FieldLabel htmlFor="depende_da_anterior">
-                    Iniciar automaticamente após &quot;{ultimaTarefaNome}&quot; terminar
-                  </FieldLabel>
+                  <FieldLabel htmlFor="tem_predecessora">Essa tarefa tem predecessora</FieldLabel>
                   <FieldDescription>
-                    Desmarque se essa tarefa roda em paralelo (não depende da anterior) — aí você
-                    informa a data de início manualmente.
+                    Marque se ela só pode começar depois que outra tarefa desta etapa terminar.
                   </FieldDescription>
                 </FieldContent>
               </Field>
             )}
 
-            {precisaDeAncora && (
+            {temPredecessora && (
               <Field>
-                <FieldLabel htmlFor="restricao_inicio_nao_antes_de">Início</FieldLabel>
-                <Input id="restricao_inicio_nao_antes_de" name="restricao_inicio_nao_antes_de" type="date" required />
+                <FieldLabel htmlFor="predecessora_id">Começa depois de</FieldLabel>
+                <select
+                  id="predecessora_id"
+                  name="predecessora_id"
+                  required
+                  defaultValue=""
+                  className={CLASSE_SELECT}
+                >
+                  <option value="" disabled>
+                    Selecione a tarefa...
+                  </option>
+                  {tarefasDaEtapa.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.nome}
+                    </option>
+                  ))}
+                </select>
                 <FieldDescription>
-                  {ultimaTarefaNome
-                    ? "Data de início dessa tarefa (ela não depende de nenhuma outra)."
-                    : "Data de início do cronograma — as próximas tarefas vão se encadear a partir daqui."}
+                  O início é calculado a partir do fim dela — você não informa a data.
                 </FieldDescription>
               </Field>
             )}
 
-            <Field orientation="horizontal">
-              <Checkbox
-                id="lembrete_ativo"
-                name="lembrete_ativo"
-                checked={lembreteAtivo}
-                onCheckedChange={(checked) => setLembreteAtivo(checked === true)}
-              />
-              <FieldContent>
-                <FieldLabel htmlFor="lembrete_ativo">Lembrete</FieldLabel>
-                <FieldDescription>
-                  Avisa dentro do sistema alguns dias antes do início — útil pra agendar fornecedor
-                  ou equipamento com antecedência (ex: concretagem avisando 15 dias antes).
-                </FieldDescription>
-              </FieldContent>
-            </Field>
-
-            {lembreteAtivo && (
+            {!temPredecessora && (
               <Field>
-                <FieldLabel htmlFor="lembrete_dias_antes">Avisar quantos dias antes</FieldLabel>
+                <FieldLabel htmlFor="restricao_inicio_nao_antes_de">Início</FieldLabel>
                 <Input
-                  id="lembrete_dias_antes"
-                  name="lembrete_dias_antes"
-                  type="number"
-                  min="1"
-                  step="1"
-                  defaultValue="15"
+                  id="restricao_inicio_nao_antes_de"
+                  name="restricao_inicio_nao_antes_de"
+                  type="date"
                   required
                 />
               </Field>
             )}
 
+            <Field>
+              <FieldLabel htmlFor="data_fim_previsto">Fim previsto</FieldLabel>
+              <Input id="data_fim_previsto" name="data_fim_previsto" type="date" required />
+              <FieldDescription>
+                A duração sai do intervalo entre início e fim, contando só dias úteis.
+              </FieldDescription>
+            </Field>
+
             {!!itensOrcamento.length && (
               <Field>
-                <FieldLabel htmlFor="orcamento_item_id">Item do planejamento (opcional)</FieldLabel>
-                <select
-                  id="orcamento_item_id"
-                  name="orcamento_item_id"
-                  className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-                >
+                <FieldLabel htmlFor="orcamento_item_id">Item do orçamento (opcional)</FieldLabel>
+                <select id="orcamento_item_id" name="orcamento_item_id" className={CLASSE_SELECT}>
                   <option value="">Nenhum</option>
                   {itensOrcamento.map((item) => (
                     <option key={item.id} value={item.id}>
@@ -155,7 +179,8 @@ export function NovaTarefaDialog({
                 </select>
               </Field>
             )}
-            {state.error && <FieldError>{state.error}</FieldError>}
+
+            {erro && <FieldError>{erro}</FieldError>}
             <Button type="submit" disabled={pending}>
               {pending ? "Criando..." : "Criar tarefa"}
             </Button>

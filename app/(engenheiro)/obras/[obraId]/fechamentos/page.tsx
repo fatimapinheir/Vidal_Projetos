@@ -64,9 +64,9 @@ export default async function FechamentosObraPage({
       .eq("obra_id", obraId)
       .eq("ativo", true),
     supabase
-      .from("equipes")
+      .from("obra_equipes")
       .select(
-        "id, nome, tipo_contrato, unidade_medida, valor_unidade, responsavel:trabalhadores!responsavel_id(nome)"
+        "equipe_id, tipo_contrato, unidade_medida, valor_unidade, equipes(id, nome, responsavel:trabalhadores!responsavel_id(nome))"
       )
       .eq("obra_id", obraId)
       .eq("ativo", true),
@@ -86,8 +86,26 @@ export default async function FechamentosObraPage({
   const trabalhadores = (alocados ?? []).map(
     (a) => a.trabalhadores as unknown as { id: string; nome: string }
   );
-  const equipesDiaria = (equipes ?? []).filter((eq) => eq.tipo_contrato === "diaria");
-  const equipesEmpreitada = (equipes ?? []).filter((eq) => eq.tipo_contrato === "empreitada");
+  // Achata o vínculo de volta ao formato que as telas esperam: identidade da
+  // equipe vem do cadastro, condições vêm do vínculo com esta obra.
+  const equipesDaObra = (equipes ?? []).map((v) => {
+    const eq = v.equipes as unknown as {
+      id: string;
+      nome: string;
+      responsavel: { nome: string } | null;
+    } | null;
+    return {
+      id: v.equipe_id,
+      nome: eq?.nome ?? "—",
+      responsavel: eq?.responsavel ?? null,
+      tipo_contrato: v.tipo_contrato,
+      unidade_medida: v.unidade_medida,
+      valor_unidade: v.valor_unidade,
+    };
+  });
+
+  const equipesDiaria = equipesDaObra.filter((eq) => eq.tipo_contrato === "diaria");
+  const equipesEmpreitada = equipesDaObra.filter((eq) => eq.tipo_contrato === "empreitada");
 
   const grupos = new Map<
     string,

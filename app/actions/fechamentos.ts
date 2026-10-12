@@ -146,15 +146,18 @@ export async function abrirFechamentoEquipeDiaria(
 
   const supabase = await createClient();
 
-  const { data: equipe } = await supabase
-    .from("equipes")
-    .select("id, tipo_contrato")
-    .eq("id", equipeId)
+  // As condições vivem no vínculo obra↔equipe: a mesma equipe pode ser diária
+  // numa obra e empreitada em outra.
+  const { data: vinculo } = await supabase
+    .from("obra_equipes")
+    .select("tipo_contrato")
+    .eq("equipe_id", equipeId)
     .eq("obra_id", obraId)
-    .single();
+    .eq("ativo", true)
+    .maybeSingle();
 
-  if (!equipe || equipe.tipo_contrato !== "diaria") {
-    return { error: "Equipe não encontrada ou não é do tipo diária." };
+  if (!vinculo || vinculo.tipo_contrato !== "diaria") {
+    return { error: "Equipe não vinculada a essa obra ou não é do tipo diária." };
   }
 
   const { data: membros } = await supabase
@@ -288,15 +291,21 @@ export async function abrirFechamentoEntrega(
 
   const supabase = await createClient();
 
-  const { data: equipe } = await supabase
-    .from("equipes")
-    .select("id, tipo_contrato, unidade_medida, valor_unidade")
-    .eq("id", equipeId)
+  const { data: vinculo } = await supabase
+    .from("obra_equipes")
+    .select("tipo_contrato, unidade_medida, valor_unidade")
+    .eq("equipe_id", equipeId)
     .eq("obra_id", obraId)
-    .single();
+    .eq("ativo", true)
+    .maybeSingle();
 
-  if (!equipe || equipe.tipo_contrato !== "empreitada" || !equipe.unidade_medida || !equipe.valor_unidade) {
-    return { error: "Equipe não encontrada ou não configurada para contrato por empreitada." };
+  if (
+    !vinculo ||
+    vinculo.tipo_contrato !== "empreitada" ||
+    !vinculo.unidade_medida ||
+    !vinculo.valor_unidade
+  ) {
+    return { error: "Equipe não vinculada a essa obra como empreitada." };
   }
 
   const { error } = await supabase.from("fechamentos_entrega").insert({
@@ -305,8 +314,8 @@ export async function abrirFechamentoEntrega(
     periodo_inicio: parsed.data.periodo_inicio,
     periodo_fim: parsed.data.periodo_fim,
     quantidade_entregue: parsed.data.quantidade_entregue,
-    unidade_medida: equipe.unidade_medida,
-    valor_unidade: equipe.valor_unidade,
+    unidade_medida: vinculo.unidade_medida,
+    valor_unidade: vinculo.valor_unidade,
     observacoes: parsed.data.observacoes || null,
     criado_por: profile.id,
   });

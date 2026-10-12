@@ -1,0 +1,67 @@
+<!-- Template do e-mail "Reset Password" (Supabase → Authentication → Emails).
+     Veja docs/email-definir-senha.md para onde colar e o que ajustar. -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f5f8;margin:0;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:12px;border:1px solid #dde0e6;">
+        <tr>
+          <td style="padding:28px 28px 0 28px;">
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="width:36px;height:36px;background:#26409a;border-radius:10px;color:#ffffff;font-size:17px;font-weight:700;text-align:center;line-height:36px;">v</td>
+                <td style="padding-left:10px;">
+                  <div style="font-size:15px;font-weight:600;color:#2c49a7;line-height:1.1;">vidal</div>
+                  <div style="font-size:9px;font-weight:600;letter-spacing:.18em;color:#5a606f;text-transform:uppercase;">Projetos</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px 28px 0 28px;">
+            <h1 style="margin:0 0 12px 0;font-size:19px;font-weight:600;color:#1e232e;">Seu acesso ao acompanhamento da obra</h1>
+            <p style="margin:0 0 14px 0;font-size:14px;line-height:1.6;color:#4a5160;">
+              Olá! A Vidal Projetos liberou seu acesso ao portal, onde você acompanha o andamento
+              da sua obra: diário, fotos, ordens de compra e cronograma.
+            </p>
+            <p style="margin:0 0 22px 0;font-size:14px;line-height:1.6;color:#4a5160;">
+              Para entrar, crie a sua senha no botão abaixo. Ela é só sua — ninguém da Vidal
+              Projetos tem acesso a ela.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 28px;">
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#26409a;border-radius:8px;">
+                  <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:11px 22px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">Criar minha senha</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:22px 28px 28px 28px;">
+            <p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:#5a606f;">
+              Se o botão não funcionar, copie e cole este endereço no navegador:
+            </p>
+            <p style="margin:0 0 18px 0;font-size:12px;line-height:1.5;word-break:break-all;">
+              <a href="{{ .ConfirmationURL }}" style="color:#2c49a7;">{{ .ConfirmationURL }}</a>
+            </p>
+            <p style="margin:0;padding-top:16px;border-top:1px solid #dde0e6;font-size:12px;line-height:1.6;color:#5a606f;">
+              O link é de uso único e expira. Alguns programas de e-mail e antivírus abrem links
+              sozinhos para checar segurança, e isso pode gastar o link antes de você clicar — se
+              acontecer, peça um novo.
+            </p>
+            <p style="margin:10px 0 0 0;font-size:12px;line-height:1.6;color:#5a606f;">
+              Se você não esperava este e-mail, pode ignorá-lo: sem criar a senha, nenhum acesso é
+              liberado.
+            </p>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:16px 0 0 0;font-size:11px;color:#5a606f;">Vidal Projetos — Gestão de Obras</p>
+    </td>
+  </tr>
+</table>

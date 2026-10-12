@@ -25,7 +25,12 @@ export async function enviarArquivoParaStorage(
   const supabase = createClient();
 
   // Chaves do Storage rejeitam caracteres não-ASCII (ver lib/sanitize-filename).
-  const path = `${prefixo}/${Date.now()}-${sanitizeFilename(arquivo.name)}`;
+  //
+  // O sufixo aleatório existe por causa dos lotes em paralelo: duas fotos com o
+  // mesmo nome subindo no mesmo milissegundo gerariam a mesma chave, e o
+  // Storage recusa a segunda — o lote inteiro falharia por isso.
+  const sufixo = Math.random().toString(36).slice(2, 8);
+  const path = `${prefixo}/${Date.now()}-${sufixo}-${sanitizeFilename(arquivo.name)}`;
 
   const { error } = await supabase.storage.from(bucket).upload(path, arquivo);
 

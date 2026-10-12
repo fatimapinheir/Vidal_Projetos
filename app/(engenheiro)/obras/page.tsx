@@ -30,7 +30,7 @@ export default async function ObrasPage() {
   const supabase = await createClient();
   const { data: obras } = await supabase
     .from("obras")
-    .select("*")
+    .select("*, obra_tipos(nome)")
     .order("created_at", { ascending: false });
 
   return (
@@ -58,7 +58,7 @@ export default async function ObrasPage() {
             {obras?.map((obra) => (
               <TableRow key={obra.id}>
                 <TableCell className="font-medium">{obra.nome}</TableCell>
-                <TableCell className="capitalize">{obra.tipo}</TableCell>
+                <TableCell>{(obra.obra_tipos as unknown as { nome: string } | null)?.nome ?? "—"}</TableCell>
                 <TableCell>
                   <Badge variant={statusVariant[obra.status]}>
                     {statusLabel[obra.status]}

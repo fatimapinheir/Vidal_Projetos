@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
 import { Users, Wrench, ListChecks, Truck } from "lucide-react";
 import type { ConteudoDia } from "@/lib/diario/montar-dia";
 import type { PresencaStatus } from "@/lib/types/database.types";
@@ -15,11 +15,13 @@ function Secao({
   titulo,
   icone,
   vazio,
+  acao,
   children,
 }: {
   titulo: string;
   icone: ReactNode;
   vazio: string;
+  acao?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -29,6 +31,7 @@ function Secao({
           {icone}
           {titulo}
         </CardTitle>
+        {acao && <CardAction>{acao}</CardAction>}
       </CardHeader>
       <CardContent className="text-sm">
         {children ?? <p className="text-muted-foreground">{vazio}</p>}
@@ -41,37 +44,65 @@ function Secao({
  * As quatro seções que o sistema preenche sozinho. Recebe o conteúdo já
  * resolvido (ao vivo ou congelado) — não decide de onde ele veio.
  *
- * `acaoEntrega` é o que permite confirmar recebimento direto na folha; some
- * quando o dia está fechado ou quando a tela é a do cliente.
+ * `acaoEntrega` e `acaoEfetivo` são o que permite confirmar recebimento e
+ * presença direto na folha; somem quando o dia está fechado ou quando a tela é
+ * a do cliente.
  */
 export function ConteudoDiaSecoes({
   conteudo,
   acaoEntrega,
+  acaoEfetivo,
+  atalhoEfetivo,
 }: {
   conteudo: ConteudoDia;
   acaoEntrega?: (entregaParcelaId: string, recebidoEm: string | null) => ReactNode;
+  acaoEfetivo?: (trabalhadorId: string, status: PresencaStatus | null) => ReactNode;
+  atalhoEfetivo?: ReactNode;
 }) {
-  const { efetivo, equipamentos, tarefas, entregas } = conteudo;
+  const { equipamentos, tarefas, entregas } = conteudo;
 
-  const presentes = efetivo.filter((e) => e.status !== "falta").length;
+  // Sem ação de presença (folha fechada, ou tela do cliente) a linha sem
+  // lançamento não existe: ela só serve para dar onde clicar. Mostrá-la ali
+  // viraria "pessoa sem presença" num documento, que não é o que a folha diz.
+  const efetivo = acaoEfetivo
+    ? conteudo.efetivo
+    : conteudo.efetivo.filter((pessoa) => !!pessoa.status);
+
+  const presentes = efetivo.filter((e) => !!e.status && e.status !== "falta").length;
+  const semConfirmar = efetivo.filter((e) => !e.status).length;
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Secao
         titulo={`Efetivo${efetivo.length ? ` — ${presentes} em obra` : ""}`}
         icone={<Users className="size-4" />}
-        vazio="Nenhuma presença lançada nesse dia."
+        vazio={
+          acaoEfetivo
+            ? "Nenhum trabalhador alocado nessa obra ainda."
+            : "Nenhuma presença lançada nesse dia."
+        }
+        acao={semConfirmar ? atalhoEfetivo : null}
       >
         {efetivo.length ? (
           <ul className="flex flex-col gap-1">
             {efetivo.map((pessoa, i) => (
-              <li key={`${pessoa.nome}-${i}`} className="flex items-center justify-between gap-2">
+              <li
+                key={pessoa.trabalhadorId ?? `${pessoa.nome}-${i}`}
+                className="flex min-h-8 items-center justify-between gap-2"
+              >
                 <span className={pessoa.status === "falta" ? "text-muted-foreground" : ""}>
                   {pessoa.nome}
+                  {pessoa.funcao && (
+                    <span className="block text-xs text-muted-foreground">{pessoa.funcao}</span>
+                  )}
                 </span>
-                <Badge variant={pessoa.status === "falta" ? "outline" : "secondary"}>
-                  {statusLabel[pessoa.status]}
-                </Badge>
+                {acaoEfetivo && pessoa.trabalhadorId ? (
+                  acaoEfetivo(pessoa.trabalhadorId, pessoa.status)
+                ) : pessoa.status ? (
+                  <Badge variant={pessoa.status === "falta" ? "outline" : "secondary"}>
+                    {statusLabel[pessoa.status]}
+                  </Badge>
+                ) : null}
               </li>
             ))}
           </ul>

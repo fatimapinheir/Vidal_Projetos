@@ -3,7 +3,19 @@ import type { PresencaStatus } from "@/lib/types/database.types";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
-export type EfetivoItem = { nome: string; status: PresencaStatus; observacoes?: string | null };
+export type EfetivoItem = {
+  /**
+   * Id do trabalhador — existe só no dia aberto, para confirmar presença na
+   * própria folha. No congelado a linha é histórica e não aceita mais ação.
+   */
+  trabalhadorId?: string;
+  nome: string;
+  /** Opcional porque snapshots gravados antes desta coluna não têm o campo. */
+  funcao?: string | null;
+  /** `null` = pessoa da equipe sem presença lançada nesse dia ainda. */
+  status: PresencaStatus | null;
+  observacoes?: string | null;
+};
 export type EquipamentoItem = { equipamento: string; quantidade: number; locador: string };
 export type TarefaItem = { nome: string; etapa: string; critica: boolean };
 export type EntregaItem = {
@@ -25,6 +37,18 @@ export type ConteudoDia = {
 const VAZIO: ConteudoDia = { efetivo: [], equipamentos: [], tarefas: [], entregas: [] };
 
 /**
+ * Quem de fato entra no documento: só linha com presença lançada.
+ *
+ * O efetivo do dia aberto traz a equipe inteira, inclusive quem ainda não foi
+ * confirmado, para dar onde clicar. Isso é apoio ao preenchimento, não
+ * declaração — se vazasse para o RDO ou para o snapshot, o relatório afirmaria
+ * que havia gente em obra sem ninguém ter dito isso.
+ */
+export function efetivoConfirmado(efetivo: EfetivoItem[]): EfetivoItem[] {
+  return efetivo.filter((pessoa) => !!pessoa.status);
+}
+
+/**
  * Monta o que o sistema já sabe sobre um dia da obra, buscando em presenças,
  * locações, cronograma e parcelas de compra. Usado só enquanto o dia está
  * aberto — depois de fechado, o conteúdo vem dos snapshots gravados.
@@ -34,11 +58,18 @@ export async function derivarConteudoDia(
   obraId: string,
   data: string
 ): Promise<ConteudoDia> {
-  const [{ data: presencas }, { data: locacoes }, { data: tarefas }, { data: parcelas }] =
+  const [{ data: alocados }, { data: presencas }, { data: locacoes }, { data: tarefas }, { data: parcelas }] =
     await Promise.all([
+      // A equipe ativa da obra entra no efetivo mesmo sem presença lançada: é
+      // ela que dá as linhas para confirmar o dia sem sair da folha.
+      supabase
+        .from("obra_trabalhadores")
+        .select("trabalhador_id, trabalhadores(id, nome, funcao)")
+        .eq("obra_id", obraId)
+        .eq("ativo", true),
       supabase
         .from("presencas")
-        .select("status, observacoes, trabalhadores(nome)")
+        .select("trabalhador_id, status, observacoes, trabalhadores(nome, funcao)")
         .eq("obra_id", obraId)
         .eq("data", data),
       supabase
@@ -62,13 +93,42 @@ export async function derivarConteudoDia(
         .eq("data_entrega_prevista", data),
     ]);
 
+  // Equipe primeiro, presenças por cima. Nessa ordem porque a presença manda:
+  // quem foi lançado e depois saiu da equipe continua no dia em que trabalhou.
+  const porTrabalhador = new Map<string, EfetivoItem>();
+
+  for (const alocacao of alocados ?? []) {
+    const pessoa = alocacao.trabalhadores as unknown as {
+      id: string;
+      nome: string;
+      funcao: string | null;
+    } | null;
+    if (!pessoa) continue;
+    porTrabalhador.set(pessoa.id, {
+      trabalhadorId: pessoa.id,
+      nome: pessoa.nome,
+      funcao: pessoa.funcao,
+      status: null,
+    });
+  }
+
+  for (const presenca of presencas ?? []) {
+    const pessoa = presenca.trabalhadores as unknown as {
+      nome: string;
+      funcao: string | null;
+    } | null;
+    const daEquipe = porTrabalhador.get(presenca.trabalhador_id);
+    porTrabalhador.set(presenca.trabalhador_id, {
+      trabalhadorId: presenca.trabalhador_id,
+      nome: daEquipe?.nome ?? pessoa?.nome ?? "—",
+      funcao: daEquipe?.funcao ?? pessoa?.funcao ?? null,
+      status: presenca.status,
+      observacoes: presenca.observacoes,
+    });
+  }
+
   return {
-    efetivo: (presencas ?? [])
-      .map((p) => {
-        const trabalhador = p.trabalhadores as unknown as { nome: string } | null;
-        return { nome: trabalhador?.nome ?? "—", status: p.status, observacoes: p.observacoes };
-      })
-      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
+    efetivo: [...porTrabalhador.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
 
     equipamentos: (locacoes ?? []).map((l) => {
       const fornecedor = l.fornecedores as unknown as { nome: string } | null;

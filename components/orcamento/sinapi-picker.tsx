@@ -14,20 +14,31 @@ import {
 } from "@/components/ui/table";
 import { buscarSinapi } from "@/app/actions/sinapi";
 import { adicionarItemOrcamento, type ItemOrcamentoState } from "@/app/actions/orcamento";
+import { CampoMoeda, CampoUnidade } from "./campos-item";
 
 type ResultadoSinapi = { id: string; codigo: string; descricao: string; unidade: string; preco_unitario: number };
 
 const initialState: ItemOrcamentoState = { error: null };
 
+/** Classificação do item. Serviço é o padrão: é o que vem da composição SINAPI. */
+export const TIPOS_ITEM = [
+  { valor: "servico", label: "Serviço" },
+  { valor: "material", label: "Material" },
+  { valor: "mao_de_obra", label: "Mão de obra" },
+] as const;
+
 function AdicionarItemForm({
   obraId,
   versaoId,
   inicial,
+  etapa,
   onDone,
 }: {
   obraId: string;
   versaoId: string;
   inicial: { codigo_sinapi?: string; descricao: string; unidade: string; preco_unitario: number };
+  /** Quando o formulário abre dentro de uma etapa, ela já vem travada no campo. */
+  etapa?: string;
   onDone: () => void;
 }) {
   const action = adicionarItemOrcamento.bind(null, obraId, versaoId);
@@ -41,38 +52,71 @@ function AdicionarItemForm({
     <form action={formAction} className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3">
       <input type="hidden" name="codigo_sinapi" value={inicial.codigo_sinapi ?? ""} />
       <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor="descricao">Descrição</FieldLabel>
-          <Input id="descricao" name="descricao" defaultValue={inicial.descricao} required />
-        </Field>
         <Field orientation="responsive">
+          <div className="w-full sm:max-w-48">
+            <FieldLabel htmlFor="tipo_item">Categoria</FieldLabel>
+            <select
+              id="tipo_item"
+              name="tipo_item"
+              defaultValue="servico"
+              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            >
+              {TIPOS_ITEM.map((t) => (
+                <option key={t.valor} value={t.valor}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="w-full">
+            <FieldLabel htmlFor="descricao">Descrição</FieldLabel>
+            <Input id="descricao" name="descricao" defaultValue={inicial.descricao} required />
+          </div>
+        </Field>
+
+        {/*
+          Unidade, quantidade, preço e etapa numa linha só: são quatro campos
+          curtos, e empilhados faziam o formulário rolar para cadastrar um item
+          de uma linha.
+        */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[7rem_7rem_11rem_1fr]">
+          <div>
             <FieldLabel htmlFor="unidade">Unidade</FieldLabel>
-            <Input id="unidade" name="unidade" defaultValue={inicial.unidade} required />
+            <CampoUnidade id="unidade" name="unidade" defaultValue={inicial.unidade} required />
           </div>
-          <div className="w-full">
+          <div>
             <FieldLabel htmlFor="quantidade">Quantidade</FieldLabel>
-            <Input id="quantidade" name="quantidade" type="number" step="0.01" min="0" required />
-          </div>
-        </Field>
-        <Field orientation="responsive">
-          <div className="w-full">
-            <FieldLabel htmlFor="preco_unitario">Preço unitário (R$)</FieldLabel>
             <Input
-              id="preco_unitario"
-              name="preco_unitario"
+              id="quantidade"
+              name="quantidade"
               type="number"
               step="0.01"
               min="0"
+              className="text-right tabular-nums"
+              required
+            />
+          </div>
+          <div>
+            <FieldLabel htmlFor="preco_unitario">Preço unitário</FieldLabel>
+            <CampoMoeda
+              id="preco_unitario"
+              name="preco_unitario"
               defaultValue={inicial.preco_unitario}
               required
             />
           </div>
-          <div className="w-full">
-            <FieldLabel htmlFor="etapa">Etapa (opcional)</FieldLabel>
-            <Input id="etapa" name="etapa" placeholder="Fundação, alvenaria..." />
+          <div>
+            <FieldLabel htmlFor="etapa">Etapa</FieldLabel>
+            <Input
+              id="etapa"
+              name="etapa"
+              defaultValue={etapa ?? ""}
+              placeholder="Fundação, alvenaria..."
+              readOnly={!!etapa}
+              className={etapa ? "bg-muted" : undefined}
+            />
           </div>
-        </Field>
+        </div>
         {state.error && <FieldError>{state.error}</FieldError>}
         <div className="flex gap-2">
           <Button type="submit" size="sm" disabled={pending}>
@@ -87,7 +131,18 @@ function AdicionarItemForm({
   );
 }
 
-export function SinapiPicker({ obraId, versaoId }: { obraId: string; versaoId: string }) {
+export function SinapiPicker({
+  obraId,
+  versaoId,
+  etapa,
+  onDone,
+}: {
+  obraId: string;
+  versaoId: string;
+  /** Preenchida quando o picker abre dentro de uma etapa. */
+  etapa?: string;
+  onDone?: () => void;
+}) {
   const [termo, setTermo] = useState("");
   const [resultados, setResultados] = useState<ResultadoSinapi[]>([]);
   const [selecionado, setSelecionado] = useState<ResultadoSinapi | null>(null);
@@ -111,6 +166,7 @@ export function SinapiPicker({ obraId, versaoId }: { obraId: string; versaoId: s
     setAvulso(false);
     setTermo("");
     setResultados([]);
+    onDone?.();
   }
 
   if (selecionado) {
@@ -124,6 +180,7 @@ export function SinapiPicker({ obraId, versaoId }: { obraId: string; versaoId: s
           unidade: selecionado.unidade,
           preco_unitario: selecionado.preco_unitario,
         }}
+        etapa={etapa}
         onDone={resetar}
       />
     );
@@ -134,7 +191,15 @@ export function SinapiPicker({ obraId, versaoId }: { obraId: string; versaoId: s
       <AdicionarItemForm
         obraId={obraId}
         versaoId={versaoId}
-        inicial={{ descricao: "", unidade: "", preco_unitario: 0 }}
+        /*
+          A descrição começa com o que já foi digitado na busca: quem procurou
+          "Despachante prefeitura" e não achou na SINAPI estava escrevendo o
+          nome do item, e mandá-lo digitar de novo no campo ao lado é perder o
+          que ele acabou de fazer.
+        */
+        key={termo}
+        inicial={{ descricao: termo.trim(), unidade: "", preco_unitario: 0 }}
+        etapa={etapa}
         onDone={resetar}
       />
     );
@@ -149,7 +214,7 @@ export function SinapiPicker({ obraId, versaoId }: { obraId: string; versaoId: s
           onChange={(e) => handleChange(e.target.value)}
         />
         <Button type="button" variant="outline" onClick={() => setAvulso(true)}>
-          Item avulso
+          {termo.trim() ? "Cadastrar como item avulso" : "Item avulso"}
         </Button>
       </div>
       {termo.trim().length >= 2 && (

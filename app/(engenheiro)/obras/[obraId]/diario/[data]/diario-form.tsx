@@ -5,30 +5,24 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldGroup, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { salvarDiario, type DiarioFormState } from "@/app/actions/diario";
-import type { DiarioClima } from "@/lib/types/database.types";
+import type { DiarioCondicao } from "@/lib/types/database.types";
+import { CONDICOES } from "@/lib/diario/condicao";
+import { Input } from "@/components/ui/input";
 
 const initialState: DiarioFormState = { error: null };
 
-const periodos = [
-  { campo: "clima_manha", label: "Manhã" },
-  { campo: "clima_tarde", label: "Tarde" },
-  { campo: "clima_noite", label: "Noite" },
-] as const;
-
-const opcoesClima: { valor: DiarioClima | ""; label: string }[] = [
+const opcoesClima: { valor: DiarioCondicao | ""; label: string }[] = [
   { valor: "", label: "—" },
-  { valor: "praticavel", label: "Praticável" },
-  { valor: "chuva", label: "Chuva" },
-  { valor: "impraticavel", label: "Impraticável" },
+  ...CONDICOES,
 ];
 
 export type DiarioValores = {
-  clima_manha: DiarioClima | null;
-  clima_tarde: DiarioClima | null;
-  clima_noite: DiarioClima | null;
+  clima: DiarioCondicao | null;
   atividades: string | null;
   ocorrencias: string | null;
   visitas: string | null;
+  temperatura: number | null;
+  umidade: number | null;
 };
 
 export function DiarioForm({
@@ -48,34 +42,72 @@ export function DiarioForm({
   return (
     <form action={formAction}>
       <FieldGroup>
+        {/*
+          Um campo de clima, não três.
+          
+          Eram manhã, tarde e noite — e o resultado foi ninguém preencher
+          nenhum. O relatório sempre imprimiu UMA linha de condição, resumindo
+          os três pela pior; pedir três respostas para imprimir uma era custo
+          sem contrapartida. Havendo virada no tempo, ela cabe em ocorrências,
+          que é onde a narrativa do dia mora.
+        */}
         <Field>
-          <FieldLabel>Condições do tempo</FieldLabel>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {periodos.map((periodo) => (
-              <div key={periodo.campo}>
-                <FieldLabel htmlFor={periodo.campo} className="text-xs text-muted-foreground">
-                  {periodo.label}
-                </FieldLabel>
-                <select
-                  id={periodo.campo}
-                  name={periodo.campo}
-                  defaultValue={valores?.[periodo.campo] ?? ""}
-                  disabled={somenteLeitura}
-                  className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm disabled:opacity-70"
-                >
-                  {opcoesClima.map((opcao) => (
-                    <option key={opcao.valor} value={opcao.valor}>
-                      {opcao.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <FieldLabel htmlFor="clima">Condição do tempo</FieldLabel>
+          <select
+            id="clima"
+            name="clima"
+            defaultValue={valores?.clima ?? ""}
+            disabled={somenteLeitura}
+            className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm disabled:opacity-70 sm:max-w-56"
+          >
+            {opcoesClima.map((opcao) => (
+              <option key={opcao.valor} value={opcao.valor}>
+                {opcao.label}
+              </option>
             ))}
-          </div>
+          </select>
           <FieldDescription>
-            &quot;Impraticável&quot; é o registro que justifica parada por chuva numa discussão de
-            prazo — vale marcar mesmo quando parece óbvio.
+            Como o dia foi, no geral. &quot;Chuva forte&quot; é o registro que justifica parada
+            numa discussão de prazo — vale marcar mesmo quando parece óbvio, porque é dele que
+            sai a contagem de dias perdidos.
           </FieldDescription>
+        </Field>
+
+        <Field orientation="responsive">
+          <div className="w-full">
+            <FieldLabel htmlFor="temperatura">Temperatura (°C)</FieldLabel>
+            <Input
+              id="temperatura"
+              name="temperatura"
+              type="number"
+              step="0.1"
+              min="-20"
+              max="60"
+              defaultValue={valores?.temperatura ?? ""}
+              disabled={somenteLeitura}
+            />
+          </div>
+          <div className="w-full">
+            <FieldLabel htmlFor="umidade">Umidade (%)</FieldLabel>
+            <Input
+              id="umidade"
+              name="umidade"
+              type="number"
+              step="1"
+              min="0"
+              max="100"
+              defaultValue={valores?.umidade ?? ""}
+              disabled={somenteLeitura}
+            />
+          </div>
+          <div className="w-full">
+            {/* Opcionais: aparecem no relatório quando preenchidos e somem
+                quando não — documento com temperatura zerada por omissão
+                seria pior que documento sem o campo. */}
+            <FieldDescription>
+              Opcionais. Entram no relatório diário quando preenchidos.
+            </FieldDescription>
+          </div>
         </Field>
 
         <Field>

@@ -13,7 +13,7 @@ export default function AtualizarSenhaPage() {
       <CardHeader>
         <CardTitle className="text-xl">Defina sua senha</CardTitle>
         <CardDescription>
-          Escolha uma senha para acessar sua obra no Vidal Projetos.
+          Escolha uma senha para acessar sua obra na Ankora.
         </CardDescription>
       </CardHeader>
       <CardContent>

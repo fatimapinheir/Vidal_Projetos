@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Menu, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/lib/auth/actions";
-import { cn } from "@/lib/utils";
-import type { NavItem } from "./app-shell";
+import { Logo } from "@/components/marca/logo";
+import { NavEntries } from "./nav-entries";
+import type { NavEntry } from "./app-shell";
 
 /**
  * Navegação para telas estreitas. Sem isso, o celular ficava sem menu nenhum —
@@ -21,13 +20,14 @@ export function MobileNav({
   navItems,
   userName,
   userLabel,
+  obraLembrada = null,
 }: {
-  navItems: NavItem[];
+  navItems: NavEntry[];
   userName: string;
   userLabel: string;
+  obraLembrada?: string | null;
 }) {
   const [aberto, setAberto] = useState(false);
-  const pathname = usePathname();
 
   // Trava a rolagem do fundo e devolve o Esc enquanto a gaveta está aberta.
   useEffect(() => {
@@ -66,20 +66,17 @@ export function MobileNav({
             type="button"
             aria-label="Fechar menu"
             onClick={() => setAberto(false)}
-            className="absolute inset-0 bg-black/70"
+            className="absolute inset-0 bg-foreground/40 backdrop-blur-[2px]"
           />
 
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Menu de navegação"
-            className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r bg-background shadow-xl"
+            className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-sidebar text-sidebar-foreground shadow-xl"
           >
-            <div className="flex items-start justify-between gap-2 border-b px-4 py-4">
-              <div>
-                <p className="font-heading text-sm font-semibold">Vidal Projetos</p>
-                <p className="text-xs text-muted-foreground">Gestão de Obras</p>
-              </div>
+            <div className="flex items-center justify-between gap-2 border-b border-sidebar-border px-4 py-4">
+              <Logo />
               <Button
                 type="button"
                 variant="ghost"
@@ -91,35 +88,21 @@ export function MobileNav({
               </Button>
             </div>
 
-            <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
-              {navItems.map((item) => {
-                const ativo = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    // Fecha no clique, não reagindo à mudança de rota: o Link
-                    // navega sem desmontar este componente, então a gaveta
-                    // ficaria aberta por cima da página nova.
-                    onClick={() => setAberto(false)}
-                    className={cn(
-                      // min-h-11 ≈ 44px, o alvo de toque mínimo confortável no iOS.
-                      "flex min-h-11 items-center rounded-lg px-3 text-sm font-medium transition-colors",
-                      ativo
-                        ? "bg-muted text-foreground"
-                        : "text-foreground/80 hover:bg-muted hover:text-foreground"
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
+            <nav className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 py-2">
+              {/* Fecha no clique, não reagindo à rota: o Link navega sem
+                  desmontar este componente, então a gaveta ficaria aberta por
+                  cima da página nova. */}
+              <NavEntries
+                entradas={navItems}
+                obraLembrada={obraLembrada}
+                onNavegar={() => setAberto(false)}
+              />
             </nav>
 
-            <div className="border-t p-2">
+            <div className="border-t border-sidebar-border p-3">
               <div className="px-2 py-1.5">
                 <p className="truncate text-sm font-medium">{userName}</p>
-                <p className="text-xs text-muted-foreground">{userLabel}</p>
+                <p className="text-xs text-sidebar-suave">{userLabel}</p>
               </div>
               <form action={logout}>
                 <Button

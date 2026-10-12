@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import type { CompraStatus, ParcelaStatus } from "@/lib/types/database.types";
+import type { CompraStatus } from "@/lib/types/database.types";
 
 const compraLabel: Record<CompraStatus, string> = {
   cotada: "Aguardando aprovação",
@@ -19,18 +19,9 @@ export function CompraStatusBadge({ status }: { status: CompraStatus }) {
   return <Badge variant={compraVariant[status]}>{compraLabel[status]}</Badge>;
 }
 
-const parcelaLabel: Record<ParcelaStatus, string> = {
-  pendente: "Pendente",
-  paga: "Paga",
-  vencida: "Vencida",
-};
-
-const parcelaVariant: Record<ParcelaStatus, "default" | "secondary" | "outline" | "destructive"> = {
-  pendente: "outline",
-  paga: "secondary",
-  vencida: "destructive",
-};
-
-export function ParcelaStatusBadge({ status }: { status: ParcelaStatus }) {
-  return <Badge variant={parcelaVariant[status]}>{parcelaLabel[status]}</Badge>;
-}
+/*
+ * O selo da parcela mora em ./situacao-badges: ele passou a depender de
+ * "pagamento enviado" e de dias de atraso, e manter dois componentes com a
+ * mesma função era o caminho mais curto para a listagem e o detalhe dizerem
+ * coisas diferentes sobre a mesma parcela.
+ */

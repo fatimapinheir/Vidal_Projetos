@@ -76,9 +76,12 @@ function splitIgual(ids: number[], total: number): Record<number, string> {
 export function NovaCompraForm({
   obraId,
   fornecedores,
+  etapasOrcamento,
 }: {
   obraId: string;
   fornecedores: { id: string; nome: string }[];
+  /** Etapas do orçamento ativo. Vazio quando a obra ainda não tem orçamento. */
+  etapasOrcamento: string[];
 }) {
   const action = createCompra.bind(null, obraId);
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -151,8 +154,14 @@ export function NovaCompraForm({
     });
   }
 
+  // O <form> não declara `encType`: com `action` função, o React define a
+  // codificação sozinho e sobrescreve o que for declarado, e o atributo só
+  // gerava divergência de hidratação (servidor "multipart/form-data" ×
+  // cliente null). Também não haveria o que codificar — o anexo não é campo
+  // deste form: ele sobe direto para o Storage no `handleSubmit`, e o que
+  // entra no FormData é só o caminho devolvido.
   return (
-    <form action={handleSubmit} encType="multipart/form-data">
+    <form action={handleSubmit}>
       <input type="hidden" name="itens" value={JSON.stringify(itens)} readOnly />
       <FieldGroup>
         <Field>
@@ -175,6 +184,58 @@ export function NovaCompraForm({
         <Field>
           <FieldLabel htmlFor="descricao">Descrição (resumo da ordem de compra)</FieldLabel>
           <Textarea id="descricao" name="descricao" rows={2} required />
+        </Field>
+
+        {/*
+          Etapa do orçamento: é o que permite comparar orçado × comprado por
+          etapa na tela do orçamento. Opcional de propósito — compra que não
+          pertence a nenhuma etapa (uma ferramenta, um frete) não deve ser
+          forçada dentro de uma.
+        */}
+        <Field>
+          <FieldLabel htmlFor="orcamento_etapa">Etapa do orçamento (opcional)</FieldLabel>
+          <select
+            id="orcamento_etapa"
+            name="orcamento_etapa"
+            disabled={!etapasOrcamento.length}
+            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm disabled:opacity-60"
+          >
+            <option value="">Não vincular</option>
+            {etapasOrcamento.map((etapa) => (
+              <option key={etapa} value={etapa}>
+                {etapa}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            {etapasOrcamento.length
+              ? "Vinculando, esta ordem entra no comparativo orçado × comprado da etapa."
+              : "Essa obra ainda não tem orçamento ativo com etapas."}
+          </p>
+        </Field>
+
+        {/*
+          O tipo fica ao lado da etapa, não junto da forma de pagamento: os
+          dois respondem "o que é esta compra", e a forma de pagamento responde
+          "como ela sai do caixa". Agrupar pelo que a pergunta é faz o
+          formulário ser preenchido sem voltar atrás.
+        */}
+        <Field>
+          <FieldLabel htmlFor="tipo_item">Tipo</FieldLabel>
+          <select
+            id="tipo_item"
+            name="tipo_item"
+            defaultValue=""
+            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+          >
+            <option value="">Não classificar</option>
+            <option value="material">Material</option>
+            <option value="servico">Serviço</option>
+            <option value="mao_de_obra">Mão de obra</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Aparece na lista de lançamentos do cliente e separa os gastos por tipo.
+          </p>
         </Field>
 
         <Field orientation="responsive">
@@ -214,6 +275,20 @@ export function NovaCompraForm({
             onChange={(e) => setAnexo(e.target.files?.[0] ?? null)}
           />
           {erroAnexo && <FieldError>{erroAnexo}</FieldError>}
+        </Field>
+
+        <Field orientation="horizontal">
+          <Checkbox id="pagamento_apos_recebimento" name="pagamento_apos_recebimento" />
+          <FieldContent>
+            <FieldLabel htmlFor="pagamento_apos_recebimento">
+              Pagar somente após o recebimento da mercadoria
+            </FieldLabel>
+            <FieldDescription>
+              As parcelas dessa ordem só entram na lista de pagamentos depois que você confirmar
+              o recebimento. Até lá elas não aparecem como pendentes nem vencem, mesmo que a data
+              passe — o atraso seria do fornecedor.
+            </FieldDescription>
+          </FieldContent>
         </Field>
 
         <Field orientation="horizontal">

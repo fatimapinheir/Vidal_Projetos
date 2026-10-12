@@ -27,6 +27,12 @@ const compraSchema = z.object({
     "outro",
   ]),
   data_cotacao: z.string().min(1),
+  // Opcional: a ordem pode não se encaixar em nenhum dos três (um frete, uma
+  // taxa). Forçar uma classificação errada é pior que não ter nenhuma.
+  tipo_item: z.enum(["material", "servico", "mao_de_obra"]).optional(),
+  // Etapa do orçamento é texto livre validado contra a lista da versão ativa
+  // na hora de gravar — ver `etapaOrcamentoValida`.
+  orcamento_etapa: z.string().optional(),
 });
 
 const itemCompraSchema = z
@@ -94,6 +100,81 @@ function parseParcelas(formData: FormData): ParseParcelasResult {
   return { parcelas };
 }
 
+/**
+ * Confere que a etapa escolhida existe no orçamento ativo da obra.
+ *
+ * A coluna é texto — a etapa do orçamento é uma string, não uma tabela — então
+ * sem esta checagem um valor digitado à mão criaria uma etapa fantasma que
+ * aparece no comparativo com orçado zero e ninguém sabe de onde veio.
+ *
+ * Aceita tanto as etapas declaradas na versão quanto as que só existem em item
+ * (vindas de importação de planilha): as duas aparecem na tela do orçamento.
+ */
+async function etapaOrcamentoValida(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  obraId: string,
+  escolhida: string | undefined
+): Promise<{ nome: string | null; error?: string }> {
+  if (!escolhida) return { nome: null };
+
+  const { data: versao } = await supabase
+    .from("orcamento_versoes")
+    .select("id, etapas")
+    .eq("obra_id", obraId)
+    .eq("status", "ativa")
+    .maybeSingle();
+
+  if (!versao) return { nome: null, error: "Essa obra não tem orçamento ativo." };
+
+  if (versao.etapas.includes(escolhida)) return { nome: escolhida };
+
+  const { data: emItem } = await supabase
+    .from("orcamento_itens")
+    .select("etapa")
+    .eq("orcamento_versao_id", versao.id)
+    .eq("etapa", escolhida)
+    .limit(1)
+    .maybeSingle();
+
+  if (emItem) return { nome: escolhida };
+  return { nome: null, error: "Essa etapa não existe no orçamento ativo." };
+}
+
+/**
+ * Vincula (ou desvincula, com etapa vazia) uma ordem de compra já criada a uma
+ * etapa do orçamento.
+ *
+ * Existe porque o vínculo é o que alimenta o comparativo orçado × comprado, e
+ * as ordens criadas antes deste campo precisam poder ser classificadas sem
+ * recriar nada.
+ */
+export async function definirEtapaOrcamento(compraId: string, etapaNome: string) {
+  await requireRole("engenheiro");
+  const supabase = await createClient();
+
+  const { data: compra } = await supabase
+    .from("compras")
+    .select("obra_id")
+    .eq("id", compraId)
+    .maybeSingle();
+
+  if (!compra) throw new Error("Ordem de compra não encontrada.");
+
+  const etapa = await etapaOrcamentoValida(supabase, compra.obra_id, etapaNome || undefined);
+  if (etapa.error) throw new Error(etapa.error);
+
+  const { error } = await supabase
+    .from("compras")
+    .update({ orcamento_etapa: etapa.nome, updated_at: new Date().toISOString() })
+    .eq("id", compraId);
+
+  if (error) throw new Error("Não foi possível vincular a etapa.");
+
+  revalidatePath(`/obras/${compra.obra_id}/compras`);
+  revalidatePath(`/obras/${compra.obra_id}/compras/${compraId}`);
+  revalidatePath(`/obras/${compra.obra_id}/orcamento`);
+}
+
 export async function createCompra(
   obraId: string,
   _prevState: CompraFormState,
@@ -106,6 +187,8 @@ export async function createCompra(
     descricao: formData.get("descricao"),
     forma_pagamento: formData.get("forma_pagamento"),
     data_cotacao: formData.get("data_cotacao"),
+    tipo_item: formData.get("tipo_item") || undefined,
+    orcamento_etapa: formData.get("orcamento_etapa") || undefined,
   });
 
   if (!parsed.success) {
@@ -157,9 +240,16 @@ export async function createCompra(
 
   const supabase = await createClient();
 
+  const etapa = await etapaOrcamentoValida(supabase, obraId, parsed.data.orcamento_etapa);
+  if (etapa.error) return { error: etapa.error };
+
   // Aprovação do cliente é opcional: se o engenheiro não marcar a exigência,
   // a compra já nasce aprovada por ele mesmo, sem travar esperando o cliente.
   const requerAprovacaoCliente = !!formData.get("requer_aprovacao_cliente");
+
+  // Quando marcado, as parcelas dessa ordem só entram na lista de pagamentos
+  // depois que o recebimento da mercadoria for confirmado.
+  const pagamentoAposRecebimento = !!formData.get("pagamento_apos_recebimento");
 
   const { data: compra, error: compraError } = await supabase
     .from("compras")
@@ -173,6 +263,9 @@ export async function createCompra(
       desconto_tipo: descontoNota.data.desconto_tipo ?? null,
       desconto_valor: descontoNota.data.desconto_valor ?? 0,
       requer_aprovacao_cliente: requerAprovacaoCliente,
+      pagamento_apos_recebimento: pagamentoAposRecebimento,
+      orcamento_etapa: etapa.nome,
+      tipo_item: parsed.data.tipo_item ?? null,
       status: requerAprovacaoCliente ? "cotada" : "aprovada",
       aprovado_por: requerAprovacaoCliente ? null : profile.id,
       aprovado_em: requerAprovacaoCliente ? null : new Date().toISOString(),
@@ -301,6 +394,101 @@ export async function recusarCompraAction(compraId: string, formData: FormData) 
   }
 
   if (error) throw new Error("Não foi possível recusar a compra.");
+}
+
+/**
+ * Confirma (ou desfaz) o recebimento da mercadoria de uma parcela.
+ *
+ * Quando a compra é "pagamento após recebimento", é isto que libera a parcela
+ * para a lista de pagamentos — antes disso ela não aparece como pendente nem
+ * vence. A mesma coluna é preenchida pelo diário de obra, que é o outro lugar
+ * onde o recebimento aparece naturalmente.
+ */
+export async function confirmarRecebimentoParcela(
+  compraId: string,
+  parcelaId: string,
+  recebido: boolean
+) {
+  await requireRole("engenheiro");
+  const supabase = await createClient();
+
+  await supabase
+    .from("compra_parcelas")
+    .update({
+      data_entrega_real: recebido ? new Date().toISOString().slice(0, 10) : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parcelaId)
+    // Sem isto, um id de parcela de outra compra seria aceito.
+    .eq("compra_id", compraId);
+
+  const obraId = await resolveObraIdForCompra(compraId);
+  if (obraId) {
+    revalidatePath(`/obras/${obraId}/compras/${compraId}`);
+    revalidatePath(`/obras/${obraId}/compras`);
+    revalidatePath(`/portal/obras/${obraId}`);
+  }
+  revalidatePath("/dashboard");
+}
+
+/**
+ * Marca (ou desmarca) que o pagamento da parcela foi lançado.
+ *
+ * É o passo entre "pode pagar" e "pago": nas ordens com pagamento condicionado
+ * ao recebimento, o lançamento é um ato manual depois da mercadoria chegar, e
+ * sem registrá-lo a parcela fica igual a uma que ninguém tocou. A partir daqui
+ * ela deixa de aparecer como vencida — o atraso não é mais pendência de quem
+ * olha a tela.
+ *
+ * Só aceita parcela liberada: dizer que o pagamento saiu antes do material
+ * chegar contradiz exatamente a regra que a ordem pediu.
+ */
+export async function marcarPagamentoEnviado(
+  compraId: string,
+  parcelaId: string,
+  enviado: boolean
+) {
+  const profile = await requireRole("engenheiro");
+  const supabase = await createClient();
+
+  const { data: parcela } = await supabase
+    .from("vw_compra_parcelas")
+    .select("id, status, liberada_para_pagamento")
+    // Sem o compra_id, um id de parcela de outra compra seria aceito.
+    .eq("compra_id", compraId)
+    .eq("id", parcelaId)
+    .maybeSingle();
+
+  if (!parcela) throw new Error("Parcela não encontrada nessa ordem de compra.");
+  if (parcela.status === "paga") {
+    throw new Error("Essa parcela já está paga.");
+  }
+  if (enviado && !parcela.liberada_para_pagamento) {
+    throw new Error("A mercadoria dessa parcela ainda não foi recebida.");
+  }
+
+  const { error } = await supabase
+    .from("compra_parcelas")
+    .update({
+      pagamento_enviado_em: enviado ? new Date().toISOString().slice(0, 10) : null,
+      pagamento_enviado_por: enviado ? profile.id : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parcelaId)
+    .eq("compra_id", compraId);
+
+  if (error) throw new Error("Não foi possível registrar o envio do pagamento.");
+
+  const obraId = await resolveObraIdForCompra(compraId);
+  if (obraId) {
+    revalidatePath(`/obras/${obraId}/compras`);
+    revalidatePath(`/obras/${obraId}/compras/${compraId}`);
+    revalidatePath(`/obras/${obraId}`);
+    revalidatePath(`/portal/obras/${obraId}`);
+    revalidatePath(`/portal/obras/${obraId}/compras`);
+    revalidatePath(`/portal/obras/${obraId}/compras/${compraId}`);
+  }
+  revalidatePath("/dashboard");
 }
 
 export async function pagarParcelaAction(

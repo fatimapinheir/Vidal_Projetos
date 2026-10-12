@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, FileDown } from "lucide-react";
 import { formatDateBR } from "@/lib/format-date";
 import { conteudoParaExibir } from "@/lib/diario/montar-dia";
 import { ConteudoDiaSecoes } from "@/components/diario/conteudo-dia";
@@ -11,7 +11,10 @@ import { DiarioForm } from "./diario-form";
 import {
   FecharDiaButton,
   RecebimentoToggle,
+  PresencaSelect,
+  ConfirmarEquipeButton,
   FotosUpload,
+  LegendaFoto,
   RemoverFotoButton,
   StatusDiarioBadge,
 } from "./diario-actions";
@@ -56,6 +59,9 @@ export default async function DiarioDiaPage({
   );
 
   const fechado = !!diario?.fechado_em;
+  // Pessoas da equipe que ainda não têm presença lançada nesse dia. Elas
+  // aparecem na folha para serem confirmadas ali, mas não entram no documento.
+  const semConfirmar = fechado ? 0 : conteudo.efetivo.filter((p) => !p.status).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -86,7 +92,27 @@ export default async function DiarioDiaPage({
               : "Enquanto o dia está aberto, efetivo, equipamentos, tarefas e entregas acompanham as outras telas. Ao fechar, tudo isso congela e a folha vira documento."}
           </p>
         </div>
-        {diario && <FecharDiaButton obraId={obraId} data={data} fechado={fechado} />}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            nativeButton={false}
+            variant="outline"
+            size="sm"
+            render={
+              <Link href={`/obras/${obraId}/diario/${data}/rdo`}>
+                <FileDown className="size-4" />
+                Baixar RDO
+              </Link>
+            }
+          />
+          {diario && (
+            <FecharDiaButton
+              obraId={obraId}
+              data={data}
+              fechado={fechado}
+              semConfirmar={semConfirmar}
+            />
+          )}
+        </div>
       </div>
 
       <ConteudoDiaSecoes
@@ -102,6 +128,23 @@ export default async function DiarioDiaPage({
                   recebidoEm={recebidoEm}
                 />
               )
+        }
+        acaoEfetivo={
+          fechado
+            ? undefined
+            : (trabalhadorId, status) => (
+                <PresencaSelect
+                  obraId={obraId}
+                  data={data}
+                  trabalhadorId={trabalhadorId}
+                  status={status}
+                />
+              )
+        }
+        atalhoEfetivo={
+          !fechado && semConfirmar > 0 ? (
+            <ConfirmarEquipeButton obraId={obraId} data={data} semConfirmar={semConfirmar} />
+          ) : null
         }
       />
 
@@ -135,9 +178,20 @@ export default async function DiarioDiaPage({
                       Não foi possível carregar
                     </div>
                   )}
-                  {foto.legenda && (
-                    <figcaption className="p-2 text-xs text-muted-foreground">
-                      {foto.legenda}
+                  {fechado ? (
+                    foto.legenda && (
+                      <figcaption className="p-2 text-xs text-muted-foreground">
+                        {foto.legenda}
+                      </figcaption>
+                    )
+                  ) : (
+                    <figcaption>
+                      <LegendaFoto
+                        obraId={obraId}
+                        data={data}
+                        fotoId={foto.id}
+                        legenda={foto.legenda}
+                      />
                     </figcaption>
                   )}
                   {!fechado && <RemoverFotoButton obraId={obraId} data={data} fotoId={foto.id} />}

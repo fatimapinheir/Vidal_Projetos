@@ -8,9 +8,14 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { CompraStatusBadge, ParcelaStatusBadge } from "./status-badges";
+import { CompraStatusBadge } from "./status-badges";
+import { SituacaoFinanceiraBadge, SituacaoEntregaBadge } from "./situacao-badges";
+import { situacaoFinanceiraParcela, situacaoEntregaParcela } from "@/lib/compras/situacao";
 import { PagarParcelaForm } from "./pagar-parcela-form";
+import { RecebimentoParcela } from "./recebimento-parcela";
+import { PagamentoEnviadoParcela } from "./pagamento-enviado-parcela";
 import { CompraAprovacaoActions } from "./compra-aprovacao-actions";
+import { EtapaOrcamentoSelect } from "./etapa-orcamento-select";
 import { formatDateBR as formatDate } from "@/lib/format-date";
 
 function formatCurrency(value: number) {
@@ -45,6 +50,33 @@ export async function CompraDetail({
     .select("*")
     .eq("compra_id", compraId)
     .order("ordem");
+
+  // Etapas do orçamento ativo, para o vínculo desta ordem. Só o engenheiro
+  // escolhe, mas o cliente vê a etapa já vinculada.
+  const { data: versaoAtiva } =
+    viewerRole === "engenheiro"
+      ? await supabase
+          .from("orcamento_versoes")
+          .select("id, etapas")
+          .eq("obra_id", compra.obra_id)
+          .eq("status", "ativa")
+          .maybeSingle()
+      : { data: null };
+
+  const { data: etapasEmItens } = versaoAtiva
+    ? await supabase
+        .from("orcamento_itens")
+        .select("etapa")
+        .eq("orcamento_versao_id", versaoAtiva.id)
+        .not("etapa", "is", null)
+    : { data: null };
+
+  const etapasOrcamento = [
+    ...new Set([
+      ...(versaoAtiva?.etapas ?? []),
+      ...(etapasEmItens ?? []).map((i) => i.etapa).filter((e): e is string => !!e),
+    ]),
+  ];
 
   const subtotalItens = itens?.reduce((sum, item) => sum + item.total_liquido, 0) ?? 0;
 
@@ -81,7 +113,7 @@ export async function CompraDetail({
           <CompraStatusBadge status={compra.status} />
         </CardHeader>
         <CardContent className="flex flex-col gap-3 text-sm">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <div>
               <p className="text-muted-foreground">Valor total</p>
               <p className="font-medium">{formatCurrency(compra.valor_total)}</p>
@@ -93,6 +125,18 @@ export async function CompraDetail({
             <div>
               <p className="text-muted-foreground">Cotada em</p>
               <p className="font-medium">{formatDate(compra.data_cotacao)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Etapa do orçamento</p>
+              {viewerRole === "engenheiro" ? (
+                <EtapaOrcamentoSelect
+                  compraId={compra.id}
+                  etapaAtual={compra.orcamento_etapa}
+                  etapas={etapasOrcamento}
+                />
+              ) : (
+                <p className="font-medium">{compra.orcamento_etapa ?? "—"}</p>
+              )}
             </div>
             <div>
               <p className="text-muted-foreground">Anexo da cotação</p>
@@ -126,6 +170,12 @@ export async function CompraDetail({
           )}
           {viewerRole === "engenheiro" && compra.status === "cotada" && (
             <p className="text-sm text-muted-foreground">Aguardando aprovação do cliente.</p>
+          )}
+          {compra.pagamento_apos_recebimento && (
+            <p className="rounded-lg border border-atencao/40 bg-atencao/10 p-3 text-sm">
+              O pagamento desta ordem depende do recebimento da mercadoria. Cada parcela só entra
+              na lista de pagamentos depois que o recebimento for confirmado.
+            </p>
           )}
           {!compra.requer_aprovacao_cliente && compra.status === "aprovada" && (
             <p className="text-sm text-muted-foreground">
@@ -214,8 +264,8 @@ export async function CompraDetail({
                   <TableHead>Valor</TableHead>
                   <TableHead>Vencimento</TableHead>
                   <TableHead>Entrega prevista</TableHead>
-                  <TableHead>Recebido</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Entrega</TableHead>
+                  <TableHead>Financeiro</TableHead>
                   <TableHead>Comprovante</TableHead>
                   <TableHead />
                 </TableRow>
@@ -227,19 +277,17 @@ export async function CompraDetail({
                     <TableCell>{formatCurrency(p.valor)}</TableCell>
                     <TableCell>{formatDate(p.data_vencimento)}</TableCell>
                     <TableCell>{formatDate(p.data_entrega_prevista)}</TableCell>
-                    <TableCell
-                      className={
-                        p.data_entrega_prevista &&
-                        p.data_entrega_real &&
-                        p.data_entrega_real > p.data_entrega_prevista
-                          ? "text-destructive"
-                          : ""
-                      }
-                    >
-                      {formatDate(p.data_entrega_real)}
+                    <TableCell>
+                      <SituacaoEntregaBadge
+                        situacao={situacaoEntregaParcela(p)}
+                        simplificado={viewerRole === "cliente"}
+                      />
                     </TableCell>
                     <TableCell>
-                      <ParcelaStatusBadge status={p.status_efetivo} />
+                      <SituacaoFinanceiraBadge
+                        situacao={situacaoFinanceiraParcela(p)}
+                        simplificado={viewerRole === "cliente"}
+                      />
                     </TableCell>
                     <TableCell>
                       {comprovantesUrls.has(p.id) ? (
@@ -256,9 +304,38 @@ export async function CompraDetail({
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {compra.status === "aprovada" && p.status !== "paga" && (
-                        <PagarParcelaForm obraId={compra.obra_id} compraId={compra.id} parcelaId={p.id} />
-                      )}
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {viewerRole === "engenheiro" &&
+                          compra.pagamento_apos_recebimento &&
+                          p.status !== "paga" && (
+                            <RecebimentoParcela
+                              compraId={compra.id}
+                              parcelaId={p.id}
+                              recebidoEm={p.data_entrega_real}
+                            />
+                          )}
+                        {/* O passo do meio: liberada, lançada, depois paga. */}
+                        {viewerRole === "engenheiro" &&
+                          p.status !== "paga" &&
+                          p.liberada_para_pagamento && (
+                            <PagamentoEnviadoParcela
+                              compraId={compra.id}
+                              parcelaId={p.id}
+                              enviadoEm={p.pagamento_enviado_em}
+                            />
+                          )}
+                        {/* Pagar só aparece quando a parcela está liberada — com
+                            mercadoria pendente, pagar seria fora de ordem. */}
+                        {compra.status === "aprovada" &&
+                          p.status !== "paga" &&
+                          p.liberada_para_pagamento && (
+                            <PagarParcelaForm
+                              obraId={compra.obra_id}
+                              compraId={compra.id}
+                              parcelaId={p.id}
+                            />
+                          )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -2,6 +2,8 @@ import type { DependenciaTipo } from "@/lib/types/database.types";
 
 export type TarefaEntrada = {
   id: string;
+  /** Só para a mensagem de erro — o cálculo usa o id. */
+  nome?: string;
   duracaoDias: number;
   restricaoInicioNaoAntesDe: string | null;
   dataInicioReal: string | null;
@@ -38,6 +40,36 @@ function paraDia(iso: string): number {
 
 function paraIso(dia: number): string {
   return new Date(dia * MS_POR_DIA).toISOString().slice(0, 10);
+}
+
+/**
+ * Quantos dias úteis existem entre duas datas, inclusive nas duas pontas.
+ *
+ * É o inverso do que o CPM faz: ele recebe duração e devolve datas; aqui o
+ * engenheiro informa início e fim e a duração é deduzida. Vive neste arquivo,
+ * e não na tela, porque precisa pular folga exatamente com o mesmo critério —
+ * duas contagens de dia útil divergentes fariam a data que o engenheiro
+ * digitou não ser a que o cronograma mostra de volta.
+ *
+ * Devolve 0 quando o fim é antes do início, e nunca conta um dia de folga.
+ */
+export function contarDiasUteis(
+  inicioIso: string,
+  fimIso: string,
+  folgas: FolgaEntrada[]
+): number {
+  const inicio = paraDia(inicioIso);
+  const fim = paraDia(fimIso);
+  if (fim < inicio) return 0;
+
+  const folgaSet = new Set<number>();
+  for (const f of folgas) {
+    for (let d = paraDia(f.dataInicio); d <= paraDia(f.dataFim); d++) folgaSet.add(d);
+  }
+
+  let uteis = 0;
+  for (let d = inicio; d <= fim; d++) if (!folgaSet.has(d)) uteis++;
+  return uteis;
 }
 
 /**
@@ -229,8 +261,10 @@ export function calcularCPM(
     }
 
     if (!preds.length && inicioMinimo === -Infinity) {
+      // Nome em vez do uuid: a mensagem chega ao engenheiro, e um uuid não
+      // diz qual tarefa ele precisa consertar.
       throw new Error(
-        `A tarefa "${id}" não tem predecessora nem data de início definida — informe uma data âncora.`
+        `A tarefa "${tarefa.nome ?? id}" não tem predecessora nem data de início definida — informe uma data âncora para ela.`
       );
     }
 

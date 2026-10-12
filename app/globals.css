@@ -7,9 +7,13 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-geist-sans);
+  /* Manuscrita: só a assinatura da faixa de saudação usa.
+   * O nome do token e o da variável que o next/font cria precisam ser
+   * diferentes — iguais, a declaração aponta para si mesma e não resolve. */
+  --font-manuscrita: var(--font-dancing-script);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -17,6 +21,7 @@
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-suave: var(--sidebar-suave);
   --color-sidebar: var(--sidebar);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
@@ -33,6 +38,7 @@
   --color-grafico-pago: var(--grafico-pago);
   --color-grafico-a-vencer: var(--grafico-a-vencer);
   --color-grafico-vencido: var(--grafico-vencido);
+  --color-grafico-enviado: var(--grafico-enviado);
   --color-grafico-trilho: var(--grafico-trilho);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -46,6 +52,22 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-cabecalho: var(--cabecalho);
+  --color-marca-azul: var(--marca-azul);
+  --color-marca-ambar: var(--marca-ambar);
+  --color-marca-navy: var(--marca-navy);
+
+  /* As sombras do Tailwind passam a apontar para tokens que trocam junto com o
+   * tema. Assim `shadow-sm` num componente qualquer já nasce certo nos dois
+   * modos, sem `dark:` espalhado pelo código. */
+  --shadow-2xs: var(--sombra-2xs);
+  --shadow-xs: var(--sombra-xs);
+  --shadow-sm: var(--sombra-sm);
+  --shadow-md: var(--sombra-md);
+  --shadow-lg: var(--sombra-lg);
+  --shadow-xl: var(--sombra-xl);
+  --shadow-2xl: var(--sombra-2xl);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -55,104 +77,257 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Identidade: preto dominante, branco como texto, vermelho como destaque.
+/* ---------------------------------------------------------------------------
+ * Identidade Ankora
  *
- * O vermelho é usado com parcimônia — botão principal, aba ativa, alerta,
- * tarefa crítica, atraso. Botão secundário fica em cinza-escuro, senão o
- * vermelho vira ruído de fundo numa tela cheia de tabela e o alarme deixa de
- * saltar aos olhos.
+ * Três cores, tiradas do logotipo: o navy da chapa (#111D2E), o âmbar do
+ * acento (#E0A82E) e o azul de ação (#1D5BD6). Tudo abaixo sai delas.
  *
- * Verde e âmbar sobrevivem em `--sucesso` e `--atencao`, e só ali: são
- * codificação de dado ("no prazo" × "atrasado"), não identidade visual. Ficam
- * dessaturados o suficiente para não competir com o vermelho da marca.
+ * A divisão de trabalho entre elas é o que segura a tela: o navy é estrutura
+ * (lateral, cabeçalho de cartão pesado), o azul é ação (botão, link, barra de
+ * progresso) e o âmbar é só marcação — onde você está no menu, e o acento do
+ * logotipo. Âmbar nunca é botão; se fosse, disputaria com o azul e a tela
+ * perderia o único lugar para onde o olho deve ir primeiro.
  *
- * O app roda sempre no tema escuro (classe `dark` fixa no <html>). O bloco
- * `:root` abaixo é o mesmo tema — assim, se algo renderizar antes da classe
- * pegar, ou fora dela, não pisca um flash branco na cara do usuário. */
+ * O cinza neutro NÃO é cinza puro: carrega um resto de croma na mesma matiz do
+ * azul (hue 267). Numa tela cheia de tabela e cartão, cinza neutro ao lado de
+ * azul saturado lê como sujeira — puxar o neutro para a matiz da marca faz o
+ * conjunto parecer uma coisa só, e o efeito é forte demais para o custo (0.005
+ * de croma).
+ *
+ * O fundo nunca é branco puro. Branco total achata: cartão branco sobre fundo
+ * branco só existe se tiver borda em tudo, e aí a tela vira uma grade de
+ * caixas. Com o fundo um degrau abaixo, o cartão branco sobe sozinho e a sombra
+ * faz o resto — é o que dá a profundidade da referência.
+ *
+ * Os dois temas são irmãos, não espelhos. O escuro não é o claro invertido:
+ * cada tom foi reescolhido contra a sua própria superfície, porque a mesma cor
+ * não se comporta igual sobre branco e sobre grafite.
+ * ------------------------------------------------------------------------- */
 
-:root,
-.dark {
-  --background: oklch(0.13 0 0);
-  --foreground: oklch(0.98 0 0);
+:root {
+  --marca-azul: oklch(0.51 0.199 262);
+  --marca-ambar: oklch(0.765 0.144 82);
+  --marca-navy: oklch(0.225 0.038 258);
 
-  /* Superfícies sobem em degraus pequenos de luminosidade: preto puro no
-   * fundo, cartão um passo acima, popover mais um. É o que dá profundidade
-   * sem precisar de borda em tudo. */
-  --card: oklch(0.18 0 0);
-  --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.2 0 0);
-  --popover-foreground: oklch(0.98 0 0);
+  --background: oklch(0.973 0.006 264);
+  --foreground: oklch(0.25 0.03 262);
 
-  /* Vermelho da marca. Luminosidade 0.55 é o ponto em que ele fica vivo no
-   * preto e ainda aceita texto branco por cima com contraste suficiente. */
-  --primary: oklch(0.55 0.21 27);
+  /* Fundo do corpo: chapa lisa, um degrau abaixo do branco do cartão.
+   *
+   * Era um degradê azulado preso à viewport. A referência da Ankora é lisa, e
+   * lisa é melhor aqui pelo mesmo motivo que o degradê existia: o que precisa
+   * saltar é o cartão branco. Com o fundo liso em #f4f6fa, o cartão sobe por
+   * conta própria e a sombra fecha a conta — sem a parte inferior escura, que
+   * empurrava o cinza do texto secundário para perto do piso de contraste.
+   *
+   * Os tokens de degradê continuam existindo porque o tema escuro ainda usa
+   * um, raso, para a tela não virar uma chapa morta. */
+  --fundo-chapa: #f4f6fa;
+  --fundo-topo: transparent;
+  --fundo-base: transparent;
+
+  /* Cabeçalho branco: é superfície elevada, e superfície elevada recebe mais
+   * luz. A lateral foge dessa regra de propósito — ver os tokens `--sidebar`. */
+  --cabecalho: oklch(1 0 0);
+
+  /* Superfícies sobem em degraus pequenos: fundo cinza-claro, cartão branco,
+   * popover branco com sombra maior. A separação vem da sombra, não da borda. */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.25 0.03 262);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.25 0.03 262);
+
+  /* Azul de ação, sem desvio: é literalmente o azul da referência (#1D5BD6).
+   * Com texto branco por cima dá 5.97:1. */
+  --primary: oklch(0.51 0.199 262);
   --primary-foreground: oklch(0.99 0 0);
 
-  /* Vermelho para texto e traço fino sobre o preto.
+  /* Azul para texto e traço fino.
    *
-   * Não dá para ser o mesmo vermelho do botão: preenchimento precisa ser
-   * escuro o bastante para o texto branco por cima passar em contraste, e
-   * texto vermelho precisa ser claro o bastante para se destacar do fundo. As
-   * duas exigências puxam para lados opostos e só se encontram num ponto
-   * único, na ponta da navalha — daí os dois tons. Este é o de texto: link,
-   * ícone fino, a linha do "hoje" na timeline. */
-  --primary-texto: oklch(0.7 0.18 27);
+   * Preenchimento e texto puxam para lados opostos: fundo precisa ser escuro o
+   * bastante para aceitar texto branco, texto precisa se destacar do branco.
+   * Um passo ABAIXO do primary (0.46 contra 0.51): o azul de botão é claro
+   * demais para linha de texto — daria 4.4:1 e reprovaria. Assim dá 7.4:1 no
+   * branco e 6.9:1 na chapa da página. */
+  --primary-texto: oklch(0.46 0.18 262);
 
-  --secondary: oklch(0.26 0 0);
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.24 0 0);
-  --muted-foreground: oklch(0.72 0 0);
-  --accent: oklch(0.28 0 0);
-  --accent-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.955 0.008 262);
+  --secondary-foreground: oklch(0.3 0.03 262);
+  --muted: oklch(0.965 0.005 262);
+  /* Piso de contraste é a chapa da página (#f4f6fa), não o branco do cartão:
+   * descrição de página fica direto sobre ela. Em L 0.52 dá 5.1:1. */
+  --muted-foreground: oklch(0.51 0.022 262);
 
-  /* Perigo é um vermelho mais claro e quente que o da marca — no preto, um
-   * vermelho mais luminoso lê como "atenção" e se separa do botão primário. */
-  --destructive: oklch(0.68 0.2 25);
+  /* Accent é o azul diluído: fundo de item ativo, chip, realce de linha. */
+  --accent: oklch(0.95 0.025 262);
+  --accent-foreground: oklch(0.4 0.14 262);
 
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.55 0.21 27);
+  --destructive: oklch(0.52 0.2 25);
 
-  /* Rampa de vermelho para gráficos, do mais vivo ao mais apagado. */
-  --chart-1: oklch(0.62 0.22 27);
-  --chart-2: oklch(0.52 0.18 27);
-  --chart-3: oklch(0.43 0.14 27);
-  --chart-4: oklch(0.62 0 0);
-  --chart-5: oklch(0.4 0 0);
+  --border: oklch(0.915 0.008 262);
+  --input: oklch(0.88 0.012 262);
+  --ring: oklch(0.56 0.17 262);
 
-  /* Sinais de dado. Só para "no prazo" × "atrasado" — nunca como decoração. */
-  --sucesso: oklch(0.7 0.14 155);
-  --atencao: oklch(0.78 0.15 75);
+  /* Rampa de azul para gráfico, do vivo ao apagado. */
+  --chart-1: oklch(0.51 0.199 262);
+  --chart-2: oklch(0.62 0.15 258);
+  --chart-3: oklch(0.72 0.1 255);
+  --chart-4: oklch(0.6 0.02 262);
+  --chart-5: oklch(0.78 0.012 262);
 
-  /* Paleta de status para GRÁFICO. Não é a mesma de cima, e a diferença é
-   * medida, não estética: as cores acima foram calibradas para texto sobre
-   * preto, o que as empurrou para L≈0.70–0.78. Marca preenchida de gráfico em
-   * fundo escuro pede L 0.48–0.67 — fora dessa faixa a área grande estoura.
+  /* Sinais de dado em TEXTO. Calibrados para 4.5:1 sobre branco — por isso o
+   * âmbar aqui é quase marrom: âmbar bonito não passa em contraste no claro. */
+  --sucesso: oklch(0.5 0.12 168);
+  --atencao: oklch(0.52 0.12 70);
+
+  /* Paleta de status para PREENCHIMENTO de gráfico. Não é a mesma de cima, e a
+   * diferença é medida: as de cima foram calibradas para texto sobre branco
+   * (4.5:1), o que as escureceu demais para área grande. Marca preenchida pede
+   * só 3:1 e ganha em ficar mais clara.
    *
-   * Além disso, verde e âmbar colidem sob protanopia. Na primeira tentativa a
-   * separação ficou em ΔE 6.0, no piso do aceitável. Afastando os dois em
-   * luminosidade (verde no fundo da faixa, âmbar no topo) e puxando o verde
-   * para o azul-esverdeado, subiu para 8.7.
+   * Verde e âmbar colidem sob protanopia, e vermelho e âmbar sob deuteranopia —
+   * a primeira tentativa deu ΔE 2.5, reprovada. A separação veio de afastar os
+   * três em luminosidade (vermelho no fundo, âmbar no topo).
    *
-   * Validado com scripts/validate_palette.js da skill dataviz, modo escuro,
-   * superfície #121212: passa nos seis testes. Ao mexer, rode de novo. */
-  --grafico-pago: oklch(0.5 0.14 172);
-  --grafico-a-vencer: oklch(0.655 0.16 82);
-  --grafico-vencido: oklch(0.57 0.21 25);
+   * Validado com scripts/validate_palette.js da skill dataviz, modo claro,
+   * superfície #ffffff: passa nos cinco testes. Ao mexer, rode de novo. */
+  --grafico-pago: oklch(0.58 0.12 168);
+  --grafico-a-vencer: oklch(0.7 0.145 75);
+  --grafico-vencido: oklch(0.52 0.2 25);
+  /*
+   * Violeta, e não o azul da marca, por causa de tritanopia: azul e o
+   * verde-azulado de "pago" convergem nessa visão (ΔE 5,9 — some). Em 290° as
+   * quatro visões ficam acima de ΔE 23, e o pior par do gráfico volta a ser um
+   * que já existia antes desta cor. Verificado por simulação, não a olho.
+   */
+  --grafico-enviado: oklch(0.6 0.14 290);
   /* Trilho/restante — cinza de propósito: não é série, não carrega significado.
    * (Reprova no piso de croma do validador exatamente por isso.) */
-  --grafico-trilho: oklch(0.32 0 0);
+  --grafico-trilho: oklch(0.9 0.008 267);
 
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  --sidebar: oklch(0.16 0 0);
-  --sidebar-foreground: oklch(0.98 0 0);
-  --sidebar-primary: oklch(0.55 0.21 27);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.26 0 0);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.55 0.21 27);
+  /* A lateral é navy nos DOIS temas.
+   *
+   * É a única superfície que não acompanha o tema, e é de propósito: ela é a
+   * moldura da marca. O logotipo da Ankora é branco sobre navy, e trocar o
+   * fundo por branco no tema claro obrigaria a uma segunda versão do
+   * logotipo — duas marcas para a mesma empresa, que é exatamente o que um
+   * manual de marca proíbe.
+   *
+   * Funciona porque a lateral não tem dado: só navegação. Contraste medido
+   * sobre o navy — branco 16.9:1, o cinza dos itens inativos 6.9:1, o âmbar
+   * do item ativo 8.3:1. */
+  --sidebar: oklch(0.225 0.038 258);
+  --sidebar-foreground: oklch(0.93 0.008 258);
+  --sidebar-primary: oklch(0.765 0.144 82);
+  --sidebar-primary-foreground: oklch(0.2 0.035 258);
+  /* Fundo do item ativo e do hover: o próprio navy, um degrau acima. */
+  --sidebar-accent: oklch(0.3 0.04 258);
+  --sidebar-accent-foreground: oklch(0.98 0.004 258);
+  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-ring: oklch(0.765 0.144 82);
+  /* Texto de item inativo — 6.9:1 sobre a lateral. */
+  --sidebar-suave: oklch(0.72 0.018 250);
+
+  /* Sombra fria e curta — a luz vem de cima, o objeto está quase encostado na
+   * página. Sombra longa e preta parece adesivo colado na tela. */
+  --sombra-2xs: 0 1px 2px 0 oklch(0.26 0.03 267 / 0.04);
+  --sombra-xs: 0 1px 2px 0 oklch(0.26 0.03 267 / 0.05), 0 1px 3px 0 oklch(0.26 0.03 267 / 0.04);
+  --sombra-sm: 0 1px 3px 0 oklch(0.26 0.03 267 / 0.07), 0 1px 2px -1px oklch(0.26 0.03 267 / 0.05);
+  --sombra-md: 0 4px 8px -2px oklch(0.26 0.03 267 / 0.08), 0 2px 4px -2px oklch(0.26 0.03 267 / 0.05);
+  --sombra-lg: 0 12px 16px -4px oklch(0.26 0.03 267 / 0.09), 0 4px 6px -2px oklch(0.26 0.03 267 / 0.04);
+  --sombra-xl: 0 20px 24px -4px oklch(0.26 0.03 267 / 0.1), 0 8px 8px -4px oklch(0.26 0.03 267 / 0.04);
+  --sombra-2xl: 0 24px 48px -12px oklch(0.26 0.03 267 / 0.18);
+}
+
+.dark {
+  --marca-azul: oklch(0.62 0.185 262);
+  --marca-ambar: oklch(0.8 0.145 84);
+  --marca-navy: oklch(0.225 0.038 258);
+
+  /* Grafite azulado, não preto puro. Preto absoluto com conteúdo branco por
+   * cima cansa a vista em sessão longa, e esta é uma tela de trabalho — o
+   * engenheiro passa a manhã nela. */
+  --background: oklch(0.185 0.018 267);
+  --foreground: oklch(0.965 0.004 267);
+
+  /* Mesmo degradê, mesma lógica invertida: o corpo escurece para baixo e o
+   * cabeçalho sobe de luminosidade para continuar sendo o que salta. Aqui não
+   * precisa diluir — o degradê escuro é raso e o cinza já dá 8.3:1 no pior
+   * ponto. */
+  --fundo-chapa: oklch(0.185 0.018 267);
+  --fundo-topo: oklch(0.2 0.02 267);
+  --fundo-base: oklch(0.145 0.035 267);
+
+  --cabecalho: oklch(0.24 0.018 267);
+
+  --card: oklch(0.228 0.018 267);
+  --card-foreground: oklch(0.965 0.004 267);
+  --popover: oklch(0.255 0.019 267);
+  --popover-foreground: oklch(0.965 0.004 267);
+
+  /* O azul da marca é escuro demais para preencher botão no escuro: sumiria no
+   * fundo. Sobe de 0.41 para 0.55 — o ponto em que ainda aceita texto branco
+   * (4.9:1) e já se separa da superfície. */
+  --primary: oklch(0.58 0.185 262);
+  --primary-foreground: oklch(0.99 0 0);
+  --primary-texto: oklch(0.78 0.13 262);
+
+  --secondary: oklch(0.29 0.018 267);
+  --secondary-foreground: oklch(0.96 0.004 267);
+  --muted: oklch(0.275 0.016 267);
+  --muted-foreground: oklch(0.73 0.02 267);
+  --accent: oklch(0.33 0.04 267);
+  --accent-foreground: oklch(0.9 0.03 267);
+
+  --destructive: oklch(0.68 0.18 25);
+
+  --border: oklch(1 0 0 / 13%);
+  --input: oklch(1 0 0 / 17%);
+  --ring: oklch(0.58 0.16 267);
+
+  --chart-1: oklch(0.62 0.17 267);
+  --chart-2: oklch(0.7 0.13 262);
+  --chart-3: oklch(0.79 0.09 258);
+  --chart-4: oklch(0.62 0.02 267);
+  --chart-5: oklch(0.42 0.015 267);
+
+  --sucesso: oklch(0.74 0.13 168);
+  --atencao: oklch(0.8 0.13 78);
+
+  /* Mesmas matizes do claro, repassadas contra a superfície escura — tema
+   * escuro é escolhido, não é o claro invertido. Validado em modo escuro com
+   * superfície #191c25. */
+  --grafico-pago: oklch(0.64 0.12 168);
+  --grafico-a-vencer: oklch(0.655 0.14 75);
+  --grafico-vencido: oklch(0.58 0.19 24);
+  --grafico-enviado: oklch(0.74 0.129 290);
+  --grafico-trilho: oklch(0.33 0.012 267);
+
+  /* A mesma lateral do tema claro — ver a nota lá. No escuro ela deixa de ser
+   * a exceção e passa a ser só mais uma superfície da família. */
+  --sidebar: oklch(0.205 0.032 258);
+  --sidebar-foreground: oklch(0.95 0.006 258);
+  --sidebar-primary: oklch(0.8 0.145 84);
+  --sidebar-primary-foreground: oklch(0.2 0.035 258);
+  --sidebar-accent: oklch(0.285 0.035 258);
+  --sidebar-accent-foreground: oklch(0.98 0.004 258);
+  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-ring: oklch(0.8 0.145 84);
+  --sidebar-suave: oklch(0.73 0.018 250);
+
+  /* No escuro a sombra quase não aparece — a separação vem da borda e do degrau
+   * de luminosidade. Mantemos sombras pretas e fundas só para o que flutua de
+   * verdade (diálogo, popover, gaveta). */
+  --sombra-2xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --sombra-xs: 0 1px 2px 0 oklch(0 0 0 / 0.35);
+  --sombra-sm: 0 1px 3px 0 oklch(0 0 0 / 0.4), 0 1px 2px -1px oklch(0 0 0 / 0.3);
+  --sombra-md: 0 4px 8px -2px oklch(0 0 0 / 0.45), 0 2px 4px -2px oklch(0 0 0 / 0.3);
+  --sombra-lg: 0 12px 16px -4px oklch(0 0 0 / 0.5), 0 4px 6px -2px oklch(0 0 0 / 0.3);
+  --sombra-xl: 0 20px 24px -4px oklch(0 0 0 / 0.55), 0 8px 8px -4px oklch(0 0 0 / 0.3);
+  --sombra-2xl: 0 24px 48px -12px oklch(0 0 0 / 0.7);
 }
 
 @layer base {
@@ -164,5 +339,55 @@
   }
   html {
     @apply font-sans;
+    /* O tema é escolhido pelo usuário e aplicado por classe no <html>. Isto só
+     * avisa o navegador para pintar barra de rolagem e campo nativo de acordo —
+     * sem ele, um <select> nativo fica branco no tema escuro. */
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+}
+
+@layer components {
+  /*
+   * Barra de rolagem sempre à vista.
+   *
+   * No macOS o navegador usa barra flutuante, que só aparece enquanto se
+   * rola — numa timeline de um ano, nada indica que há mais calendário para
+   * os lados, e o engenheiro não descobre que pode arrastar.
+   */
+  .barra-rolagem {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .barra-rolagem::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+  .barra-rolagem::-webkit-scrollbar-track {
+    background: var(--muted);
+    border-radius: 999px;
+  }
+  .barra-rolagem::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border: 2px solid var(--muted);
+    border-radius: 999px;
+  }
+  .barra-rolagem::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+  }
+
+  /* Aplicado no <main>. Fora de @theme porque é imagem de fundo com
+   * comportamento (attachment), não um token de cor.
+   *
+   * No claro os dois pontos do degradê são transparentes, então sobra a chapa
+   * lisa da referência. No escuro o degradê continua: chapa escura e lisa numa
+   * tela inteira fica morta, e lá não há problema de contraste no pé porque o
+   * degradê escuro é raso. */
+  .fundo-pagina {
+    background-color: var(--fundo-chapa);
+    background-image: linear-gradient(to top, var(--fundo-base), var(--fundo-topo));
+    background-attachment: fixed;
   }
 }

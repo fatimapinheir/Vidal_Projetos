@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { CloudRain, Sun, CloudOff, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { DiarioClima } from "@/lib/types/database.types";
+import type { Praticabilidade } from "@/lib/diario/condicao";
 
 export type DiaCalendario = {
   data: string;
   /** Pior condição do dia entre os três períodos — é ela que explica parada. */
-  clima: DiarioClima | null;
+  clima: Praticabilidade | null;
 };
 
 const DIAS_SEMANA = ["D", "S", "T", "Q", "Q", "S", "S"];
@@ -15,7 +15,7 @@ const MESES = [
   "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
 ];
 
-const climaInfo: Record<DiarioClima, { Icone: typeof Sun; label: string; cor: string }> = {
+const climaInfo: Record<Praticabilidade, { Icone: typeof Sun; label: string; cor: string }> = {
   praticavel: { Icone: Sun, label: "Praticável", cor: "text-grafico-pago" },
   chuva: { Icone: CloudRain, label: "Chuva", cor: "text-grafico-a-vencer" },
   impraticavel: { Icone: CloudOff, label: "Impraticável", cor: "text-grafico-vencido" },
@@ -32,13 +32,18 @@ const climaInfo: Record<DiarioClima, { Icone: typeof Sun; label: string; cor: st
 export function CalendarioDiarios({
   dias,
   mesReferencia,
-  obraId,
+  base,
   className,
 }: {
   dias: DiaCalendario[];
   /** "YYYY-MM" do mês a desenhar. */
   mesReferencia: string;
-  obraId: string;
+  /**
+   * Prefixo da rota do diário. O engenheiro e o cliente veem o mesmo
+   * calendário, mas cada um abre o dia na sua própria tela — com o caminho
+   * fixo em `/portal`, o engenheiro era jogado para fora da área dele.
+   */
+  base: string;
   className?: string;
 }) {
   const [ano, mes] = mesReferencia.split("-").map(Number);
@@ -91,7 +96,7 @@ export function CalendarioDiarios({
           return (
             <Link
               key={celula.iso}
-              href={`/portal/obras/${obraId}/diario/${celula.iso}`}
+              href={`${base}/diario/${celula.iso}`}
               title={`${celula.dia} — ${descricao}`}
               className="flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg border bg-muted/40 text-xs transition-colors hover:bg-muted"
             >
@@ -107,7 +112,7 @@ export function CalendarioDiarios({
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        {(Object.keys(climaInfo) as DiarioClima[]).map((chave) => {
+        {(Object.keys(climaInfo) as Praticabilidade[]).map((chave) => {
           const { Icone, label, cor } = climaInfo[chave];
           return (
             <span key={chave} className="inline-flex items-center gap-1.5">

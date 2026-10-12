@@ -1,10 +1,16 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { buscarDadosTimeline } from "@/lib/cronograma/timeline-dados";
 import { NovaEtapaDialog } from "./nova-etapa-dialog";
+import {
+  TemplateCronogramaDialog,
+  ImportarOrcamentoButton,
+} from "./importar-orcamento-button";
 import { FixarLinhaDeBaseButton } from "./cronograma-actions";
 import { CronogramaVisao } from "./cronograma-visao";
 import { CronogramaTabela } from "./cronograma-tabela";
-import { CronogramaTimeline } from "./cronograma-timeline";
+import { CronogramaTimeline } from "@/components/cronograma/cronograma-timeline";
+import { CopiarDeOutraObraDialog } from "@/components/obras/copiar-de-outra-obra-dialog";
 
 export default async function CronogramaObraPage({
   params,
@@ -14,8 +20,13 @@ export default async function CronogramaObraPage({
   const { obraId } = await params;
   const supabase = await createClient();
 
-  const [{ data: etapas }, { data: tarefas }, { data: versaoAtiva }, { data: ultimaTarefa }, timeline] =
-    await Promise.all([
+  const [
+    { data: etapas },
+    { data: tarefas },
+    { data: versaoAtiva },
+    timeline,
+    { data: obra },
+  ] = await Promise.all([
       supabase.from("cronograma_etapas").select("*").eq("obra_id", obraId).order("ordem"),
       supabase.from("cronograma_tarefas").select("*").eq("obra_id", obraId).order("ordem"),
       supabase
@@ -24,14 +35,8 @@ export default async function CronogramaObraPage({
         .eq("obra_id", obraId)
         .eq("status", "ativa")
         .maybeSingle(),
-      supabase
-        .from("cronograma_tarefas")
-        .select("id, nome")
-        .eq("obra_id", obraId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
       buscarDadosTimeline(supabase, obraId),
+      supabase.from("obras").select("faixa").eq("id", obraId).maybeSingle(),
     ]);
 
   const tarefaIds = (tarefas ?? []).map((t) => t.id);
@@ -57,19 +62,29 @@ export default async function CronogramaObraPage({
       <div>
         <h1 className="font-heading text-lg font-semibold">Cronograma (EAP)</h1>
         <p className="text-sm text-muted-foreground">
-          Organize a obra em etapas e tarefas com duração e dependências entre elas. O sistema
-          calcula automaticamente o caminho crítico — tarefas em vermelho sem nenhuma margem, onde
-          um atraso atrasa a obra inteira. Quando o cronograma estiver pronto, clique em{" "}
-          <strong>Fixar linha de base</strong> — a partir daí, o atraso de cada tarefa passa a ser
-          medido contra essas datas, e atrasos reais propagam automaticamente para as tarefas que
-          dependem delas. Os dias de folga (feriados, chuva, etc.) são cadastrados na aba{" "}
-          <strong>Folgas</strong>. Cada tarefa também pode ter um lembrete — avisa aqui dentro do
-          sistema alguns dias antes do início, útil pra agendar fornecedor ou equipamento com
-          antecedência. A visão <strong>Timeline</strong> mostra tudo isso em barras no calendário.
+          Aqui fica o <strong>planejado</strong>: a obra em etapas e tarefas, com datas e a ordem
+          entre elas. O que foi de fato executado se registra em{" "}
+          <Link
+            href={`/obras/${obraId}/avanco`}
+            className="text-primary-texto underline underline-offset-4"
+          >
+            Avanço
+          </Link>
+          , pelo percentual de cada tarefa. O sistema calcula o caminho crítico — tarefas em
+          vermelho, sem folga, onde um atraso atrasa a obra inteira. Os dias de folga (feriados,
+          chuva) são cadastrados em <strong>Folgas</strong>. Quando o cronograma estiver pronto,{" "}
+          <strong>Fixar linha de base</strong> congela as datas atuais como referência de
+          comparação. A visão <strong>Timeline</strong> mostra tudo em barras no calendário.
         </p>
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
+        <CopiarDeOutraObraDialog
+          obraId={obraId}
+          padrao={{ orcamento: false, cronograma: true }}
+        />
+        <TemplateCronogramaDialog obraId={obraId} faixaDaObra={obra?.faixa ?? null} />
+        <ImportarOrcamentoButton obraId={obraId} />
         <FixarLinhaDeBaseButton obraId={obraId} />
         <NovaEtapaDialog obraId={obraId} />
       </div>
@@ -82,10 +97,9 @@ export default async function CronogramaObraPage({
             tarefas={tarefas ?? []}
             dependencias={dependencias ?? []}
             itensOrcamento={itensOrcamento ?? []}
-            ultimaTarefaNome={ultimaTarefa?.nome ?? null}
           />
         }
-        timeline={<CronogramaTimeline {...timeline} />}
+        timeline={<CronogramaTimeline {...timeline} alturaMaxima="70vh" />}
       />
     </div>
   );

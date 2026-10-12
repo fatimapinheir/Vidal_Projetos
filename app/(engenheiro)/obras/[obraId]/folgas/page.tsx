@@ -28,7 +28,7 @@ export default async function FolgasObraPage({
           <p className="text-sm text-muted-foreground">
             Dias que não contam como dia útil no cálculo do cronograma — cadastre qualquer data
             (chuva, feriado local, recesso, o que for), independente de fim de semana. Elas afetam
-            automaticamente as datas de início/fim das tarefas na aba Cronograma.
+            automaticamente as datas de início/fim das tarefas em Cronograma.
           </p>
         </div>
         <NovaFolgaDialog obraId={obraId} />

@@ -32,7 +32,7 @@ export default async function LocacoesObraPage({
       .select("*, fornecedores(nome)")
       .eq("obra_id", obraId)
       .order("data_inicio", { ascending: false }),
-    supabase.from("fornecedores").select("id, nome").order("nome"),
+    supabase.from("fornecedores").select("id, nome").eq("ativo", true).order("nome"),
   ]);
 
   // Uma única referência de "hoje" para a tela inteira, senão duas linhas

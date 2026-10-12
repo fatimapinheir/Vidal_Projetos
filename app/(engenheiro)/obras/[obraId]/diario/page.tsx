@@ -4,31 +4,28 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDateBR } from "@/lib/format-date";
 import { hojeIso } from "@/lib/locacoes/calculo";
-import { CloudRain, Sun, CloudOff } from "lucide-react";
-import type { DiarioClima } from "@/lib/types/database.types";
+import { CloudRain, Cloud, Sun, CloudOff } from "lucide-react";
+import type { DiarioCondicao } from "@/lib/types/database.types";
 import { AbrirDiaForm } from "./abrir-dia-form";
 
-const climaIcone: Record<DiarioClima, { icone: typeof Sun; titulo: string }> = {
-  praticavel: { icone: Sun, titulo: "Praticável" },
-  chuva: { icone: CloudRain, titulo: "Chuva" },
-  impraticavel: { icone: CloudOff, titulo: "Impraticável" },
+const climaIcone: Record<DiarioCondicao, { icone: typeof Sun; titulo: string }> = {
+  ensolarado: { icone: Sun, titulo: "Ensolarado" },
+  nublado: { icone: Cloud, titulo: "Nublado" },
+  chuvoso: { icone: CloudRain, titulo: "Chuvoso" },
+  chuva_forte: { icone: CloudOff, titulo: "Chuva forte" },
 };
 
-function ClimaDoDia({ periodos }: { periodos: (DiarioClima | null)[] }) {
-  if (periodos.every((p) => !p)) return <span className="text-muted-foreground">—</span>;
+/** Um ícone, um dia. Eram três — ver a nota do campo único em `diario-form`. */
+function ClimaDoDia({ clima }: { clima: DiarioCondicao | null }) {
+  if (!clima) return <span className="text-muted-foreground">—</span>;
+  const { icone: Icone, titulo } = climaIcone[clima];
   return (
-    <span className="flex items-center gap-1">
-      {periodos.map((periodo, i) => {
-        if (!periodo) return <span key={i} className="text-muted-foreground">·</span>;
-        const { icone: Icone, titulo } = climaIcone[periodo];
-        return (
-          <Icone
-            key={i}
-            className={periodo === "impraticavel" ? "size-4 text-destructive" : "size-4"}
-            aria-label={titulo}
-          />
-        );
-      })}
+    <span className="flex items-center gap-1.5">
+      <Icone
+        className={clima === "chuva_forte" ? "size-4 text-destructive" : "size-4"}
+        aria-hidden
+      />
+      <span className="text-sm">{titulo}</span>
     </span>
   );
 }
@@ -43,7 +40,7 @@ export default async function DiarioObraPage({
 
   const { data: dias } = await supabase
     .from("diario_obra")
-    .select("data, clima_manha, clima_tarde, clima_noite, atividades, ocorrencias, fechado_em")
+    .select("data, clima, atividades, ocorrencias, fechado_em")
     .eq("obra_id", obraId)
     .order("data", { ascending: false });
 
@@ -57,7 +54,7 @@ export default async function DiarioObraPage({
           <h1 className="font-heading text-lg font-semibold">Diário de obra</h1>
           <p className="text-sm text-muted-foreground">
             Uma folha por dia. O efetivo, os equipamentos em obra, as tarefas previstas no
-            cronograma e as entregas de material já vêm preenchidos das outras abas — você escreve o
+            cronograma e as entregas de material já vêm preenchidos das outras telas — você escreve o
             clima, as atividades, as ocorrências e as visitas. Ao{" "}
             <strong>fechar o dia</strong>, esse conteúdo congela, a folha vira documento e o cliente
             passa a vê-la no portal dele.
@@ -95,7 +92,7 @@ export default async function DiarioObraPage({
                 {dia.atividades || dia.ocorrencias || "Sem anotações ainda."}
               </p>
             </div>
-            <ClimaDoDia periodos={[dia.clima_manha, dia.clima_tarde, dia.clima_noite]} />
+            <ClimaDoDia clima={dia.clima} />
           </Link>
         ))}
         {!dias?.length && (

@@ -132,7 +132,18 @@ export function Rosca({
               <span className="shrink-0 text-muted-foreground">{fatia.icone}</span>
               <span className="truncate">{fatia.rotulo}</span>
             </span>
-            <span className="shrink-0 font-medium tabular-nums">{formatarBRL(fatia.valor)}</span>
+            {/* Percentual antes do valor: a rosca é um gráfico de proporção,
+                e sem o número a proporção fica só no desenho — ilegível quando
+                duas fatias são parecidas. O valor em reais fica ao lado porque
+                é ele que o cliente confere contra a nota. */}
+            <span className="flex shrink-0 items-baseline gap-2 tabular-nums">
+              {total > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {Math.round((fatia.valor / total) * 100)}%
+                </span>
+              )}
+              <span className="font-medium">{formatarBRL(fatia.valor)}</span>
+            </span>
           </li>
         ))}
       </ul>

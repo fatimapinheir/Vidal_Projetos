@@ -3,6 +3,19 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { formatarEndereco } from "@/lib/obra-cadastro";
+
+type ObraDoPortal = {
+  id: string;
+  nome: string;
+  status: string;
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  uf: string | null;
+};
 
 const statusLabel: Record<string, string> = {
   planejamento: "Planejamento",
@@ -16,10 +29,10 @@ export default async function PortalDashboardPage() {
 
   const { data: vinculos } = await supabase
     .from("obra_clientes")
-    .select("obra_id, obras(id, nome, endereco, status)");
+    .select("obra_id, obras(id, nome, status, logradouro, numero, complemento, bairro, cidade, uf)");
 
   const obras = (vinculos ?? [])
-    .map((v) => v.obras as unknown as { id: string; nome: string; endereco: string | null; status: string } | null)
+    .map((v) => v.obras as unknown as ObraDoPortal | null)
     .filter((o): o is NonNullable<typeof o> => Boolean(o));
 
   if (obras.length === 1) {
@@ -40,7 +53,7 @@ export default async function PortalDashboardPage() {
               <CardContent className="flex items-center justify-between py-4">
                 <div>
                   <p className="font-medium">{obra.nome}</p>
-                  <p className="text-sm text-muted-foreground">{obra.endereco ?? "Sem endereço"}</p>
+                  <p className="text-sm text-muted-foreground">{formatarEndereco(obra) ?? "Sem endereço"}</p>
                 </div>
                 <Badge variant="outline">{statusLabel[obra.status]}</Badge>
               </CardContent>
