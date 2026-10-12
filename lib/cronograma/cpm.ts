@@ -53,6 +53,33 @@ function paraIso(dia: number): string {
  *
  * Devolve 0 quando o fim é antes do início, e nunca conta um dia de folga.
  */
+/**
+ * Sábado e domingo não são dias úteis.
+ *
+ * A semana de trabalho é de segunda a sexta. Antes o motor só pulava as
+ * folgas cadastradas, e fim de semana contava como dia de obra: uma tarefa de
+ * 5 dias começada numa quinta terminava na segunda seguinte, atravessando o
+ * sábado e o domingo como se fossem dias trabalhados.
+ *
+ * Fixo no código, e não configurável por obra: é a semana padrão da
+ * construção civil aqui, e uma configuração sem ninguém para mudá-la é só
+ * mais um lugar onde o erro pode se esconder. Virando exceção em alguma obra,
+ * o lugar de mexer é esta função — e só ela.
+ */
+function ehFimDeSemana(dia: number): boolean {
+  const diaDaSemana = new Date(dia * MS_POR_DIA).getUTCDay();
+  return diaDaSemana === 0 || diaDaSemana === 6;
+}
+
+/** Conjunto dos dias cobertos pelas folgas cadastradas. */
+function montarFolgaSet(folgas: FolgaEntrada[]): Set<number> {
+  const folgaSet = new Set<number>();
+  for (const f of folgas) {
+    for (let d = paraDia(f.dataInicio); d <= paraDia(f.dataFim); d++) folgaSet.add(d);
+  }
+  return folgaSet;
+}
+
 export function contarDiasUteis(
   inicioIso: string,
   fimIso: string,
@@ -62,13 +89,12 @@ export function contarDiasUteis(
   const fim = paraDia(fimIso);
   if (fim < inicio) return 0;
 
-  const folgaSet = new Set<number>();
-  for (const f of folgas) {
-    for (let d = paraDia(f.dataInicio); d <= paraDia(f.dataFim); d++) folgaSet.add(d);
-  }
+  const folgaSet = montarFolgaSet(folgas);
 
   let uteis = 0;
-  for (let d = inicio; d <= fim; d++) if (!folgaSet.has(d)) uteis++;
+  for (let d = inicio; d <= fim; d++) {
+    if (!folgaSet.has(d) && !ehFimDeSemana(d)) uteis++;
+  }
   return uteis;
 }
 
@@ -79,25 +105,22 @@ export function contarDiasUteis(
  * início + duração - 1, etc.) continua válida mesmo com folgas no meio.
  */
 function construirCalendarioUtil(folgas: FolgaEntrada[], diaMinimo: number, diaMaximo: number) {
-  const folgaSet = new Set<number>();
-  for (const f of folgas) {
-    const inicio = paraDia(f.dataInicio);
-    const fim = paraDia(f.dataFim);
-    for (let d = inicio; d <= fim; d++) folgaSet.add(d);
-  }
+  const folgaSet = montarFolgaSet(folgas);
+  const naoTrabalha = (d: number) => folgaSet.has(d) || ehFimDeSemana(d);
 
   const calendarioParaIndice = new Map<number, number>();
   const indiceParaCalendario: number[] = [];
   for (let d = diaMinimo; d <= diaMaximo; d++) {
-    if (folgaSet.has(d)) continue;
+    if (naoTrabalha(d)) continue;
     calendarioParaIndice.set(d, indiceParaCalendario.length);
     indiceParaCalendario.push(d);
   }
 
   function paraIndice(diaCalendario: number): number {
     let d = diaCalendario;
-    // Se a data cair numa folga, usa o próximo dia útil (não dá pra começar/terminar numa folga).
-    while (folgaSet.has(d)) d++;
+    // Caindo em folga ou fim de semana, usa o próximo dia útil — não dá para
+    // começar nem terminar num dia em que ninguém trabalha.
+    while (naoTrabalha(d)) d++;
     const indice = calendarioParaIndice.get(d);
     if (indice === undefined) {
       throw new Error("Data fora do intervalo do calendário calculado para o cronograma.");
@@ -222,7 +245,15 @@ export function calcularCPM(
 
   const somaDuracoes = tarefas.reduce((soma, t) => soma + t.duracaoDias, 0);
   const diaMinimo = Math.min(...datasReferenciadas);
-  const diaMaximo = diaMinimo + somaDuracoes + 730;
+  /*
+   * O horizonte é em dias de CALENDÁRIO, e a duração em dias ÚTEIS.
+   *
+   * Com a semana de cinco dias, cada dia útil custa 1,4 de calendário — sem a
+   * conversão, um cronograma longo estouraria o horizonte e o cálculo pararia
+   * com "o cronograma ficou maior que o horizonte calculado". Os 730 de folga
+   * continuam por cima, para feriados e paradas.
+   */
+  const diaMaximo = diaMinimo + Math.ceil((somaDuracoes * 7) / 5) + 730;
 
   const { paraIndice, paraDiaCalendario } = construirCalendarioUtil(folgas, diaMinimo, diaMaximo);
 

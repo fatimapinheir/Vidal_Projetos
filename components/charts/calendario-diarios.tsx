@@ -56,9 +56,16 @@ const ESTILO: Record<TipoDia, { caixa: string; numero: string }> = {
   futuro: { caixa: "", numero: "text-muted-foreground/40" },
 };
 
-/** Domingo é dia não trabalhado por padrão; o resto vem das folgas cadastradas. */
-function ehDomingo(iso: string) {
-  return new Date(`${iso}T00:00:00Z`).getUTCDay() === 0;
+/**
+ * Sábado e domingo são dias não trabalhados; o resto vem das folgas.
+ *
+ * A mesma semana de segunda a sexta que o motor do cronograma usa — ver
+ * `ehFimDeSemana` em `lib/cronograma/cpm`. Marcava só o domingo, e o sábado
+ * aparecia em amarelo como se faltasse um RDO que ninguém deveria ter feito.
+ */
+function ehFimDeSemana(iso: string) {
+  const dia = new Date(`${iso}T00:00:00Z`).getUTCDay();
+  return dia === 0 || dia === 6;
 }
 
 /**
@@ -129,7 +136,7 @@ export function CalendarioDiarios({
   function tipoDoDia(iso: string): TipoDia {
     // Registro vence tudo: se há RDO num domingo, trabalhou-se no domingo.
     if (porData.has(iso)) return "registrado";
-    if (ehDomingo(iso) || emFolga(iso)) return "nao_trabalhado";
+    if (ehFimDeSemana(iso) || emFolga(iso)) return "nao_trabalhado";
     if (hoje && iso > hoje) return "futuro";
     return "sem_registro";
   }
