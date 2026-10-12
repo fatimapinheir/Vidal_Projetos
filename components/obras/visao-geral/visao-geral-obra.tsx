@@ -392,8 +392,16 @@ export function VisaoGeralObra({
           />
         </CardHeader>
         <CardContent>
+          {/* `hoje` não é opcional na prática: sem ele o calendário não
+              distingue dia futuro de dia sem registro, e o mês inteiro à
+              frente apareceria como lacuna a preencher. */}
           {d.diasDiario.length ? (
-            <CalendarioDiarios dias={d.diasDiario} mesReferencia={d.mesAtual} base={base} />
+            <CalendarioDiarios
+              dias={d.diasDiario}
+              mesReferencia={d.mesAtual}
+              base={base}
+              hoje={d.hoje}
+            />
           ) : (
             <p className="py-4 text-center text-sm text-muted-foreground">
               Nenhum diário publicado neste mês ainda.

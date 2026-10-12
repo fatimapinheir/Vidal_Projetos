@@ -60,6 +60,8 @@ export type DadosClienteExtra = {
   rdoDeHoje: RdoDeHoje | null;
   orcadoPorTipo: OrcadoPorTipo;
   etapas: EtapaResumo[];
+  /** Folgas da obra — o calendário precisa delas para saber o que é dia útil. */
+  folgas: { dataInicio: string; dataFim: string }[];
   hoje: string;
 };
 
@@ -99,8 +101,13 @@ export async function carregarExtraCliente(
   const inicioSemana = somarDias(hoje, -diaDaSemana);
   const fimSemana = somarDias(inicioSemana, 6);
 
-  const [{ data: tarefas }, { data: diario }, { data: itens }, { data: todasTarefas }] =
-    await Promise.all([
+  const [
+    { data: tarefas },
+    { data: diario },
+    { data: itens },
+    { data: todasTarefas },
+    { data: folgas },
+  ] = await Promise.all([
     supabase
       .from("cronograma_tarefas")
       .select("id, nome, data_inicio_cedo, data_fim_cedo, data_fim_real, cronograma_etapas(nome)")
@@ -128,6 +135,10 @@ export async function carregarExtraCliente(
     supabase
       .from("cronograma_tarefas")
       .select("id, data_inicio_cedo, data_fim_real, cronograma_etapas(id, nome, ordem)")
+      .eq("obra_id", obraId),
+    supabase
+      .from("cronograma_folgas")
+      .select("data_inicio, data_fim")
       .eq("obra_id", obraId),
     ]);
 
@@ -217,6 +228,7 @@ export async function carregarExtraCliente(
     ).length,
     orcadoPorTipo,
     etapas,
+    folgas: (folgas ?? []).map((f) => ({ dataInicio: f.data_inicio, dataFim: f.data_fim })),
     rdoDeHoje: diario
       ? {
           data: diario.data,

@@ -39,22 +39,28 @@ import type { EtapaResumo } from "@/lib/obras/visao-cliente";
  * As cores são decorativas — quem carrega o status é o preenchimento do
  * círculo e o rótulo embaixo, nunca a matiz sozinha. Por isso elas podem ser
  * variadas sem virar código de significado.
+ *
+ * Mas a paleta não é livre: a etapa EM ANDAMENTO pinta o círculo inteiro e
+ * põe o ícone branco por cima, e isso exige 3:1 de contraste. Medidos contra
+ * branco, `chart-3` (2,5:1) e `grafico-a-vencer` (2,7:1) reprovam, então eles
+ * ficam de fora daqui — restam sete matizes, o bastante para nenhuma etapa
+ * repetir a cor da vizinha na sequência padrão.
  */
 const POR_PALAVRA: { chaves: string[]; Icone: LucideIcon; cor: string }[] = [
   { chaves: ["projeto", "planejamento", "aprovac"], Icone: PencilRuler, cor: "text-chart-2" },
-  { chaves: ["preliminar", "canteiro", "terraplanagem"], Icone: Construction, cor: "text-atencao" },
-  { chaves: ["fundac", "infraestrutura enterrada", "sapata", "estaca"], Icone: Shovel, cor: "text-chart-4" },
+  { chaves: ["preliminar", "canteiro", "terraplanagem"], Icone: Construction, cor: "text-chart-4" },
+  { chaves: ["fundac", "infraestrutura enterrada", "sapata", "estaca"], Icone: Shovel, cor: "text-atencao" },
   { chaves: ["estrutura", "concreto", "supra"], Icone: Columns3, cor: "text-chart-1" },
-  { chaves: ["cobertura", "telhado", "estanqueidade"], Icone: Umbrella, cor: "text-chart-3" },
+  { chaves: ["cobertura", "telhado", "estanqueidade"], Icone: Umbrella, cor: "text-atencao" },
   // Antes de "alvenaria": "Revestimentos de paredes e tetos" tem a palavra
   // "parede" e cairia no tijolo.
-  { chaves: ["revestimento", "forro", "teto"], Icone: PaintRoller, cor: "text-grafico-a-vencer" },
+  { chaves: ["revestimento", "forro", "teto"], Icone: PaintRoller, cor: "text-chart-4" },
   { chaves: ["alvenaria", "vedac", "parede", "muro"], Icone: BrickWall, cor: "text-grafico-vencido" },
   { chaves: ["impermeabiliz", "contrapiso"], Icone: Droplets, cor: "text-chart-2" },
-  { chaves: ["piso", "pedra", "ceramic", "porcelanato"], Icone: LayoutGrid, cor: "text-chart-3" },
-  { chaves: ["esquadria", "vidro", "porta", "janela"], Icone: DoorOpen, cor: "text-chart-2" },
-  { chaves: ["pintura", "decorativ"], Icone: Paintbrush, cor: "text-grafico-enviado" },
-  { chaves: ["marcenaria", "mobiliario", "planejado"], Icone: Sofa, cor: "text-chart-4" },
+  { chaves: ["piso", "pedra", "ceramic", "porcelanato"], Icone: LayoutGrid, cor: "text-chart-1" },
+  { chaves: ["esquadria", "vidro", "porta", "janela"], Icone: DoorOpen, cor: "text-grafico-enviado" },
+  { chaves: ["pintura", "decorativ"], Icone: Paintbrush, cor: "text-chart-2" },
+  { chaves: ["marcenaria", "mobiliario", "planejado"], Icone: Sofa, cor: "text-atencao" },
   { chaves: ["fachada", "paisagismo", "jardim", "externa"], Icone: Trees, cor: "text-grafico-pago" },
   // Antes de "instalac": "Piscina e equipamentos de lazer" tem "equipamento".
   { chaves: ["piscina", "lazer"], Icone: WavesLadder, cor: "text-chart-2" },
@@ -62,7 +68,7 @@ const POR_PALAVRA: { chaves: string[]; Icone: LucideIcon; cor: string }[] = [
   // Também antes de "instalac", para separar o que corre dentro da parede do
   // que se instala no fim da obra.
   { chaves: ["embutida", "eletric", "hidraul"], Icone: Cable, cor: "text-grafico-enviado" },
-  { chaves: ["instalac", "equipamento"], Icone: Plug, cor: "text-grafico-enviado" },
+  { chaves: ["instalac", "equipamento"], Icone: Plug, cor: "text-chart-1" },
   { chaves: ["acabamento", "final"], Icone: Paintbrush, cor: "text-grafico-enviado" },
 ];
 
@@ -85,9 +91,40 @@ function visualDaEtapa(nome: string) {
 
 const SITUACAO = {
   concluida: { rotulo: "Concluída", texto: "text-sucesso" },
-  andamento: { rotulo: "Em andamento", texto: "text-primary-texto" },
+  andamento: { rotulo: "Em andamento", texto: "text-foreground" },
   a_iniciar: { rotulo: "A iniciar", texto: "text-muted-foreground" },
 } as const;
+
+/**
+ * O par "cor do texto" → "cor de preenchimento" de cada etapa.
+ *
+ * Tailwind monta as classes em tempo de compilação lendo o código-fonte: uma
+ * string montada em tempo de execução (`cor.replace("text-", "bg-")`) nunca
+ * apareceria no CSS final, e o círculo sairia transparente. Por isso o par
+ * vem escrito por extenso.
+ */
+const PREENCHIMENTO: Record<string, string> = {
+  "text-chart-1": "bg-chart-1",
+  "text-chart-2": "bg-chart-2",
+  "text-chart-4": "bg-chart-4",
+  "text-atencao": "bg-atencao",
+  "text-grafico-pago": "bg-grafico-pago",
+  "text-grafico-vencido": "bg-grafico-vencido",
+  "text-grafico-enviado": "bg-grafico-enviado",
+  "text-muted-foreground": "bg-muted-foreground",
+};
+
+/** Halo da etapa em andamento, na mesma matiz do preenchimento. */
+const HALO: Record<string, string> = {
+  "text-chart-1": "ring-chart-1/20",
+  "text-chart-2": "ring-chart-2/20",
+  "text-chart-4": "ring-chart-4/20",
+  "text-atencao": "ring-atencao/20",
+  "text-grafico-pago": "ring-grafico-pago/20",
+  "text-grafico-vencido": "ring-grafico-vencido/20",
+  "text-grafico-enviado": "ring-grafico-enviado/20",
+  "text-muted-foreground": "ring-muted-foreground/20",
+};
 
 /**
  * Um passo da trilha: o círculo e o que vem embaixo dele.
@@ -110,9 +147,18 @@ function Marcador({ etapa }: { etapa: EtapaResumo }) {
   }
 
   if (etapa.situacao === "andamento") {
+    // A etapa que está rodando usa a PRÓPRIA cor, cheia, com halo na mesma
+    // matiz. Era azul fixo: duas obras em etapas diferentes tinham o mesmo
+    // círculo, e a trilha perdia a variedade justamente no passo que importa.
     return (
-      <span className="relative z-10 flex size-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm ring-4 ring-primary/15">
-        <Icone className="size-5" aria-hidden />
+      <span
+        className={cn(
+          "relative z-10 flex size-12 shrink-0 items-center justify-center rounded-full text-white shadow-sm ring-4",
+          PREENCHIMENTO[cor] ?? "bg-primary",
+          HALO[cor] ?? "ring-primary/20"
+        )}
+      >
+        <Icone className="size-5" strokeWidth={2.25} aria-hidden />
       </span>
     );
   }
@@ -162,7 +208,10 @@ export function TrilhaEtapas({ etapas }: { etapas: EtapaResumo[] }) {
                     <div className="flex items-center gap-1.5">
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-grafico-trilho">
                         <div
-                          className="h-full rounded-full bg-primary"
+                          className={cn(
+                            "h-full rounded-full",
+                            PREENCHIMENTO[visualDaEtapa(etapa.nome).cor] ?? "bg-primary"
+                          )}
                           style={{ width: `${etapa.percentual}%` }}
                         />
                       </div>

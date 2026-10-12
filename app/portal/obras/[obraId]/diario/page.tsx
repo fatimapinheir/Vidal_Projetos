@@ -49,12 +49,17 @@ export default async function PortalDiarioPage({
 
   // A RLS já limita a dias fechados — o filtro aqui é só para a consulta não
   // depender disso silenciosamente.
-  const { data: dias } = await supabase
-    .from("diario_obra")
-    .select("data, clima")
-    .eq("obra_id", obraId)
-    .not("fechado_em", "is", null)
-    .order("data", { ascending: false });
+  const [{ data: dias }, { data: folgas }] = await Promise.all([
+    supabase
+      .from("diario_obra")
+      .select("data, clima")
+      .eq("obra_id", obraId)
+      .not("fechado_em", "is", null)
+      .order("data", { ascending: false }),
+    // O calendário colore dia não trabalhado: domingo ele deduz sozinho, o
+    // resto vem daqui.
+    supabase.from("cronograma_folgas").select("data_inicio, data_fim").eq("obra_id", obraId),
+  ]);
 
   const todos = dias ?? [];
   const doMes: DiaCalendario[] = todos
@@ -146,6 +151,7 @@ export default async function PortalDiarioPage({
             mesReferencia={mesAtual}
             base={base}
             hoje={hoje}
+            folgas={(folgas ?? []).map((f) => ({ dataInicio: f.data_inicio, dataFim: f.data_fim }))}
             diasSemRegistroClicaveis
           />
         </CardContent>
