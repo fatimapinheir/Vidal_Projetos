@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import {
   Table,
   TableHeader,
@@ -7,6 +7,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { EtapaColapsavel } from "./etapa-colapsavel";
 
 export type ItemDaLista = {
   id: string;
@@ -80,6 +81,17 @@ export function ListaPorEtapa({
   const editavel = !!acoesItem || !!acoesEtapa || !!rodapeEtapa;
   const colunas = editavel ? 7 : 6;
 
+  /*
+   * Lista curta abre; lista longa começa recolhida.
+   *
+   * O limite existe porque os dois casos são telas diferentes: um orçamento de
+   * vinte itens cabe na tela e recolher só esconderia o que já estava visível;
+   * um de quatrocentos e trinta e oito é rolagem cega, e ali as etapas
+   * recolhidas SÃO o índice. Uma regra só, em vez de um botão a mais para o
+   * usuário decidir toda vez.
+   */
+  const abrirTudo = itens.length <= 50;
+
   if (!grupos.size) {
     return (
       <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -121,22 +133,31 @@ export function ListaPorEtapa({
           {[...grupos].map(([etapa, itensDaEtapa]) => {
             const subtotal = itensDaEtapa.reduce((soma, item) => soma + item.preco_total, 0);
             return (
-              <Fragment key={etapa}>
-                <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  <TableCell colSpan={colunas - 1} className="font-medium">
-                    <span className="flex flex-wrap items-center gap-2">
-                      {etapa}
-                      <span className="text-xs font-normal text-muted-foreground">
-                        {itensDaEtapa.length} {itensDaEtapa.length === 1 ? "item" : "itens"}
-                      </span>
-                      {acoesEtapa?.(etapa, itensDaEtapa)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
-                    {moeda(subtotal)}
-                  </TableCell>
-                </TableRow>
-
+              <EtapaColapsavel
+                key={etapa}
+                etapa={etapa}
+                quantidade={itensDaEtapa.length}
+                subtotal={moeda(subtotal)}
+                colunas={colunas}
+                acoes={acoesEtapa?.(etapa, itensDaEtapa)}
+                abertaInicialmente={abrirTudo}
+                rodape={
+                  rodapeEtapa && (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={colunas} className="py-1.5">
+                        <span className="flex flex-wrap items-center gap-2">
+                          {!itensDaEtapa.length && (
+                            <span className="text-xs text-muted-foreground">
+                              Nenhum item nesta etapa ainda.
+                            </span>
+                          )}
+                          {rodapeEtapa(etapa, itensDaEtapa)}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  )
+                }
+              >
                 {itensDaEtapa.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="truncate text-xs text-muted-foreground">
@@ -162,22 +183,7 @@ export function ListaPorEtapa({
                     )}
                   </TableRow>
                 ))}
-
-                {rodapeEtapa && (
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={colunas} className="py-1.5">
-                      <span className="flex flex-wrap items-center gap-2">
-                        {!itensDaEtapa.length && (
-                          <span className="text-xs text-muted-foreground">
-                            Nenhum item nesta etapa ainda.
-                          </span>
-                        )}
-                        {rodapeEtapa(etapa, itensDaEtapa)}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </Fragment>
+              </EtapaColapsavel>
             );
           })}
 
