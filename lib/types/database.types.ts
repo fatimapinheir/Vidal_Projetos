@@ -1046,6 +1046,28 @@ export interface Database {
         };
         Relationships: [];
       };
+      /** Parcela + compra + fornecedor achatados, para buscar e paginar no banco (0050). */
+      vw_lancamentos_cliente: {
+        Row: Database["public"]["Views"]["vw_compra_parcelas"]["Row"] & {
+          obra_id: string;
+          descricao: string;
+          tipo_item: TipoItemOrcamento | null;
+          forma_pagamento: FormaPagamento;
+          eh_lancamento: boolean;
+          criado_por: string | null;
+          fornecedor_nome: string;
+        };
+        Relationships: [];
+      };
+      /** Soma por forma de pagamento, agregada no banco (0050). */
+      vw_lancamentos_resumo_forma: {
+        Row: {
+          obra_id: string;
+          forma_pagamento: FormaPagamento;
+          total: number;
+        };
+        Relationships: [];
+      };
       vw_progresso_obra: {
         Row: {
           obra_id: string;

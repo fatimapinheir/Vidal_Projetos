@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   CalendarClock,
@@ -13,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableHeader,
@@ -24,6 +25,8 @@ import {
 } from "@/components/ui/table";
 import { formatDateBR } from "@/lib/format-date";
 import { ExcluirCompraDialog } from "./excluir-compra-dialog";
+import { Paginacao } from "@/components/ui/paginacao";
+import type { AbaLancamentos } from "@/lib/compras/lancamentos";
 import { cn } from "@/lib/utils";
 import type { LancamentoCliente } from "@/lib/compras/lancamentos";
 import type { TipoItemOrcamento } from "@/lib/types/database.types";
@@ -76,10 +79,22 @@ type Filtro = "todos" | TipoItemOrcamento;
 
 export function TabelaLancamentos({
   lancamentos,
+  total,
+  pagina,
+  busca,
+  tipo,
+  aba,
   base,
   perfilId,
 }: {
+  /** Só a página atual — o filtro já foi aplicado no banco. */
   lancamentos: LancamentoCliente[];
+  /** Quantas linhas o filtro encontrou na obra inteira. */
+  total: number;
+  pagina: number;
+  busca: string;
+  tipo: TipoItemOrcamento | "todos";
+  aba: AbaLancamentos;
   base: string;
   /**
    * Quem está olhando. A lixeira só aparece no lançamento que esta pessoa
@@ -88,41 +103,65 @@ export function TabelaLancamentos({
    */
   perfilId: string | null;
 }) {
-  const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState<Filtro>("todos");
-  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  /*
+   * Os filtros moram na URL, não em estado de componente.
+   *
+   * Filtrar no cliente só enxerga a página carregada: procurar um fornecedor
+   * acharia nada se ele estivesse na página 3, e a tela responderia "não
+   * existe" para algo que existe. Com o filtro na URL, quem procura é o banco,
+   * sobre a obra inteira — e de quebra o link é compartilhável e o voltar do
+   * navegador funciona.
+   */
+  const router = useRouter();
+  const [termo, setTermo] = useState(busca);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(tipo !== "todos");
+  const [navegando, iniciar] = useTransition();
+  const atrasoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function irPara(mudancas: Record<string, string | undefined>) {
+    const atual = { busca: termo, tipo, aba, pagina: String(pagina), ...mudancas };
+    const query = new URLSearchParams();
+    if (atual.busca?.trim()) query.set("busca", atual.busca.trim());
+    if (atual.tipo && atual.tipo !== "todos") query.set("tipo", atual.tipo);
+    if (atual.aba && atual.aba !== "proximos") query.set("aba", atual.aba);
+    if (atual.pagina && atual.pagina !== "1") query.set("pagina", atual.pagina);
+    const texto = query.toString();
+    iniciar(() => router.replace(texto ? `${base}/compras?${texto}` : `${base}/compras`));
+  }
 
   /*
-   * A busca e o filtro valem para as DUAS abas.
+   * A busca espera meio segundo antes de ir ao servidor.
    *
-   * Zerá-los ao trocar de aba seria o comportamento mais fácil de programar e
-   * o mais irritante de usar: quem procurou um fornecedor na janela de 15 dias
-   * e não achou vai justamente para "todos os pagamentos" procurar o mesmo
-   * nome.
+   * Sem isso, cada tecla seria uma consulta e uma renderização — a lista
+   * piscaria a cada letra. O texto digitado fica em estado local para o campo
+   * continuar respondendo na hora; quem demora é só a ida ao banco.
+   *
+   * Qualquer filtro novo volta para a página 1: continuar na 7 depois de
+   * reduzir o resultado a dez linhas mostraria uma tela vazia.
    */
-  const filtrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    return lancamentos.filter((l) => {
-      if (filtro !== "todos" && l.tipo !== filtro) return false;
-      if (!termo) return true;
-      return (
-        l.descricao.toLowerCase().includes(termo) ||
-        l.fornecedor.toLowerCase().includes(termo)
-      );
-    });
-  }, [lancamentos, busca, filtro]);
+  function aoBuscar(valor: string) {
+    setTermo(valor);
+    if (atrasoRef.current) clearTimeout(atrasoRef.current);
+    atrasoRef.current = setTimeout(() => irPara({ busca: valor, pagina: "1" }), 500);
+  }
 
-  const proximos = filtrados.filter(
-    (l) => l.situacao !== "pago" && l.diasAte >= 0 && l.diasAte <= DIAS_JANELA
-  );
-
-  const tiposPresentes = useMemo(() => {
-    const vistos = new Set(lancamentos.map((l) => l.tipo).filter(Boolean));
-    return [...vistos] as TipoItemOrcamento[];
-  }, [lancamentos]);
+  const titulo =
+    aba === "proximos"
+      ? `Pagamentos dos próximos ${DIAS_JANELA} dias`
+      : "Todos os pagamentos";
+  const descricao =
+    aba === "proximos"
+      ? `Aqui estão os pagamentos que vencem ou estão previstos para os próximos ${DIAS_JANELA} dias.`
+      : "Todas as parcelas das ordens de compra desta obra, da mais próxima à mais distante.";
+  const vazio =
+    busca || tipo !== "todos"
+      ? "Nenhum pagamento encontrado com esse filtro."
+      : aba === "proximos"
+        ? `Nenhum pagamento previsto para os próximos ${DIAS_JANELA} dias.`
+        : "Nenhum pagamento registrado nesta obra.";
 
   return (
-    <Tabs defaultValue="proximos" className="gap-0">
+    <Tabs value={aba} onValueChange={(v) => irPara({ aba: String(v), pagina: "1" })} className="gap-0">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 pt-3">
         <TabsList variant="line" className="h-auto gap-4 p-0">
           <TabsTrigger value="proximos" className="h-9 flex-none px-0">
@@ -142,42 +181,38 @@ export function TabelaLancamentos({
               aria-hidden
             />
             <Input
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
+              value={termo}
+              onChange={(e) => aoBuscar(e.target.value)}
               placeholder="Buscar por fornecedor, descrição..."
               aria-label="Buscar lançamentos"
               className="h-9 w-full pl-8 sm:w-64"
             />
           </div>
-          {/* O filtro de tipo só aparece quando há mais de um tipo para
-              escolher — botão que abre uma lista de uma opção só é ruído. */}
-          {tiposPresentes.length > 1 && (
-            <Button
-              type="button"
-              variant={filtro === "todos" ? "outline" : "default"}
-              size="sm"
-              className="h-9"
-              aria-expanded={filtrosAbertos}
-              onClick={() => setFiltrosAbertos((v) => !v)}
-            >
-              <ListFilter className="size-4" />
-              Filtros
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant={tipo === "todos" ? "outline" : "default"}
+            size="sm"
+            className="h-9"
+            aria-expanded={filtrosAbertos}
+            onClick={() => setFiltrosAbertos((v) => !v)}
+          >
+            <ListFilter className="size-4" />
+            Filtros
+          </Button>
         </div>
       </div>
 
-      {filtrosAbertos && tiposPresentes.length > 1 && (
+      {filtrosAbertos && (
         <div className="flex flex-wrap items-center gap-2 border-b bg-muted/40 px-4 py-2.5">
           <span className="text-xs font-medium text-muted-foreground">Tipo:</span>
-          {(["todos", ...tiposPresentes] as Filtro[]).map((t) => (
+          {(["todos", "material", "servico", "mao_de_obra"] as Filtro[]).map((t) => (
             <Button
               key={t}
               type="button"
               size="sm"
-              variant={filtro === t ? "default" : "outline"}
+              variant={tipo === t ? "default" : "outline"}
               className="h-7"
-              onClick={() => setFiltro(t)}
+              onClick={() => irPara({ tipo: t, pagina: "1" })}
             >
               {t === "todos" ? "Todos" : TIPO[t].rotulo}
             </Button>
@@ -185,27 +220,32 @@ export function TabelaLancamentos({
         </div>
       )}
 
-      <TabsContent value="proximos">
+      <div className={navegando ? "opacity-60 transition-opacity" : undefined}>
         <Secao
-          titulo={`Pagamentos dos próximos ${DIAS_JANELA} dias`}
-          descricao={`Aqui estão os pagamentos que vencem ou estão previstos para os próximos ${DIAS_JANELA} dias.`}
-          linhas={proximos}
+          titulo={titulo}
+          descricao={descricao}
+          linhas={lancamentos}
           base={base}
           perfilId={perfilId}
-          vazio={`Nenhum pagamento previsto para os próximos ${DIAS_JANELA} dias.`}
+          vazio={vazio}
         />
-      </TabsContent>
 
-      <TabsContent value="todos">
-        <Secao
-          titulo="Todos os pagamentos"
-          descricao="Todas as parcelas das ordens de compra desta obra, da mais próxima à mais distante."
-          linhas={filtrados}
-          base={base}
-          perfilId={perfilId}
-          vazio="Nenhum pagamento registrado nesta obra."
-        />
-      </TabsContent>
+        {total > 0 && (
+          <div className="border-t px-4 py-3">
+            <Paginacao
+              pagina={pagina}
+              total={total}
+              caminho={`${base}/compras`}
+              parametros={{
+                busca: busca || undefined,
+                tipo: tipo !== "todos" ? tipo : undefined,
+                aba: aba !== "proximos" ? aba : undefined,
+              }}
+              rotulo="pagamentos"
+            />
+          </div>
+        )}
+      </div>
     </Tabs>
   );
 }

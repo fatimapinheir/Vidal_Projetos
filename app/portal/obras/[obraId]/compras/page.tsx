@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  CircleHelp,
+  Hammer,
   HardHat,
   Info,
   Lightbulb,
@@ -13,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth/get-profile";
+import { lerPagina } from "@/lib/paginacao";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Rosca } from "@/components/charts/rosca";
 import { carregarVisaoGeral } from "@/lib/obras/visao-geral";
@@ -46,10 +49,19 @@ function moeda(valor: number) {
  */
 export default async function PortalLancamentosPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ obraId: string }>;
+  searchParams: Promise<{ busca?: string; tipo?: string; aba?: string; pagina?: string }>;
 }) {
   const { obraId } = await params;
+  const filtros = await searchParams;
+
+  // O que vier de fora da lista conhecida é tratado como "sem filtro": a URL é
+  // editável, e um tipo inventado não pode virar consulta.
+  const tipo = (["material", "servico", "mao_de_obra"] as const).find((t) => t === filtros.tipo);
+  const aba = filtros.aba === "todos" ? "todos" : "proximos";
+  const pagina = lerPagina(filtros.pagina);
   const supabase = await createClient();
 
   const [{ data: obra }, dados, lancamentos, profile] = await Promise.all([
@@ -58,7 +70,7 @@ export default async function PortalLancamentosPage({
     // precisam bater com os da tela inicial. Duas contas para o mesmo número
     // divergem na primeira vez que alguém mexe numa delas.
     carregarVisaoGeral(supabase, obraId),
-    carregarLancamentos(supabase, obraId),
+    carregarLancamentos(supabase, obraId, { busca: filtros.busca, tipo, aba, pagina }),
     // Para decidir em quais linhas aparece a lixeira: o cliente só exclui o
     // lançamento que ele mesmo registrou.
     getProfile(),
@@ -77,6 +89,12 @@ export default async function PortalLancamentosPage({
       icone: <PackageCheck className="size-3.5" aria-hidden />,
     },
     {
+      rotulo: "Serviços",
+      valor: dados.servicos,
+      cor: "fill-grafico-enviado",
+      icone: <Hammer className="size-3.5" aria-hidden />,
+    },
+    {
       rotulo: "Mão de obra",
       valor: dados.custoMaoDeObra,
       cor: "fill-grafico-a-vencer",
@@ -87,6 +105,12 @@ export default async function PortalLancamentosPage({
       valor: dados.custoLocacoes,
       cor: "fill-grafico-pago",
       icone: <Wrench className="size-3.5" aria-hidden />,
+    },
+    {
+      rotulo: "Sem classificação",
+      valor: dados.semClassificacao,
+      cor: "fill-chart-5",
+      icone: <CircleHelp className="size-3.5" aria-hidden />,
     },
   ].filter((c) => c.valor > 0);
 
@@ -163,6 +187,11 @@ export default async function PortalLancamentosPage({
           <Card className="gap-0 overflow-hidden p-0">
             <TabelaLancamentos
               lancamentos={lancamentos.lancamentos}
+              total={lancamentos.total}
+              pagina={lancamentos.pagina}
+              busca={filtros.busca ?? ""}
+              tipo={tipo ?? "todos"}
+              aba={aba}
               base={base}
               perfilId={profile?.id ?? null}
             />

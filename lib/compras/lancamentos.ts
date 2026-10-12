@@ -2,6 +2,7 @@ import type { createClient } from "@/lib/supabase/server";
 import { hojeIso } from "@/lib/locacoes/calculo";
 import { situacaoFinanceiraParcela, type ParcelaSituacao } from "@/lib/compras/situacao";
 import type { FormaPagamento, TipoItemOrcamento } from "@/lib/types/database.types";
+import { POR_PAGINA_PADRAO } from "@/lib/paginacao";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -38,14 +39,39 @@ export type ResumoPorForma = {
   percentual: number;
 };
 
+export type AbaLancamentos = "proximos" | "todos";
+
+export type FiltroLancamentos = {
+  busca?: string;
+  tipo?: TipoItemOrcamento;
+  aba?: AbaLancamentos;
+  pagina?: number;
+};
+
 export type DadosLancamentos = {
   hoje: string;
-  /** Todas as parcelas da obra, da mais próxima de vencer para a mais distante. */
+  /** Só a página pedida, já filtrada — ver a nota em `carregarLancamentos`. */
   lancamentos: LancamentoCliente[];
+  /** Quantas linhas o filtro encontrou na obra inteira. */
+  total: number;
+  pagina: number;
   resumoPorForma: ResumoPorForma[];
   /** Quanto já saiu de caixa em ordens de compra, por forma de pagamento. */
   totalLancado: number;
 };
+
+/** Dias da janela de "próximos pagamentos". Igual ao rótulo da aba. */
+export const DIAS_JANELA_LANCAMENTOS = 15;
+
+/*
+ * O termo de busca entra numa expressão `or(...)` do PostgREST, cuja sintaxe é
+ * separada por vírgula e delimitada por parênteses. Um desses caracteres vindo
+ * do usuário quebraria a expressão — ou, pior, mudaria o filtro para outra
+ * coisa. Fora eles, o resto do texto passa como está.
+ */
+function limparTermo(termo: string) {
+  return termo.replace(/[,()\\*]/g, " ").trim();
+}
 
 const DIAS = 86_400_000;
 
@@ -66,42 +92,73 @@ function diasEntre(deIso: string, ateIso: string) {
  */
 export async function carregarLancamentos(
   supabase: SupabaseClient,
-  obraId: string
+  obraId: string,
+  filtro: FiltroLancamentos = {}
 ): Promise<DadosLancamentos> {
   const hoje = hojeIso();
+  const pagina = Math.max(filtro.pagina ?? 1, 1);
+  const aba: AbaLancamentos = filtro.aba ?? "proximos";
 
-  const { data: parcelas } = await supabase
-    .from("vw_compra_parcelas")
-    .select(
-      "*, compras!inner(obra_id, descricao, tipo_item, forma_pagamento, eh_lancamento, criado_por, fornecedores(nome))"
-    )
-    .eq("compras.obra_id", obraId)
-    .order("data_vencimento");
+  /*
+   * Busca e filtro valem para a OBRA INTEIRA, não para a página visível.
+   *
+   * É a diferença entre uma busca que serve e uma que engana: procurar um
+   * fornecedor e só achá-lo se ele por acaso estiver nas vinte e cinco linhas
+   * à vista responderia "não existe" para algo que existe. Por isso o filtro
+   * desce para o banco — e é também o que permite paginar sem mentir.
+   */
+  let consulta = supabase
+    .from("vw_lancamentos_cliente")
+    .select("*", { count: "exact" })
+    .eq("obra_id", obraId);
 
-  const lancamentos: LancamentoCliente[] = (parcelas ?? []).map((p) => {
-    const compra = p.compras as unknown as {
-      descricao: string;
-      tipo_item: TipoItemOrcamento | null;
-      forma_pagamento: FormaPagamento;
-      eh_lancamento: boolean;
-      criado_por: string | null;
-      fornecedores: { nome: string } | null;
-    };
+  if (filtro.tipo) consulta = consulta.eq("tipo_item", filtro.tipo);
+
+  const termo = limparTermo(filtro.busca ?? "");
+  if (termo) {
+    consulta = consulta.or(`descricao.ilike.%${termo}%,fornecedor_nome.ilike.%${termo}%`);
+  }
+
+  if (aba === "proximos") {
+    // A mesma janela da aba, agora como filtro de data no banco: o que vence
+    // de hoje até o décimo quinto dia e ainda não foi pago.
+    const limite = new Date(new Date(`${hoje}T00:00:00Z`).getTime() + DIAS_JANELA_LANCAMENTOS * DIAS)
+      .toISOString()
+      .slice(0, 10);
+    consulta = consulta
+      .neq("status_efetivo", "paga")
+      .gte("data_vencimento", hoje)
+      .lte("data_vencimento", limite);
+  }
+
+  const de = (pagina - 1) * POR_PAGINA_PADRAO;
+
+  const [{ data: linhas, count }, { data: resumo }] = await Promise.all([
+    consulta.order("data_vencimento").range(de, de + POR_PAGINA_PADRAO - 1),
+    /*
+     * O resumo fala da obra inteira e é somado no banco (view criada em 0050).
+     * Trazer todas as parcelas só para somá-las aqui recriaria a consulta sem
+     * limite que a paginação acabou de remover.
+     */
+    supabase.from("vw_lancamentos_resumo_forma").select("*").eq("obra_id", obraId),
+  ]);
+
+  const lancamentos: LancamentoCliente[] = (linhas ?? []).map((p) => {
     const chave = situacaoFinanceiraParcela(p as ParcelaSituacao).chave;
 
     return {
       id: p.id,
       compraId: p.compra_id,
-      descricao: compra.descricao,
-      fornecedor: compra.fornecedores?.nome ?? "—",
+      descricao: p.descricao,
+      fornecedor: p.fornecedor_nome,
       valor: p.valor,
       vencimento: p.data_vencimento,
       diasAte: diasEntre(hoje, p.data_vencimento),
-      tipo: compra.tipo_item,
-      formaPagamento: compra.forma_pagamento,
+      tipo: p.tipo_item,
+      formaPagamento: p.forma_pagamento,
       numeroParcela: p.numero_parcela,
-      ehLancamento: compra.eh_lancamento,
-      criadoPor: compra.criado_por,
+      ehLancamento: p.eh_lancamento,
+      criadoPor: p.criado_por,
       situacao:
         chave === "pago"
           ? "pago"
@@ -120,19 +177,14 @@ export async function carregarLancamentos(
    * meio — quanto vai sair em boleto, quanto em pix. Somar só o que já saiu
    * responderia uma pergunta de contabilidade, que não é a dele.
    */
-  const porForma = new Map<FormaPagamento, number>();
-  for (const l of lancamentos) {
-    porForma.set(l.formaPagamento, (porForma.get(l.formaPagamento) ?? 0) + l.valor);
-  }
-  const totalLancado = [...porForma.values()].reduce((s, v) => s + v, 0);
-
-  const resumoPorForma = [...porForma.entries()]
-    .map(([forma, total]) => ({
-      forma,
-      total,
-      percentual: totalLancado ? (total / totalLancado) * 100 : 0,
+  const totalLancado = (resumo ?? []).reduce((soma, r) => soma + Number(r.total), 0);
+  const resumoPorForma = (resumo ?? [])
+    .map((r) => ({
+      forma: r.forma_pagamento as FormaPagamento,
+      total: Number(r.total),
+      percentual: totalLancado ? (Number(r.total) / totalLancado) * 100 : 0,
     }))
     .sort((a, b) => b.total - a.total);
 
-  return { hoje, lancamentos, resumoPorForma, totalLancado };
+  return { hoje, lancamentos, total: count ?? 0, pagina, resumoPorForma, totalLancado };
 }

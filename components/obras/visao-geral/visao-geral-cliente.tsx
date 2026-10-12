@@ -8,13 +8,14 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronRight,
+  CircleHelp,
   Cloud,
   CloudRain,
   CloudSun,
   FileText,
-  LineChart,
   HardHat,
   Hourglass,
+  LineChart,
   Moon,
   NotebookPen,
   PackageCheck,
@@ -534,7 +535,15 @@ export function VisaoGeralCliente({
    */
   const orcadoMaterial = extra.orcadoPorTipo.material + extra.orcadoPorTipo.servico;
   const orcadoMaoDeObra = extra.orcadoPorTipo.maoDeObra;
-  const pctMaterial = orcadoMaterial ? (d.materiais / orcadoMaterial) * 100 : 0;
+  /*
+   * Numerador e denominador falam do mesmo tipo.
+   *
+   * O de materiais soma material E serviço porque é isso que `orcadoMaterial`
+   * soma do outro lado — comparar gasto de dois tipos contra o orçado de um só
+   * acusaria estouro onde não há.
+   */
+  const gastoMaterial = d.materiais + d.servicos;
+  const pctMaterial = orcadoMaterial ? (gastoMaterial / orcadoMaterial) * 100 : 0;
   const pctMaoDeObra = orcadoMaoDeObra ? (d.custoMaoDeObra / orcadoMaoDeObra) * 100 : 0;
   const situacao = diagnosticarExecucao({
     percentualFisico: d.percentualFisico,
@@ -557,6 +566,12 @@ export function VisaoGeralCliente({
       icone: <PackageCheck className="size-3.5" aria-hidden />,
     },
     {
+      rotulo: "Serviços",
+      valor: d.servicos,
+      cor: "fill-grafico-enviado",
+      icone: <Wrench className="size-3.5" aria-hidden />,
+    },
+    {
       rotulo: "Mão de obra",
       valor: d.custoMaoDeObra,
       cor: "fill-grafico-a-vencer",
@@ -567,6 +582,15 @@ export function VisaoGeralCliente({
       valor: d.custoLocacoes,
       cor: "fill-grafico-pago",
       icone: <Wrench className="size-3.5" aria-hidden />,
+    },
+    {
+      // Só aparece quando existe: uma fatia "sem classificação" num orçamento
+      // todo classificado seria ruído. Quando existe, precisa aparecer — é
+      // gasto real que não entra em comparação nenhuma.
+      rotulo: "Sem classificação",
+      valor: d.semClassificacao,
+      cor: "fill-chart-5",
+      icone: <CircleHelp className="size-3.5" aria-hidden />,
     },
   ].filter((c) => c.valor > 0);
 

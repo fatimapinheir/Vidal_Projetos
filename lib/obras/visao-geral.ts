@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/types/database.types";
+import type { Database, TipoItemOrcamento } from "@/lib/types/database.types";
 import { praticabilidade } from "@/lib/diario/condicao";
 import { calcularCustoLocacao, hojeIso } from "@/lib/locacoes/calculo";
 import { ordenarParcelasPorPrioridade } from "@/lib/parcelas";
@@ -52,7 +52,7 @@ export async function carregarVisaoGeral(supabase: Cliente, obraId: string) {
   ] = await Promise.all([
     supabase
       .from("compras")
-      .select("id, descricao, valor_total, status, fornecedores(nome)")
+      .select("id, descricao, valor_total, status, tipo_item, fornecedores(nome)")
       .eq("obra_id", obraId),
     supabase
       .from("vw_compra_parcelas")
@@ -180,12 +180,42 @@ export async function carregarVisaoGeral(supabase: Cliente, obraId: string) {
   );
   const custoLocacoes = custosLocacao.reduce((s, c) => s + c.valor, 0);
 
-  // --- Custo da obra: as três fontes ---
-  // Antes só materiais entravam nesta conta, e a obra parecia mais barata do
-  // que é — quanto mais equipe, maior o erro.
-  const materiais = valorAprovado + valorPagoCompras;
-  const custoMaoDeObra = maoDeObra?.total ?? 0;
-  const custoTotal = materiais + custoMaoDeObra + custoLocacoes;
+  /*
+   * --- Custo da obra, repartido pelo TIPO que o engenheiro classificou ---
+   *
+   * Era repartido pela ORIGEM: tudo que vinha de compra caía em "materiais",
+   * e "mão de obra" contava só a folha de pagamento. O resultado é que um
+   * lançamento classificado como mão de obra — um pedreiro pago por fora,
+   * uma empreitada — aparecia como material, e a barra de mão de obra ficava
+   * em zero numa obra que já pagou mão de obra. O rótulo dizia tipo e o
+   * número respondia origem.
+   *
+   * O total não muda: as mesmas compras continuam somando o mesmo. O que muda
+   * é em qual balde cada uma cai.
+   */
+  const comprometidas = todasCompras.filter(
+    (c) => c.status === "aprovada" || c.status === "paga"
+  );
+  const somarTipo = (tipo: TipoItemOrcamento | null) =>
+    comprometidas
+      .filter((c) => (c.tipo_item ?? null) === tipo)
+      .reduce((s, c) => s + c.valor_total, 0);
+
+  const gastoCompras = valorAprovado + valorPagoCompras;
+  const materiais = somarTipo("material");
+  const servicos = somarTipo("servico");
+  const maoDeObraEmCompras = somarTipo("mao_de_obra");
+  /*
+   * Compra sem tipo fica num balde próprio em vez de ser empurrada para
+   * materiais. Ela não pode ser comparada com nenhuma linha do orçamento, e
+   * escondê-la dentro de materiais faria a comparação mentir para cima.
+   */
+  const semClassificacao = somarTipo(null);
+
+  const custoFolha = maoDeObra?.total ?? 0;
+  /** Folha mais o que foi lançado como mão de obra nas compras. */
+  const custoMaoDeObra = custoFolha + maoDeObraEmCompras;
+  const custoTotal = gastoCompras + custoFolha + custoLocacoes;
   const orcado = progresso?.valor_orcado_total ?? 0;
   const percentualFinanceiro = orcado > 0 ? (custoTotal / orcado) * 100 : 0;
   const percentualFisico = progresso?.percentual_fisico ?? 0;
@@ -217,8 +247,13 @@ export async function carregarVisaoGeral(supabase: Cliente, obraId: string) {
     mesAtual,
     // custo
     orcado,
+    gastoCompras,
     materiais,
+    servicos,
+    semClassificacao,
     custoMaoDeObra,
+    custoFolha,
+    maoDeObraEmCompras,
     maoDeObraAberto: maoDeObra?.aberto ?? 0,
     custoLocacoes,
     custoTotal,

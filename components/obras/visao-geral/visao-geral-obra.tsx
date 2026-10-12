@@ -3,9 +3,11 @@ import {
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
+  CircleHelp,
   Clock,
   FileCheck2,
   FileClock,
+  Hammer,
   HardHat,
   PackageCheck,
   Send,
@@ -117,6 +119,12 @@ export function VisaoGeralObra({
                   icone: <PackageCheck className="size-3.5" aria-hidden />,
                 },
                 {
+                  rotulo: "Serviços",
+                  valor: d.servicos,
+                  cor: "bg-grafico-enviado",
+                  icone: <Hammer className="size-3.5" aria-hidden />,
+                },
+                {
                   rotulo: "Mão de obra",
                   valor: d.custoMaoDeObra,
                   cor: "bg-grafico-a-vencer",
@@ -127,6 +135,14 @@ export function VisaoGeralObra({
                   valor: d.custoLocacoes,
                   cor: "bg-grafico-trilho",
                   icone: <Wrench className="size-3.5" aria-hidden />,
+                },
+                {
+                  // Sem isto a barra somaria menos que o custo total, e a
+                  // diferença não teria nome em lugar nenhum.
+                  rotulo: "Sem classificação",
+                  valor: d.semClassificacao,
+                  cor: "bg-chart-5",
+                  icone: <CircleHelp className="size-3.5" aria-hidden />,
                 },
               ]}
             />
