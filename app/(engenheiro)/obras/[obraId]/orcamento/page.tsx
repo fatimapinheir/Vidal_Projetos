@@ -140,14 +140,17 @@ export default async function OrcamentoObraPage({
             .eq("orcamento_versao_id", versaoAtiva.id)
             .order("ordem")
         : Promise.resolve({ data: null }),
-      // Compras já vinculadas a uma etapa do orçamento: é o "executado" desta
-      // tela. O avanço físico não entra mais aqui — ele é medido por tarefa do
-      // cronograma, cuja EAP é propositalmente outra.
+      // Todas as compras da obra: é o "executado" desta tela. O avanço físico
+      // não entra mais aqui — ele é medido por tarefa do cronograma, cuja EAP
+      // é propositalmente outra.
+      //
+      // Sem etapa também entra. Filtrar por vínculo fazia o total ignorar
+      // gasto real, e o lançamento que o cliente registra nasce justamente
+      // sem etapa — ou seja, o buraco crescia sozinho.
       supabase
         .from("compras")
         .select("valor_total, status, orcamento_etapa")
-        .eq("obra_id", obraId)
-        .not("orcamento_etapa", "is", null),
+        .eq("obra_id", obraId),
       versaoAtiva
         ? supabase.from("vw_progresso_obra").select("*").eq("obra_id", obraId).maybeSingle()
         : Promise.resolve({ data: null }),
@@ -165,12 +168,11 @@ export default async function OrcamentoObraPage({
   const COMPROMETIDAS = ["aprovada", "paga"];
   const compradoPorEtapa = new Map<string, number>();
   for (const compra of comprasVinculadas ?? []) {
-    if (!compra.orcamento_etapa) continue;
     if (!COMPROMETIDAS.includes(compra.status)) continue;
-    compradoPorEtapa.set(
-      compra.orcamento_etapa,
-      (compradoPorEtapa.get(compra.orcamento_etapa) ?? 0) + compra.valor_total
-    );
+    // Sem etapa vai para a linha "Sem etapa", a mesma dos itens do orçamento
+    // sem etapa: entra no total e aparece no comparativo, em vez de sumir.
+    const chave = compra.orcamento_etapa || "Sem etapa";
+    compradoPorEtapa.set(chave, (compradoPorEtapa.get(chave) ?? 0) + compra.valor_total);
   }
 
   const orcadoPorEtapa = new Map<string, number>();

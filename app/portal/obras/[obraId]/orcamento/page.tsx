@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { BarrasRanking } from "@/components/charts/barras-ranking";
 import { ListaPorEtapa, type ItemDaLista } from "@/components/orcamento/lista-por-etapa";
+import { carregarVisaoGeral } from "@/lib/obras/visao-geral";
 
 function moeda(valor: number) {
   return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -61,17 +62,35 @@ export default async function PortalOrcamentoPage({
     );
   }
 
-  const [{ data: itens }, { data: compras }] = await Promise.all([
+  const [{ data: itens }, { data: compras }, visaoGeral] = await Promise.all([
     supabase
       .from("orcamento_itens")
       .select("*")
       .eq("orcamento_versao_id", versao.id)
       .order("ordem"),
+    /*
+      TODAS as compras da obra, com ou sem etapa vinculada.
+      
+      O filtro `not null` morava aqui e fazia o "Já comprado" mostrar zero numa
+      obra com gasto real: o que ninguém classificou simplesmente não existia
+      para esta tela. O cliente não tem como saber que o número depende de um
+      vínculo que o engenheiro faz por fora — para ele era a obra não ter
+      gasto nada.
+    */
     supabase
       .from("compras")
       .select("valor_total, status, orcamento_etapa")
-      .eq("obra_id", obraId)
-      .not("orcamento_etapa", "is", null),
+      .eq("obra_id", obraId),
+    /*
+      O mesmo carregador da tela inicial, e por um motivo só: "Já gasto" tem de
+      ser O MESMO número nas duas telas.
+      
+      Aqui a conta era compras aprovadas e pagas. Lá é isso MAIS mão de obra e
+      locações. Dar o mesmo nome a duas contas diferentes seria pior que o
+      nome antigo: o cliente abriria duas telas e veria dois valores para a
+      mesma pergunta, sem nada explicando a diferença.
+    */
+    carregarVisaoGeral(supabase, obraId),
   ]);
 
   const lista = (itens ?? []) as ItemDaLista[];
@@ -80,11 +99,13 @@ export default async function PortalOrcamentoPage({
   const COMPROMETIDAS = ["aprovada", "paga"];
   const compradoPorEtapa = new Map<string, number>();
   for (const compra of compras ?? []) {
-    if (!compra.orcamento_etapa || !COMPROMETIDAS.includes(compra.status)) continue;
-    compradoPorEtapa.set(
-      compra.orcamento_etapa,
-      (compradoPorEtapa.get(compra.orcamento_etapa) ?? 0) + compra.valor_total
-    );
+    if (!COMPROMETIDAS.includes(compra.status)) continue;
+    // Sem etapa vai para a linha "Sem etapa", a mesma que os itens do
+    // orçamento sem etapa já usam. Fica no total E visível no comparativo:
+    // um total que não bate com a soma das linhas abaixo dele é pior que o
+    // zero que havia antes.
+    const chave = compra.orcamento_etapa || "Sem etapa";
+    compradoPorEtapa.set(chave, (compradoPorEtapa.get(chave) ?? 0) + compra.valor_total);
   }
 
   const orcadoPorEtapa = new Map<string, number>();
@@ -102,7 +123,9 @@ export default async function PortalOrcamentoPage({
     orcado,
     comprado: compradoPorEtapa.get(etapa) ?? 0,
   }));
+  // Soma por etapa — alimenta o comparativo abaixo, não o cartão do topo.
   const totalComprado = comparativo.reduce((s, l) => s + l.comprado, 0);
+  const jaGasto = visaoGeral.custoTotal;
 
   const distribuicao = comparativo
     .filter((l) => l.orcado > 0)
@@ -139,12 +162,12 @@ export default async function PortalOrcamentoPage({
         </Card>
         <Card>
           <CardContent className="py-4">
-            <p className="text-sm text-muted-foreground">Já comprado</p>
+            <p className="text-sm text-muted-foreground">Já gasto</p>
             <p className="font-heading text-2xl font-semibold tabular-nums text-atencao">
-              {moeda(totalComprado)}
+              {moeda(jaGasto)}
             </p>
             <p className="text-xs text-muted-foreground">
-              {total > 0 ? `${((totalComprado / total) * 100).toFixed(1)}% do orçado` : "—"}
+              {total > 0 ? `${((jaGasto / total) * 100).toFixed(1)}% do orçado` : "—"}
             </p>
           </CardContent>
         </Card>
