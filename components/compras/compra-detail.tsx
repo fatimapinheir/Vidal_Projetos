@@ -17,8 +17,6 @@ import { PagamentoEnviadoParcela } from "./pagamento-enviado-parcela";
 import { CompraAprovacaoActions } from "./compra-aprovacao-actions";
 import { EtapaOrcamentoSelect } from "./etapa-orcamento-select";
 import { formatDateBR as formatDate } from "@/lib/format-date";
-import { getProfile } from "@/lib/auth/get-profile";
-import { ExcluirCompraDialog } from "./excluir-compra-dialog";
 
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -32,7 +30,6 @@ export async function CompraDetail({
   viewerRole: "engenheiro" | "cliente";
 }) {
   const supabase = await createClient();
-  const profile = await getProfile();
 
   const { data: compra } = await supabase
     .from("compras")
@@ -133,23 +130,6 @@ export async function CompraDetail({
 
   const parcelaUnica = parcelas?.length === 1 ? parcelas[0] : undefined;
 
-  /*
-   * Quem vê o botão de excluir.
-   *
-   * O engenheiro apaga qualquer registro das obras dele. O cliente apaga só o
-   * lançamento que ELE registrou: lançamento do engenheiro é registro do
-   * engenheiro, e fazê-lo sumir pelo portal tiraria custo da obra sem que quem
-   * o lançou soubesse. Ordem de compra não é do cliente de jeito nenhum.
-   *
-   * Isto é só a tela. Quem recusa de verdade é a RLS (`cli_delete_lancamento`,
-   * migração 0048) — esconder o botão não é controle de acesso.
-   */
-  const podeExcluir =
-    viewerRole === "engenheiro" ||
-    (compra.eh_lancamento && !!profile && compra.criado_por === profile.id);
-
-  const baseDaObra =
-    viewerRole === "engenheiro" ? `/obras/${compra.obra_id}` : `/portal/obras/${compra.obra_id}`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -159,17 +139,7 @@ export async function CompraDetail({
             <CardTitle>{compra.descricao}</CardTitle>
             <p className="text-sm text-muted-foreground">{fornecedor?.nome}</p>
           </div>
-          <div className="flex shrink-0 flex-col items-end gap-2">
-            <CompraStatusBadge status={compra.status} />
-            {podeExcluir && (
-              <ExcluirCompraDialog
-                compraId={compra.id}
-                descricao={compra.descricao}
-                ehLancamento={compra.eh_lancamento}
-                voltarPara={`${baseDaObra}/compras`}
-              />
-            )}
-          </div>
+          <CompraStatusBadge status={compra.status} />
         </CardHeader>
         <CardContent className="flex flex-col gap-3 text-sm">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

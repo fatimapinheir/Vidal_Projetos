@@ -23,6 +23,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { formatDateBR } from "@/lib/format-date";
+import { ExcluirCompraDialog } from "./excluir-compra-dialog";
 import { cn } from "@/lib/utils";
 import type { LancamentoCliente } from "@/lib/compras/lancamentos";
 import type { TipoItemOrcamento } from "@/lib/types/database.types";
@@ -76,9 +77,16 @@ type Filtro = "todos" | TipoItemOrcamento;
 export function TabelaLancamentos({
   lancamentos,
   base,
+  perfilId,
 }: {
   lancamentos: LancamentoCliente[];
   base: string;
+  /**
+   * Quem está olhando. A lixeira só aparece no lançamento que esta pessoa
+   * registrou — ordem de compra e lançamento do engenheiro não são dela.
+   * É só a tela; quem recusa de verdade é a RLS.
+   */
+  perfilId: string | null;
 }) {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todos");
@@ -183,6 +191,7 @@ export function TabelaLancamentos({
           descricao={`Aqui estão os pagamentos que vencem ou estão previstos para os próximos ${DIAS_JANELA} dias.`}
           linhas={proximos}
           base={base}
+          perfilId={perfilId}
           vazio={`Nenhum pagamento previsto para os próximos ${DIAS_JANELA} dias.`}
         />
       </TabsContent>
@@ -193,6 +202,7 @@ export function TabelaLancamentos({
           descricao="Todas as parcelas das ordens de compra desta obra, da mais próxima à mais distante."
           linhas={filtrados}
           base={base}
+          perfilId={perfilId}
           vazio="Nenhum pagamento registrado nesta obra."
         />
       </TabsContent>
@@ -205,12 +215,14 @@ function Secao({
   descricao,
   linhas,
   base,
+  perfilId,
   vazio,
 }: {
   titulo: string;
   descricao: string;
   linhas: LancamentoCliente[];
   base: string;
+  perfilId: string | null;
   vazio: string;
 }) {
   return (
@@ -278,12 +290,21 @@ function Secao({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        nativeButton={false}
-                        render={<Link href={`${base}/compras/${l.compraId}`}>Ver detalhes</Link>}
-                      />
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          nativeButton={false}
+                          render={<Link href={`${base}/compras/${l.compraId}`}>Ver detalhes</Link>}
+                        />
+                        {l.ehLancamento && !!perfilId && l.criadoPor === perfilId && (
+                          <ExcluirCompraDialog
+                            compraId={l.compraId}
+                            descricao={l.descricao}
+                            ehLancamento
+                          />
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

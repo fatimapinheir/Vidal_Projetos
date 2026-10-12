@@ -17,23 +17,24 @@ import {
 import { excluirCompra } from "@/app/actions/compras";
 
 /**
- * Exclusão de um lançamento financeiro ou ordem de compra.
+ * Lixeira na linha da lista.
  *
- * Sem o "digite o nome" da exclusão de obra: lá são doze tabelas e contas de
- * acesso de outras pessoas, aqui é um registro só. Mas com confirmação, porque
- * o valor sai do custo da obra na hora e não há desfazer.
+ * Mora na lista, e não na tela de detalhe, porque excluir é decisão que se
+ * toma olhando a fila — "este lançamento aqui está errado" — e não depois de
+ * abrir o registro.
+ *
+ * A confirmação fica, mesmo sendo um clique a mais: o valor sai do custo da
+ * obra na hora, não há desfazer, e a lixeira é vizinha do botão de abrir. Sem
+ * ela, um toque errado no celular apaga um pagamento.
  */
 export function ExcluirCompraDialog({
   compraId,
   descricao,
   ehLancamento,
-  voltarPara,
 }: {
   compraId: string;
   descricao: string;
   ehLancamento: boolean;
-  /** Lista para onde voltar depois — a linha aberta deixa de existir. */
-  voltarPara: string;
 }) {
   const [open, setOpen] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -49,9 +50,8 @@ export function ExcluirCompraDialog({
       if (resultado.error) return setErro(resultado.error);
 
       setOpen(false);
-      router.push(voltarPara);
-      // A lista é renderizada no servidor e já está em cache no cliente: sem o
-      // refresh, a linha apagada reaparece por um instante.
+      // A lista é renderizada no servidor: sem o refresh, a linha apagada
+      // continua na tela.
       router.refresh();
     });
   }
@@ -67,12 +67,13 @@ export function ExcluirCompraDialog({
       <DialogTrigger
         render={
           <Button
-            variant="outline"
-            size="sm"
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Excluir ${rotulo}: ${descricao}`}
+            title={`Excluir ${rotulo}`}
+            className="text-muted-foreground hover:text-destructive"
           >
             <Trash2 className="size-4" />
-            Excluir
           </Button>
         }
       />
@@ -97,7 +98,7 @@ export function ExcluirCompraDialog({
           </Button>
           <Button variant="destructive" onClick={handleExcluir} disabled={excluindo}>
             <Trash2 className="size-4" />
-            {excluindo ? "Excluindo..." : `Excluir ${rotulo}`}
+            {excluindo ? "Excluindo..." : "Excluir"}
           </Button>
         </DialogFooter>
       </DialogContent>

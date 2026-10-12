@@ -10,6 +10,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { CompraStatusBadge } from "@/components/compras/status-badges";
+import { ExcluirCompraDialog } from "@/components/compras/excluir-compra-dialog";
 import {
   SituacaoFinanceiraBadge,
   SituacaoEntregaBadge,
@@ -119,12 +120,19 @@ export default async function ComprasObraPage({
                     <SituacaoEntregaBadge situacao={situacaoEntregaCompra(suasParcelas)} />
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      nativeButton={false}
-                      render={<Link href={`/obras/${obraId}/compras/${c.id}`}>Abrir</Link>}
-                    />
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        nativeButton={false}
+                        render={<Link href={`/obras/${obraId}/compras/${c.id}`}>Abrir</Link>}
+                      />
+                      <ExcluirCompraDialog
+                        compraId={c.id}
+                        descricao={c.descricao}
+                        ehLancamento={c.eh_lancamento}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               );

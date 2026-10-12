@@ -18,6 +18,10 @@ export type LancamentoCliente = {
   tipo: TipoItemOrcamento | null;
   formaPagamento: FormaPagamento;
   numeroParcela: number;
+  /** Lançamento financeiro (true) ou parcela de ordem de compra (false). */
+  ehLancamento: boolean;
+  /** Quem registrou. É o que decide se o cliente pode excluir. */
+  criadoPor: string | null;
   /**
    * Situação simplificada, já sem nada que soe a atraso.
    *
@@ -69,7 +73,7 @@ export async function carregarLancamentos(
   const { data: parcelas } = await supabase
     .from("vw_compra_parcelas")
     .select(
-      "*, compras!inner(obra_id, descricao, tipo_item, forma_pagamento, fornecedores(nome))"
+      "*, compras!inner(obra_id, descricao, tipo_item, forma_pagamento, eh_lancamento, criado_por, fornecedores(nome))"
     )
     .eq("compras.obra_id", obraId)
     .order("data_vencimento");
@@ -79,6 +83,8 @@ export async function carregarLancamentos(
       descricao: string;
       tipo_item: TipoItemOrcamento | null;
       forma_pagamento: FormaPagamento;
+      eh_lancamento: boolean;
+      criado_por: string | null;
       fornecedores: { nome: string } | null;
     };
     const chave = situacaoFinanceiraParcela(p as ParcelaSituacao).chave;
@@ -94,6 +100,8 @@ export async function carregarLancamentos(
       tipo: compra.tipo_item,
       formaPagamento: compra.forma_pagamento,
       numeroParcela: p.numero_parcela,
+      ehLancamento: compra.eh_lancamento,
+      criadoPor: compra.criado_por,
       situacao:
         chave === "pago"
           ? "pago"

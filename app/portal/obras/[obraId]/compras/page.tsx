@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/auth/get-profile";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Rosca } from "@/components/charts/rosca";
 import { carregarVisaoGeral } from "@/lib/obras/visao-geral";
@@ -51,13 +52,16 @@ export default async function PortalLancamentosPage({
   const { obraId } = await params;
   const supabase = await createClient();
 
-  const [{ data: obra }, dados, lancamentos] = await Promise.all([
+  const [{ data: obra }, dados, lancamentos, profile] = await Promise.all([
     supabase.from("obras").select("nome").eq("id", obraId).maybeSingle(),
     // Mesmo carregador da visão geral: o total gasto e a rosca de categorias
     // precisam bater com os da tela inicial. Duas contas para o mesmo número
     // divergem na primeira vez que alguém mexe numa delas.
     carregarVisaoGeral(supabase, obraId),
     carregarLancamentos(supabase, obraId),
+    // Para decidir em quais linhas aparece a lixeira: o cliente só exclui o
+    // lançamento que ele mesmo registrou.
+    getProfile(),
   ]);
 
   if (!obra) notFound();
@@ -108,7 +112,7 @@ export default async function PortalLancamentosPage({
         <Button
           nativeButton={false}
           render={
-            <Link href={`${base}/lancamento`}>
+            <Link href={`${base}/compras/lancamento`}>
               <Plus className="size-4" aria-hidden />
               Novo lançamento
             </Link>
@@ -157,7 +161,11 @@ export default async function PortalLancamentosPage({
           </Card>
 
           <Card className="gap-0 overflow-hidden p-0">
-            <TabelaLancamentos lancamentos={lancamentos.lancamentos} base={base} />
+            <TabelaLancamentos
+              lancamentos={lancamentos.lancamentos}
+              base={base}
+              perfilId={profile?.id ?? null}
+            />
 
             <div className="m-4 mt-2 flex items-start gap-3 rounded-xl bg-accent/60 p-3 text-sm">
               <Info className="mt-0.5 size-4 shrink-0 text-primary-texto" aria-hidden />
