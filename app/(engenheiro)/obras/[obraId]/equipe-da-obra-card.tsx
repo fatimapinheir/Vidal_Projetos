@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { useFormularioDeDialogo } from "@/lib/hooks/usar-formulario-de-dialogo";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,22 +51,18 @@ export function EquipeDaObraCard({
   equipesNaObra: EquipeNaObra[];
   equipesDisponiveis: { id: string; nome: string }[];
 }) {
-  const [open, setOpen] = useState(false);
   const [tipoContrato, setTipoContrato] = useState<"diaria" | "empreitada">("diaria");
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
   const action = vincularEquipeNaObra.bind(null, obraId);
-  const [state, formAction, enviando] = useActionState(action, initialState);
-
-  useEffect(() => {
-    if (state.success) setOpen(false);
-  }, [state.success]);
-
-  function handleOpenChange(proximo: boolean) {
-    if (!proximo) setTipoContrato("diaria");
-    setOpen(proximo);
-  }
+  const { aberto, mudarAberto, enviar, erro, enviando } = useFormularioDeDialogo({
+    acao: action,
+    estadoInicial: initialState,
+    aoFechar: () => {
+      setTipoContrato("diaria");
+    },
+  });
 
   function handleRemover(equipeId: string, nome: string) {
     if (!confirm(`Tirar a equipe "${nome}" desta obra? Os fechamentos já feitos continuam.`)) return;
@@ -109,7 +106,7 @@ export function EquipeDaObraCard({
         </p>
       )}
 
-      <Dialog open={open} onOpenChange={handleOpenChange}>
+      <Dialog open={aberto} onOpenChange={mudarAberto}>
         <DialogTrigger
           render={
             <Button variant="outline" size="sm" disabled={!equipesDisponiveis.length}>
@@ -121,7 +118,7 @@ export function EquipeDaObraCard({
           <DialogHeader>
             <DialogTitle>Colocar equipe nesta obra</DialogTitle>
           </DialogHeader>
-          <form action={formAction}>
+          <form action={enviar}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="equipe_id">Equipe</FieldLabel>
@@ -174,7 +171,7 @@ export function EquipeDaObraCard({
                 </Field>
               )}
 
-              {state.error && <FieldError>{state.error}</FieldError>}
+              {erro && <FieldError>{erro}</FieldError>}
               <Button type="submit" disabled={enviando}>
                 {enviando ? "Salvando..." : "Colocar na obra"}
               </Button>

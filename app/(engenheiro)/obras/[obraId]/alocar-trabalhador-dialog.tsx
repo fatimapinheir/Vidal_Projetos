@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useRef } from "react";
+import { useFormularioDeDialogo } from "@/lib/hooks/usar-formulario-de-dialogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel, FieldError } from "@/components/ui/field";
@@ -24,14 +25,12 @@ export function AlocarTrabalhadorDialog({
   obraId: string;
   trabalhadoresDisponiveis: Trabalhador[];
 }) {
-  const [open, setOpen] = useState(false);
   const valorInputRef = useRef<HTMLInputElement>(null);
   const action = alocarTrabalhadorNaObra.bind(null, obraId);
-  const [state, formAction, pending] = useActionState(action, initialState);
-
-  useEffect(() => {
-    if (state.success) setOpen(false);
-  }, [state.success]);
+  const { aberto, mudarAberto, enviar, erro, enviando } = useFormularioDeDialogo({
+    acao: action,
+    estadoInicial: initialState
+  });
 
   function handleTrabalhadorChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const selected = trabalhadoresDisponiveis.find((t) => t.id === e.target.value);
@@ -41,7 +40,7 @@ export function AlocarTrabalhadorDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={aberto} onOpenChange={mudarAberto}>
       <DialogTrigger
         render={
           <Button disabled={!trabalhadoresDisponiveis.length}>Alocar trabalhador</Button>
@@ -51,7 +50,7 @@ export function AlocarTrabalhadorDialog({
         <DialogHeader>
           <DialogTitle>Alocar trabalhador nessa obra</DialogTitle>
         </DialogHeader>
-        <form action={formAction}>
+        <form action={enviar}>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="trabalhador_id">Trabalhador</FieldLabel>
@@ -82,9 +81,9 @@ export function AlocarTrabalhadorDialog({
                 required
               />
             </Field>
-            {state.error && <FieldError>{state.error}</FieldError>}
-            <Button type="submit" disabled={pending}>
-              {pending ? "Alocando..." : "Alocar"}
+            {erro && <FieldError>{erro}</FieldError>}
+            <Button type="submit" disabled={enviando}>
+              {enviando ? "Alocando..." : "Alocar"}
             </Button>
           </FieldGroup>
         </form>

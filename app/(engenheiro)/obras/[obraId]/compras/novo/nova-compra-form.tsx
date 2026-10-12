@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -132,8 +132,7 @@ export function NovaCompraForm({
     formAction(formData);
   }
   const [rows, setRows] = useState([{ id: nextRowId++ }]);
-  const [valoresParcelas, setValoresParcelas] = useState<Record<number, string>>({});
-  const [parcelasEditadas, setParcelasEditadas] = useState<Set<number>>(new Set());
+  const [valoresEditados, setValoresEditados] = useState<Record<number, string>>({});
   const [itens, setItens] = useState<(ItemCompraLocal & { localId: number })[]>([]);
   const [descontoNotaTipo, setDescontoNotaTipo] = useState<"" | "valor" | "percentual">("");
   const [descontoNotaValor, setDescontoNotaValor] = useState("");
@@ -147,31 +146,40 @@ export function NovaCompraForm({
         ? Math.max(subtotalItens - (Number(descontoNotaValor) || 0), 0)
         : subtotalItens;
 
-  // Enquanto nenhuma parcela foi editada manualmente, mantém o valor (das parcelas
-  // existentes) acompanhando o total da nota conforme itens/desconto mudam.
-  useEffect(() => {
-    if (parcelasEditadas.size === 0) {
-      setValoresParcelas(splitIgual(rows.map((r) => r.id), totalNota));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalNota]);
+  /*
+   * O rateio é DERIVADO do total da nota, não guardado em estado.
+   *
+   * Era um efeito que, a cada mudança no total, reescrevia os valores — o
+   * padrão que o React desaconselha e que o lint acusa: estado derivado de
+   * estado, recalculado numa renderização extra. Como cálculo direto, não há
+   * instante nenhum em que a tela mostre o rateio velho.
+   *
+   * `valoresEditados` vazio significa "ninguém mexeu, siga o total". No
+   * primeiro ajuste manual o rateio das OUTRAS parcelas é congelado junto: a
+   * partir dali os números são do usuário, e mudar um item não pode reescrever
+   * por cima do que ele digitou.
+   */
+  const rateio = splitIgual(rows.map((r) => r.id), totalNota);
+  const valores = Object.keys(valoresEditados).length ? valoresEditados : rateio;
 
+  function editarParcela(id: number, valor: string) {
+    setValoresEditados((anteriores) =>
+      Object.keys(anteriores).length
+        ? { ...anteriores, [id]: valor }
+        : { ...rateio, [id]: valor }
+    );
+  }
+
+  // Mudar a quantidade de parcelas volta ao rateio automático: a divisão que
+  // o usuário fez era para outro número de parcelas.
   function adicionarParcela() {
-    setRows((prev) => {
-      const novasRows = [...prev, { id: nextRowId++ }];
-      setValoresParcelas(splitIgual(novasRows.map((r) => r.id), totalNota));
-      setParcelasEditadas(new Set());
-      return novasRows;
-    });
+    setRows((prev) => [...prev, { id: nextRowId++ }]);
+    setValoresEditados({});
   }
 
   function removerParcela(id: number) {
-    setRows((prev) => {
-      const novasRows = prev.filter((r) => r.id !== id);
-      setValoresParcelas(splitIgual(novasRows.map((r) => r.id), totalNota));
-      setParcelasEditadas(new Set());
-      return novasRows;
-    });
+    setRows((prev) => prev.filter((r) => r.id !== id));
+    setValoresEditados({});
   }
 
   // O <form> não declara `encType`: com `action` função, o React define a
@@ -469,12 +477,8 @@ export function NovaCompraForm({
                   step="0.01"
                   min="0"
                   required
-                  value={valoresParcelas[row.id] ?? ""}
-                  onChange={(e) => {
-                    const valor = e.target.value;
-                    setValoresParcelas((prev) => ({ ...prev, [row.id]: valor }));
-                    setParcelasEditadas((prev) => new Set(prev).add(row.id));
-                  }}
+                  value={valores[row.id] ?? ""}
+                  onChange={(e) => editarParcela(row.id, e.target.value)}
                 />
               </div>
               <div>

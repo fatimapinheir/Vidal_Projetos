@@ -10,8 +10,6 @@ import {
   FieldGroup,
   FieldLabel,
   FieldError,
-  FieldSet,
-  FieldLegend,
   FieldDescription,
   FieldSeparator,
 } from "@/components/ui/field";

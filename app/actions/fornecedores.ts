@@ -46,6 +46,8 @@ const fornecedorSchema = z
     path: ["condicao_prazo"],
   });
 
+// Só consumido por `z.infer` logo abaixo — apagá-lo levaria o tipo junto.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const contatoSchema = z.object({
   nome: z.string().min(1),
   telefone: z.string().optional(),

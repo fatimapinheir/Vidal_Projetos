@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useState } from "react";
+import { useFormularioDeDialogo } from "@/lib/hooks/usar-formulario-de-dialogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel, FieldError } from "@/components/ui/field";
@@ -22,23 +23,21 @@ export function AbrirFechamentoEquipeDialog({
   obraId: string;
   equipes: { id: string; nome: string }[];
 }) {
-  const [open, setOpen] = useState(false);
   const [equipeId, setEquipeId] = useState("");
   const action = abrirFechamentoEquipeDiaria.bind(null, obraId, equipeId);
-  const [state, formAction, pending] = useActionState(action, initialState);
-
-  useEffect(() => {
-    if (state.success) setOpen(false);
-  }, [state.success]);
+  const { aberto, mudarAberto, enviar, erro, enviando } = useFormularioDeDialogo({
+    acao: action,
+    estadoInicial: initialState
+  });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={aberto} onOpenChange={mudarAberto}>
       <DialogTrigger render={<Button disabled={!equipes.length}>Fechar equipe (diária)</Button>} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Fechar equipe por período (diária)</DialogTitle>
         </DialogHeader>
-        <form action={formAction}>
+        <form action={enviar}>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="equipe_id">Equipe</FieldLabel>
@@ -67,9 +66,9 @@ export function AbrirFechamentoEquipeDialog({
                 <Input id="periodo_fim" name="periodo_fim" type="date" required />
               </div>
             </Field>
-            {state.error && <FieldError>{state.error}</FieldError>}
-            <Button type="submit" disabled={pending || !equipeId}>
-              {pending ? "Calculando..." : "Fechar equipe"}
+            {erro && <FieldError>{erro}</FieldError>}
+            <Button type="submit" disabled={enviando || !equipeId}>
+              {enviando ? "Calculando..." : "Fechar equipe"}
             </Button>
           </FieldGroup>
         </form>

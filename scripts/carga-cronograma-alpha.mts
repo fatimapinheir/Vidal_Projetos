@@ -280,10 +280,6 @@ if (existente.n > 0) {
   process.exit(1);
 }
 
-const { rows: [eng] } = await cliente.query(
-  `select id from profiles where role = 'engenheiro' limit 1`
-);
-
 await cliente.query("begin");
 
 const idPorCodigo = new Map<string, string>();

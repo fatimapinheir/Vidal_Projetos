@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useState } from "react";
+import { useFormularioDeDialogo } from "@/lib/hooks/usar-formulario-de-dialogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,19 +26,17 @@ export function AbrirFechamentoEntregaDialog({
   obraId: string;
   equipes: Equipe[];
 }) {
-  const [open, setOpen] = useState(false);
   const [equipeId, setEquipeId] = useState("");
   const action = abrirFechamentoEntrega.bind(null, obraId, equipeId);
-  const [state, formAction, pending] = useActionState(action, initialState);
-
-  useEffect(() => {
-    if (state.success) setOpen(false);
-  }, [state.success]);
+  const { aberto, mudarAberto, enviar, erro, enviando } = useFormularioDeDialogo({
+    acao: action,
+    estadoInicial: initialState
+  });
 
   const equipeSelecionada = equipes.find((eq) => eq.id === equipeId);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={aberto} onOpenChange={mudarAberto}>
       <DialogTrigger
         render={<Button variant="outline" disabled={!equipes.length}>Fechar por entrega</Button>}
       />
@@ -45,7 +44,7 @@ export function AbrirFechamentoEntregaDialog({
         <DialogHeader>
           <DialogTitle>Fechar pagamento por entrega (empreitada)</DialogTitle>
         </DialogHeader>
-        <form action={formAction}>
+        <form action={enviar}>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="equipe_id">Equipe</FieldLabel>
@@ -92,9 +91,9 @@ export function AbrirFechamentoEntregaDialog({
               <FieldLabel htmlFor="observacoes">Observações (opcional)</FieldLabel>
               <Textarea id="observacoes" name="observacoes" rows={2} />
             </Field>
-            {state.error && <FieldError>{state.error}</FieldError>}
-            <Button type="submit" disabled={pending || !equipeId}>
-              {pending ? "Calculando..." : "Fechar por entrega"}
+            {erro && <FieldError>{erro}</FieldError>}
+            <Button type="submit" disabled={enviando || !equipeId}>
+              {enviando ? "Calculando..." : "Fechar por entrega"}
             </Button>
           </FieldGroup>
         </form>

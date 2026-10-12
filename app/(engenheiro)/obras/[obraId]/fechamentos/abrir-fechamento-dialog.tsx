@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useFormularioDeDialogo } from "@/lib/hooks/usar-formulario-de-dialogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel, FieldError } from "@/components/ui/field";
@@ -22,22 +22,20 @@ export function AbrirFechamentoDialog({
   obraId: string;
   trabalhadores: { id: string; nome: string }[];
 }) {
-  const [open, setOpen] = useState(false);
   const action = abrirFechamento.bind(null, obraId);
-  const [state, formAction, pending] = useActionState(action, initialState);
-
-  useEffect(() => {
-    if (state.success) setOpen(false);
-  }, [state.success]);
+  const { aberto, mudarAberto, enviar, erro, enviando } = useFormularioDeDialogo({
+    acao: action,
+    estadoInicial: initialState
+  });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={aberto} onOpenChange={mudarAberto}>
       <DialogTrigger render={<Button disabled={!trabalhadores.length}>Novo fechamento</Button>} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Abrir fechamento de período</DialogTitle>
         </DialogHeader>
-        <form action={formAction}>
+        <form action={enviar}>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="trabalhador_id">Trabalhador</FieldLabel>
@@ -65,9 +63,9 @@ export function AbrirFechamentoDialog({
                 <Input id="periodo_fim" name="periodo_fim" type="date" required />
               </div>
             </Field>
-            {state.error && <FieldError>{state.error}</FieldError>}
-            <Button type="submit" disabled={pending}>
-              {pending ? "Calculando..." : "Abrir fechamento"}
+            {erro && <FieldError>{erro}</FieldError>}
+            <Button type="submit" disabled={enviando}>
+              {enviando ? "Calculando..." : "Abrir fechamento"}
             </Button>
           </FieldGroup>
         </form>

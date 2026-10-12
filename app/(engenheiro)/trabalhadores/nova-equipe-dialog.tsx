@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useState } from "react";
+import { useFormularioDeDialogo } from "@/lib/hooks/usar-formulario-de-dialogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,18 +27,14 @@ export function NovaEquipeDialog({
 }: {
   trabalhadores: { id: string; nome: string; funcao: string | null }[];
 }) {
-  const [open, setOpen] = useState(false);
   const [membros, setMembros] = useState<Set<string>>(new Set());
-  const [state, formAction, pending] = useActionState(criarEquipe, initialState);
-
-  useEffect(() => {
-    if (state.success) setOpen(false);
-  }, [state.success]);
-
-  function handleOpenChange(proximo: boolean) {
-    if (!proximo) setMembros(new Set());
-    setOpen(proximo);
-  }
+  const { aberto, mudarAberto, enviar, erro, enviando } = useFormularioDeDialogo({
+    acao: criarEquipe,
+    estadoInicial: initialState,
+    aoFechar: () => {
+      setMembros(new Set());
+    },
+  });
 
   function alternarMembro(id: string, marcado: boolean) {
     setMembros((anterior) => {
@@ -51,13 +48,13 @@ export function NovaEquipeDialog({
   const selecionados = trabalhadores.filter((t) => membros.has(t.id));
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={aberto} onOpenChange={mudarAberto}>
       <DialogTrigger render={<Button>Nova equipe</Button>} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Nova equipe</DialogTitle>
         </DialogHeader>
-        <form action={formAction}>
+        <form action={enviar}>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="nome">Nome da equipe</FieldLabel>
@@ -111,9 +108,9 @@ export function NovaEquipeDialog({
               </FieldDescription>
             </Field>
 
-            {state.error && <FieldError>{state.error}</FieldError>}
-            <Button type="submit" disabled={pending}>
-              {pending ? "Criando..." : "Criar equipe"}
+            {erro && <FieldError>{erro}</FieldError>}
+            <Button type="submit" disabled={enviando}>
+              {enviando ? "Criando..." : "Criar equipe"}
             </Button>
           </FieldGroup>
         </form>

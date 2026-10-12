@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useState } from "react";
+import { useFormularioDeDialogo } from "@/lib/hooks/usar-formulario-de-dialogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,31 +52,23 @@ export function LocacaoDialog({
   locacao?: LocacaoEditavel;
 }) {
   const editando = !!locacao;
-  const [open, setOpen] = useState(false);
   const [unidade, setUnidade] = useState<LocacaoUnidade>(locacao?.unidade ?? "dia");
   const [devolvido, setDevolvido] = useState(!!locacao?.data_devolucao);
 
   const action = editando
     ? atualizarLocacao.bind(null, obraId, locacao.id)
     : criarLocacao.bind(null, obraId);
-  const [state, formAction, pending] = useActionState(action, initialState);
-
-  useEffect(() => {
-    if (state.success) setOpen(false);
-  }, [state.success]);
-
-  // Reabrir o diálogo depois de cancelar deve mostrar os dados salvos, não o
-  // que se chegou a mexer e não gravou.
-  function handleOpenChange(proximo: boolean) {
-    if (!proximo) {
+  const { aberto, mudarAberto, enviar, erro, enviando } = useFormularioDeDialogo({
+    acao: action,
+    estadoInicial: initialState,
+    aoFechar: () => {
       setUnidade(locacao?.unidade ?? "dia");
       setDevolvido(!!locacao?.data_devolucao);
-    }
-    setOpen(proximo);
-  }
+    },
+  });
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={aberto} onOpenChange={mudarAberto}>
       <DialogTrigger
         render={
           editando ? (
@@ -91,7 +84,7 @@ export function LocacaoDialog({
         <DialogHeader>
           <DialogTitle>{editando ? "Editar locação" : "Nova locação de equipamento"}</DialogTitle>
         </DialogHeader>
-        <form action={formAction}>
+        <form action={enviar}>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="equipamento">Equipamento</FieldLabel>
@@ -239,10 +232,10 @@ export function LocacaoDialog({
               />
             </Field>
 
-            {state.error && <FieldError>{state.error}</FieldError>}
+            {erro && <FieldError>{erro}</FieldError>}
 
-            <Button type="submit" disabled={pending}>
-              {pending ? "Salvando..." : editando ? "Salvar alterações" : "Registrar locação"}
+            <Button type="submit" disabled={enviando}>
+              {enviando ? "Salvando..." : editando ? "Salvar alterações" : "Registrar locação"}
             </Button>
           </FieldGroup>
         </form>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useState } from "react";
+import { useFormularioDeDialogo } from "@/lib/hooks/usar-formulario-de-dialogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel, FieldError, FieldDescription } from "@/components/ui/field";
@@ -36,33 +37,27 @@ const rotuloDados: Partial<Record<FormaPagamento, string>> = {
 };
 
 export function NovoTrabalhadorDialog() {
-  const [open, setOpen] = useState(false);
   const [regime, setRegime] = useState<RegimePagamento>("diaria");
   const [forma, setForma] = useState<FormaPagamento | "">("");
-  const [state, formAction, pending] = useActionState(createTrabalhador, initialState);
-
-  useEffect(() => {
-    if (state.success) setOpen(false);
-  }, [state.success]);
-
-  function handleOpenChange(proximo: boolean) {
-    if (!proximo) {
+  const { aberto, mudarAberto, enviar, erro, enviando } = useFormularioDeDialogo({
+    acao: createTrabalhador,
+    estadoInicial: initialState,
+    aoFechar: () => {
       setRegime("diaria");
       setForma("");
-    }
-    setOpen(proximo);
-  }
+    },
+  });
 
   const precisaDados = forma !== "" && forma !== "dinheiro";
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={aberto} onOpenChange={mudarAberto}>
       <DialogTrigger render={<Button>Novo colaborador</Button>} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Novo colaborador</DialogTitle>
         </DialogHeader>
-        <form action={formAction}>
+        <form action={enviar}>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="nome">Nome</FieldLabel>
@@ -153,9 +148,9 @@ export function NovoTrabalhadorDialog() {
               <Input id="telefone" name="telefone" />
             </Field>
 
-            {state.error && <FieldError>{state.error}</FieldError>}
-            <Button type="submit" disabled={pending}>
-              {pending ? "Salvando..." : "Salvar colaborador"}
+            {erro && <FieldError>{erro}</FieldError>}
+            <Button type="submit" disabled={enviando}>
+              {enviando ? "Salvando..." : "Salvar colaborador"}
             </Button>
           </FieldGroup>
         </form>
