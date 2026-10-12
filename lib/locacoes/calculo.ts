@@ -1,4 +1,5 @@
 import type { LocacaoUnidade } from "@/lib/types/database.types";
+import { hojeNoFuso } from "@/lib/fuso";
 
 export type LocacaoCalculavel = {
   quantidade: number;
@@ -21,11 +22,14 @@ export type CustoLocacao = {
 const MS_POR_DIA = 86_400_000;
 
 /** Hoje em ISO no fuso local — o dia de calendário do usuário, não o UTC. */
+/**
+ * A data de hoje. Delega para o fuso da obra — ver `lib/fuso`.
+ *
+ * O nome fica: dezenas de chamadas dependem dele, e o que mudou foi de onde
+ * a data vem, não o que ela significa.
+ */
 export function hojeIso(): string {
-  const agora = new Date();
-  const mes = String(agora.getMonth() + 1).padStart(2, "0");
-  const dia = String(agora.getDate()).padStart(2, "0");
-  return `${agora.getFullYear()}-${mes}-${dia}`;
+  return hojeNoFuso();
 }
 
 function diasCorridos(inicioIso: string, fimIso: string): number {

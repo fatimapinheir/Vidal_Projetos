@@ -1,5 +1,6 @@
 import type { createClient } from "@/lib/supabase/server";
 import { hojeIso } from "@/lib/locacoes/calculo";
+import { horaNoFuso } from "@/lib/fuso";
 import type { DiarioCondicao, PresencaStatus } from "@/lib/types/database.types";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -232,9 +233,15 @@ export async function carregarExtraCliente(
   };
 }
 
-/** Saudação pela hora do dia, no fuso de quem está olhando o servidor. */
+/**
+ * Saudação pela hora do dia, no fuso da obra.
+ *
+ * Usava `getHours()`, que é a hora do relógio da MÁQUINA — e a máquina é o
+ * servidor do Netlify, em UTC. Às 21h no Brasil já são 00h em UTC, e o portal
+ * dava "Bom dia" para quem estava jantando.
+ */
 export function saudacao(agora = new Date()): string {
-  const hora = agora.getHours();
+  const hora = horaNoFuso(agora);
   if (hora < 12) return "Bom dia";
   if (hora < 18) return "Boa tarde";
   return "Boa noite";

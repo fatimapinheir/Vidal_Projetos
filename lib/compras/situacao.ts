@@ -1,4 +1,5 @@
 import type { ParcelaStatus } from "@/lib/types/database.types";
+import { hojeNoFuso } from "@/lib/fuso";
 
 /**
  * Situação de uma ordem de compra em dois eixos: dinheiro e mercadoria.
@@ -123,11 +124,9 @@ export function situacaoEntregaParcela(parcela: ParcelaSituacao): SituacaoEntreg
   return { chave: "prevista", data: parcela.data_entrega_prevista };
 }
 
+/** Hoje no fuso da obra — ver `lib/fuso`. */
 function hojeLocal(): string {
-  const agora = new Date();
-  const mes = String(agora.getMonth() + 1).padStart(2, "0");
-  const dia = String(agora.getDate()).padStart(2, "0");
-  return `${agora.getFullYear()}-${mes}-${dia}`;
+  return hojeNoFuso();
 }
 
 function piorDe<C extends string, S extends { chave: C; dias?: number; data?: string | null }>(

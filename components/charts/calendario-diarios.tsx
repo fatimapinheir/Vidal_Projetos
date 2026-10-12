@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CloudRain, Sun, CloudOff, FileText } from "lucide-react";
+import { CloudRain, Sun, CloudOff, FileText, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Praticabilidade } from "@/lib/diario/condicao";
 
@@ -33,6 +33,8 @@ export function CalendarioDiarios({
   dias,
   mesReferencia,
   base,
+  hoje,
+  diasSemRegistroClicaveis = false,
   className,
 }: {
   dias: DiaCalendario[];
@@ -44,6 +46,22 @@ export function CalendarioDiarios({
    * fixo em `/portal`, o engenheiro era jogado para fora da área dele.
    */
   base: string;
+  /**
+   * Data de hoje, para destacar o dia e saber o que é futuro.
+   *
+   * Vem de fora, e não de `new Date()`, porque "hoje" depende do fuso da obra
+   * e este componente roda no servidor — ver `lib/fuso`.
+   */
+  hoje?: string;
+  /**
+   * Deixa clicar em dia sem registro.
+   *
+   * Desligado por padrão: no cartão da visão geral o calendário é resumo, e
+   * cada célula vazia clicável seria um convite a abrir uma tela que só diz
+   * "não tem nada aqui". Na tela do diário é o contrário — é lá que o cliente
+   * vai justamente conferir se o dia tem RDO.
+   */
+  diasSemRegistroClicaveis?: boolean;
   className?: string;
 }) {
   const [ano, mes] = mesReferencia.split("-").map(Number);
@@ -79,13 +97,38 @@ export function CalendarioDiarios({
           if (!celula) return <div key={`vazio-${i}`} />;
 
           const registro = porData.get(celula.iso);
+          const ehHoje = celula.iso === hoje;
+          const noFuturo = !!hoje && celula.iso > hoje;
+
           if (!registro) {
-            return (
-              <div
+            // Dia futuro nunca clica: não há o que ter acontecido ainda.
+            const clicavel = diasSemRegistroClicaveis && !noFuturo;
+            const conteudo = (
+              <>
+                <span className="leading-none">{celula.dia}</span>
+                {clicavel && <Minus className="size-3 opacity-50" aria-hidden />}
+              </>
+            );
+            const classe = cn(
+              "flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg text-xs",
+              ehHoje && "ring-2 ring-primary/40",
+              clicavel
+                ? "border border-dashed text-muted-foreground transition-colors hover:bg-muted/60"
+                : "text-muted-foreground/40"
+            );
+
+            return clicavel ? (
+              <Link
                 key={celula.iso}
-                className="flex aspect-square items-center justify-center rounded-lg text-xs text-muted-foreground/40"
+                href={`${base}/diario/${celula.iso}`}
+                title={`${celula.dia} — sem RDO registrado`}
+                className={classe}
               >
-                {celula.dia}
+                {conteudo}
+              </Link>
+            ) : (
+              <div key={celula.iso} className={classe}>
+                {conteudo}
               </div>
             );
           }
@@ -98,7 +141,10 @@ export function CalendarioDiarios({
               key={celula.iso}
               href={`${base}/diario/${celula.iso}`}
               title={`${celula.dia} — ${descricao}`}
-              className="flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg border bg-muted/40 text-xs transition-colors hover:bg-muted"
+              className={cn(
+                "flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg border bg-muted/40 text-xs transition-colors hover:bg-muted",
+                ehHoje && "ring-2 ring-primary/40"
+              )}
             >
               <span className="font-medium leading-none">{celula.dia}</span>
               {info ? (
@@ -125,6 +171,12 @@ export function CalendarioDiarios({
           <FileText className="size-3.5" aria-hidden />
           Sem clima informado
         </span>
+        {diasSemRegistroClicaveis && (
+          <span className="inline-flex items-center gap-1.5">
+            <Minus className="size-3.5 opacity-50" aria-hidden />
+            Sem RDO
+          </span>
+        )}
       </div>
     </div>
   );

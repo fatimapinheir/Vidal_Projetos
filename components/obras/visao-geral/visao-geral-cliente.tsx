@@ -261,86 +261,104 @@ function CartaoRdo({
           )}
         </div>
 
-        {rdo ? (
-          <>
-            <div className="grid gap-2 sm:grid-cols-3">
-              <div className="rounded-xl bg-muted/70 p-3">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Users className="size-4" aria-hidden />
-                  <span className="text-xs">Pessoas na obra</span>
-                </div>
-                <p className="font-heading text-2xl font-semibold">{rdo.pessoasNaObra}</p>
-                {rdo.pessoasPrevistas > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    de {rdo.pessoasPrevistas} na equipe
-                  </p>
-                )}
-              </div>
-
-              <div className="rounded-xl bg-muted/70 p-3">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Target className="size-4" aria-hidden />
-                  <span className="text-xs">Frentes de serviço</span>
-                </div>
-                <p className="font-heading text-2xl font-semibold">{extra.frentesHoje}</p>
-                <p className="text-xs text-muted-foreground">em andamento</p>
-              </div>
-
-              <div className="rounded-xl bg-muted/70 p-3">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <CheckCircle2 className="size-4" aria-hidden />
-                  <span className="text-xs">Principais atividades</span>
-                </div>
-                {rdo.linhasDeAtividade.length ? (
-                  <ul className="mt-1 flex flex-col gap-0.5 text-[13px]">
-                    {rdo.linhasDeAtividade.slice(0, 3).map((linha, i) => (
-                      <li key={i} className="flex gap-1.5">
-                        <span aria-hidden className="text-muted-foreground">
-                          •
-                        </span>
-                        <span className="line-clamp-1">{linha}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-1 text-[13px] text-muted-foreground">
-                    Sem descrição no registro de hoje.
-                  </p>
-                )}
-              </div>
+        {/*
+          Os três quadros aparecem SEMPRE, mesmo sem diário lançado.
+          
+          Antes o cartão trocava de forma: com RDO tinha três quadros e um
+          botão azul; sem RDO encolhia para uma frase. A diferença de altura
+          era grande o bastante para parecer defeito — e, pior, escondia um
+          dado que existe mesmo sem diário: as frentes de serviço saem do
+          cronograma, não do RDO.
+          
+          O que falta vira travessão, não zero. "0 pessoas na obra" é uma
+          afirmação sobre o canteiro; o que o sistema sabe é só que o
+          engenheiro ainda não lançou.
+        */}
+        <div className="grid gap-2 sm:grid-cols-3">
+          <div className="rounded-xl bg-muted/70 p-3">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Users className="size-4" aria-hidden />
+              <span className="text-xs">Pessoas na obra</span>
             </div>
-
-            <Button
-              nativeButton={false}
-              className="h-11 w-full gap-2 text-sm"
-              render={
-                <Link href={`${base}/diario/${rdo.data}`}>
-                  <NotebookPen className="size-4" aria-hidden />
-                  <span className="font-semibold">CLIQUE AQUI</span>
-                  <span className="font-normal opacity-85">para ver o RDO completo</span>
-                  <ArrowRight className="size-4" aria-hidden />
-                </Link>
-              }
-            />
-          </>
-        ) : (
-          <>
-            <p className="text-sm">
-              <span className="font-medium">Aguardando o envio.</span> O engenheiro ainda não
-              enviou o diário de hoje.
+            <p className="font-heading text-2xl font-semibold">
+              {rdo ? rdo.pessoasNaObra : <span className="text-muted-foreground">—</span>}
             </p>
-            <Button
-              variant="outline"
-              nativeButton={false}
-              className="h-11 w-full gap-2 text-sm"
-              render={
-                <Link href={`${base}/diario`}>
-                  Ver listagem de RDO
-                  <ArrowRight className="size-4" aria-hidden />
-                </Link>
-              }
-            />
-          </>
+            <p className="text-xs text-muted-foreground">
+              {rdo
+                ? rdo.pessoasPrevistas > 0
+                  ? `de ${rdo.pessoasPrevistas} na equipe`
+                  : "confirmadas no dia"
+                : "aguardando o diário"}
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-muted/70 p-3">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Target className="size-4" aria-hidden />
+              <span className="text-xs">Frentes de serviço</span>
+            </div>
+            <p className="font-heading text-2xl font-semibold">{extra.frentesHoje}</p>
+            <p className="text-xs text-muted-foreground">em andamento</p>
+          </div>
+
+          <div className="rounded-xl bg-muted/70 p-3">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <CheckCircle2 className="size-4" aria-hidden />
+              <span className="text-xs">Principais atividades</span>
+            </div>
+            {rdo?.linhasDeAtividade.length ? (
+              <ul className="mt-1 flex flex-col gap-0.5 text-[13px]">
+                {rdo.linhasDeAtividade.slice(0, 3).map((linha, i) => (
+                  <li key={i} className="flex gap-1.5">
+                    <span aria-hidden className="text-muted-foreground">
+                      •
+                    </span>
+                    <span className="line-clamp-1">{linha}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                {rdo
+                  ? "Sem descrição no registro de hoje."
+                  : "Aparecem quando o diário for enviado."}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {!rdo && (
+          <p className="text-sm">
+            <span className="font-medium">Aguardando o envio.</span> O engenheiro ainda não
+            enviou o diário de hoje.
+          </p>
+        )}
+
+        {rdo ? (
+          <Button
+            nativeButton={false}
+            className="h-11 w-full gap-2 text-sm"
+            render={
+              <Link href={`${base}/diario/${rdo.data}`}>
+                <NotebookPen className="size-4" aria-hidden />
+                <span className="font-semibold">CLIQUE AQUI</span>
+                <span className="font-normal opacity-85">para ver o RDO completo</span>
+                <ArrowRight className="size-4" aria-hidden />
+              </Link>
+            }
+          />
+        ) : (
+          <Button
+            variant="outline"
+            nativeButton={false}
+            className="h-11 w-full gap-2 text-sm"
+            render={
+              <Link href={`${base}/diario`}>
+                Ver listagem de RDO
+                <ArrowRight className="size-4" aria-hidden />
+              </Link>
+            }
+          />
         )}
       </div>
     </Card>
@@ -518,7 +536,7 @@ export function VisaoGeralCliente({
           </>
         )}
 
-        <div className="flex items-start gap-3">
+        <div className="flex min-w-0 items-start gap-3">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-atencao/12">
             <SaudacaoIcone className="size-5 text-atencao" aria-hidden />
           </span>
@@ -536,7 +554,15 @@ export function VisaoGeralCliente({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 rounded-2xl border bg-card p-2.5 pr-4 shadow-xs">
+        {/*
+          `min-w-0` é o que faz o `truncate` lá dentro funcionar.
+          
+          Item de flex tem `min-width: auto` por padrão: ele se recusa a
+          encolher abaixo do conteúdo, então o endereço empurrava o cartão
+          para fora da tela no celular em vez de virar reticências. O
+          `max-w-full` fecha o caso em que a faixa inteira é o próprio cartão.
+        */}
+        <div className="flex min-w-0 max-w-full items-center gap-3 rounded-2xl border bg-card p-2.5 pr-4 shadow-xs sm:max-w-sm">
           {/* A miniatura reaproveita a capa. Uma foto a menos para o engenheiro
               subir, e as duas sempre combinam porque são a mesma. */}
           <span className="relative size-11 shrink-0 overflow-hidden rounded-xl bg-accent">

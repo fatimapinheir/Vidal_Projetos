@@ -1,5 +1,6 @@
 import type { createClient } from "@/lib/supabase/server";
 import { situacaoFinanceiraParcela, type ParcelaSituacao } from "@/lib/compras/situacao";
+import { hojeNoFuso as hojeIso } from "@/lib/fuso";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -32,13 +33,6 @@ export type Lembrete = {
   href: string;
   valor?: number;
 };
-
-function hojeIso(): string {
-  const agora = new Date();
-  const mes = String(agora.getMonth() + 1).padStart(2, "0");
-  const dia = String(agora.getDate()).padStart(2, "0");
-  return `${agora.getFullYear()}-${mes}-${dia}`;
-}
 
 function diasEntre(deIso: string, ateIso: string): number {
   const de = new Date(`${deIso}T00:00:00Z`).getTime();
