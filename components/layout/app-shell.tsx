@@ -8,6 +8,7 @@ import type { NomeDeIcone } from "./nav-icones";
 import { MobileNav } from "./mobile-nav";
 import { NavEntries } from "./nav-entries";
 import { Trilha } from "./trilha";
+import { LateralColapsavel } from "./lateral-colapsavel";
 
 export type NavItem = {
   label: string;
@@ -64,7 +65,9 @@ function Avatar({ nome, className }: { nome: string; className?: string }) {
  */
 function PeDaMarca() {
   return (
-    <div className="flex flex-col gap-3 px-5 pt-5 pb-6">
+    // Some quando a lateral está recolhida: numa régua de 68px a frase não
+    // cabe, e cortá-la em quatro linhas estreitas seria pior que não tê-la.
+    <div className="flex flex-col gap-3 px-5 pt-5 pb-6 group-data-[recolhida]/lateral:hidden">
       <div className="h-px bg-sidebar-border" />
       <p className="text-[13px] leading-snug text-sidebar-suave">
         Grandes resultados
@@ -86,6 +89,7 @@ export function AppShell({
   userName,
   userLabel,
   obraLembrada = null,
+  lateralRecolhida = false,
   children,
 }: {
   navItems: NavEntry[];
@@ -93,6 +97,8 @@ export function AppShell({
   userLabel: string;
   /** Última obra aberta, do cookie. Serve de palpite quando a URL não diz. */
   obraLembrada?: string | null;
+  /** Preferência vinda do cookie — ver `lib/lateral`. */
+  lateralRecolhida?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -105,17 +111,27 @@ export function AppShell({
       {/* `sticky` + `h-svh`: a coluna acompanha a rolagem em vez de subir com
           a página. Numa visão geral de 2000px, o menu saía de vista no
           primeiro rolar e voltar ao topo virava pré-requisito para navegar. */}
-      <aside className="sticky top-0 hidden h-svh w-[232px] shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
-        <div className="px-5 py-6">
-          <Logo className="h-6" />
+      <LateralColapsavel recolhidaInicial={lateralRecolhida}>
+        {/* Recolhida, a marca vira só o símbolo centralizado — o logotipo por
+            extenso não cabe em 68px e sairia cortado. */}
+        <div className="px-5 py-6 group-data-[recolhida]/lateral:flex group-data-[recolhida]/lateral:justify-center group-data-[recolhida]/lateral:px-0">
+          <Logo className="h-6 group-data-[recolhida]/lateral:hidden" />
+          <svg
+            viewBox="0 0 64 28"
+            aria-hidden
+            className="hidden h-5 w-auto group-data-[recolhida]/lateral:block"
+          >
+            <path d="M0,28 L17,4 L27,18 L34,9 L52,28 Z" className="fill-marca-ambar" opacity="0.85" />
+            <path d="M30,28 L44,10 L64,28 Z" className="fill-marca-ambar" opacity="0.5" />
+          </svg>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3 group-data-[recolhida]/lateral:px-2">
           <NavEntries entradas={navItems} obraLembrada={obraLembrada} />
         </nav>
 
         <PeDaMarca />
-      </aside>
+      </LateralColapsavel>
 
       {/*
         O corpo ocupa o resto da tela, rente às bordas.

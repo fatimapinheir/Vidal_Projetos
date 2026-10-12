@@ -56,9 +56,15 @@ function ItemLink({
       href={href}
       onClick={onNavegar}
       aria-current={ativo ? "page" : undefined}
+      /*
+        Recolhida, o rótulo vira `title`: é o que dá o nome de volta ao passar
+        o mouse, e sem ele a régua seria uma coluna de ícones mudos.
+      */
+      title={item.label}
       className={cn(
         // min-h-11 ≈ 44px: alvo de toque confortável no celular.
         "relative flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors md:min-h-10",
+        "group-data-[recolhida]/lateral:justify-center group-data-[recolhida]/lateral:gap-0 group-data-[recolhida]/lateral:px-0",
         ativo
           ? "bg-sidebar-accent text-sidebar-accent-foreground"
           : "text-sidebar-suave hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
@@ -76,7 +82,7 @@ function ItemLink({
       {ativo && (
         <span
           aria-hidden
-          className="absolute top-1/2 -left-3 h-6 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary"
+          className="absolute top-1/2 -left-3 h-6 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary group-data-[recolhida]/lateral:-left-2"
         />
       )}
       {Icone && (
@@ -87,7 +93,7 @@ function ItemLink({
       )}
       {/* Sem `truncate`: em item de menu duas linhas lêem melhor que reticências,
           que cortariam justamente a palavra que diferencia a tela. */}
-      <span className="leading-tight">{item.label}</span>
+      <span className="leading-tight group-data-[recolhida]/lateral:hidden">{item.label}</span>
     </Link>
   );
 }
@@ -127,7 +133,9 @@ export function NavEntries({
         ehSecao(entrada) ? (
           <p
             key={`secao-${entrada.secao}`}
-            className="mt-5 px-3 pb-1 text-[11px] font-semibold tracking-[0.1em] text-sidebar-suave/80 uppercase first:mt-0"
+            /* Recolhida, o rótulo de seção vira um traço: ele separa as
+               áreas, e sem nada ali os blocos de ícones se fundem num só. */
+            className="mt-5 px-3 pb-1 text-[11px] font-semibold tracking-[0.1em] text-sidebar-suave/80 uppercase first:mt-0 group-data-[recolhida]/lateral:mt-3 group-data-[recolhida]/lateral:h-px group-data-[recolhida]/lateral:overflow-hidden group-data-[recolhida]/lateral:bg-sidebar-border group-data-[recolhida]/lateral:px-0 group-data-[recolhida]/lateral:text-transparent"
           >
             {entrada.secao}
           </p>
@@ -181,6 +189,8 @@ function Grupo({
     <div
       className={cn(
         "mt-2 rounded-xl border transition-colors",
+        // Recolhida, a moldura do cartão vira ruído em volta de um ícone só.
+        "group-data-[recolhida]/lateral:mt-1 group-data-[recolhida]/lateral:border-transparent group-data-[recolhida]/lateral:bg-transparent",
         // Com uma tela ativa dentro, o cartão se acende de leve. É o que mantém
         // a referência de "onde estou" mesmo com o grupo fechado.
         algumAtivo
@@ -193,13 +203,17 @@ function Grupo({
         onClick={() => setAberto((v) => !v)}
         aria-expanded={aberto}
         aria-controls={painelId}
-        className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60"
+        title={label}
+        className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60 group-data-[recolhida]/lateral:justify-center group-data-[recolhida]/lateral:gap-0 group-data-[recolhida]/lateral:px-0"
       >
         {Icone && <Icone className="size-[18px] shrink-0 opacity-80" aria-hidden />}
-        <span className="flex-1 truncate text-left">{label}</span>
+        <span className="flex-1 truncate text-left group-data-[recolhida]/lateral:hidden">
+          {label}
+        </span>
         <ChevronDown
           className={cn(
             "size-4 shrink-0 text-sidebar-suave transition-transform duration-200",
+            "group-data-[recolhida]/lateral:hidden",
             !aberto && "-rotate-90"
           )}
           aria-hidden
@@ -219,7 +233,7 @@ function Grupo({
         )}
       >
         <div className="overflow-hidden">
-          <div className="flex flex-col gap-0.5 px-1.5 pb-1.5">
+          <div className="flex flex-col gap-0.5 px-1.5 pb-1.5 group-data-[recolhida]/lateral:px-0">
             {items.map((item) => (
               <ItemLink
                 key={item.label}

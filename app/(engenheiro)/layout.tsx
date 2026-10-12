@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth/require-role";
 import { AppShell, type NavEntry } from "@/components/layout/app-shell";
 import { lerObraAtiva } from "@/lib/obra-ativa.server";
+import { lerLateralRecolhida } from "@/lib/lateral.server";
 import { SECOES_OBRA } from "@/lib/obra-secoes";
 
 /**
@@ -36,7 +37,11 @@ const navItems: NavEntry[] = [
 ];
 
 export default async function EngenheiroLayout({ children }: { children: React.ReactNode }) {
-  const [profile, obraLembrada] = await Promise.all([requireRole("engenheiro"), lerObraAtiva()]);
+  const [profile, obraLembrada, lateralRecolhida] = await Promise.all([
+    requireRole("engenheiro"),
+    lerObraAtiva(),
+    lerLateralRecolhida(),
+  ]);
 
   return (
     <AppShell
@@ -44,6 +49,7 @@ export default async function EngenheiroLayout({ children }: { children: React.R
       userName={profile.nome}
       userLabel="Engenheiro"
       obraLembrada={obraLembrada}
+      lateralRecolhida={lateralRecolhida}
     >
       {children}
     </AppShell>
