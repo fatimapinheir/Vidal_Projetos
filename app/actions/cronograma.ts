@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
-import { calcularCPM, contarDiasUteis, type FolgaEntrada } from "@/lib/cronograma/cpm";
+import { calcularCPM, type FolgaEntrada } from "@/lib/cronograma/cpm";
 import { acharTemplate } from "@/lib/cronograma/templates";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -112,50 +112,13 @@ export async function removerEtapa(obraId: string, etapaId: string) {
   revalidatePath(`/obras/${obraId}/cronograma`);
 }
 
-/**
- * Converte "fim previsto" em duração de dias úteis.
- *
- * O engenheiro pensa em datas; o cálculo do caminho crítico precisa de
- * duração. A conversão não é subtração: com folga no meio, 03/11 a 12/11 são
- * 10 dias de calendário mas podem ser 7 dias úteis, e é em dias úteis que o
- * atraso propaga.
- *
- * O início é o que a tarefa já tem — a restrição informada, ou a data que o
- * cálculo apurou a partir das predecessoras. Por isso o fim sozinho basta.
+/*
+ * `duracaoPeloFim` morava aqui: deduzia a duração contando os dias úteis
+ * entre o início e o fim informados. Saiu quando a duração passou a ser o
+ * campo digitado e o fim virou resultado do cálculo — ver a nota em
+ * `atualizarTarefa`.
  */
-async function duracaoPeloFim(
-  supabase: SupabaseClient,
-  obraId: string,
-  inicioIso: string | null,
-  fimIso: string
-): Promise<{ duracao: number } | { erro: string }> {
-  if (!inicioIso) {
-    return {
-      erro: "Esta tarefa ainda não tem data de início. Informe o início, ou ligue-a a uma tarefa anterior.",
-    };
-  }
-  if (fimIso < inicioIso) {
-    return { erro: "O fim previsto não pode ser anterior ao início." };
-  }
 
-  const { data: folgasRaw } = await supabase
-    .from("cronograma_folgas")
-    .select("data_inicio, data_fim")
-    .eq("obra_id", obraId);
-
-  const duracao = contarDiasUteis(
-    inicioIso,
-    fimIso,
-    (folgasRaw ?? []).map((f) => ({ dataInicio: f.data_inicio, dataFim: f.data_fim }))
-  );
-
-  if (duracao < 1) {
-    return {
-      erro: "Entre o início e o fim informados não há nenhum dia útil — todos caem em folga.",
-    };
-  }
-  return { duracao };
-}
 
 const tarefaSchema = z.object({
   nome: z.string().min(1, "Informe o nome da tarefa."),
@@ -216,31 +179,90 @@ async function reordenarEtapaPorData(
 }
 
 /**
- * Deixa a tarefa com exatamente a predecessora informada — ou com nenhuma.
+ * Deixa a tarefa com exatamente as predecessoras informadas.
  *
- * O modelo anterior era uma lista de predecessoras com tipo de ligação
- * (término–início, início–início...) e lag em dias. Na prática o engenheiro
- * monta uma coisa só: "esta tarefa começa depois daquela". Tipo e lag eram
- * campos que ninguém preenchia e que davam ao cronograma uma aparência de
- * ferramenta de PERT que ele não precisa ser.
+ * Plural desde a carga do cronograma da CASA VIDAL ALPHA: 48 das 152 tarefas
+ * dependem de mais de uma. "Conferência e concretagem do baldrame" espera as
+ * formas, as armaduras E as passagens hidráulicas — esperar só uma delas
+ * descreveria outra obra.
  *
- * Sempre término → início, sem lag.
+ * Era singular, e salvar pela tela apagava as demais em silêncio: o diálogo
+ * gravava uma e o `delete` levava o resto. Quem abrisse uma tarefa só para
+ * mudar a duração perdia o encadeamento sem ser avisado.
+ *
+ * Segue término → início sem lag. Tipo de ligação e lag em dias eram campos
+ * que ninguém preenchia e davam ao cronograma cara de ferramenta de PERT que
+ * ele não precisa ser.
  */
-async function definirPredecessora(
+async function definirPredecessoras(
   supabase: Awaited<ReturnType<typeof createClient>>,
   tarefaId: string,
-  predecessoraId: string | null
+  predecessoraIds: string[]
 ) {
   await supabase.from("cronograma_dependencias").delete().eq("tarefa_sucessora_id", tarefaId);
 
-  if (!predecessoraId || predecessoraId === tarefaId) return;
+  // A própria tarefa nunca entra: seria um ciclo de um nó só.
+  const limpos = [...new Set(predecessoraIds)].filter((id) => id && id !== tarefaId);
+  if (!limpos.length) return;
 
-  await supabase.from("cronograma_dependencias").insert({
-    tarefa_predecessora_id: predecessoraId,
-    tarefa_sucessora_id: tarefaId,
-    tipo: "termino_inicio",
-    lag_dias: 0,
-  });
+  await supabase.from("cronograma_dependencias").insert(
+    limpos.map((id) => ({
+      tarefa_predecessora_id: id,
+      tarefa_sucessora_id: tarefaId,
+      tipo: "termino_inicio" as const,
+      lag_dias: 0,
+    }))
+  );
+}
+
+/**
+ * Alguma das predecessoras escolhidas depende, direta ou indiretamente, desta
+ * tarefa?
+ *
+ * Sem esta checagem o ciclo entra no banco e só aparece depois: o CPM lança ao
+ * ordenar topologicamente, o erro é engolido pelo `catch` do recálculo, e o
+ * cronograma congela nas datas antigas sem ninguém entender por quê. Já
+ * aconteceu nesta obra, por outro motivo.
+ */
+async function criariaCiclo(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  obraId: string,
+  tarefaId: string,
+  predecessoraIds: string[]
+): Promise<boolean> {
+  if (!predecessoraIds.length) return false;
+  if (predecessoraIds.includes(tarefaId)) return true;
+
+  const { data: tarefas } = await supabase
+    .from("cronograma_tarefas")
+    .select("id")
+    .eq("obra_id", obraId);
+  const daObra = new Set((tarefas ?? []).map((t) => t.id));
+
+  const { data: deps } = await supabase
+    .from("cronograma_dependencias")
+    .select("tarefa_predecessora_id, tarefa_sucessora_id");
+
+  const sucessoras = new Map<string, string[]>();
+  for (const d of deps ?? []) {
+    if (!daObra.has(d.tarefa_predecessora_id)) continue;
+    const lista = sucessoras.get(d.tarefa_predecessora_id) ?? [];
+    lista.push(d.tarefa_sucessora_id);
+    sucessoras.set(d.tarefa_predecessora_id, lista);
+  }
+
+  // Tudo que vem DEPOIS desta tarefa. Se uma escolhida estiver aí, ligá-la
+  // fecharia o laço.
+  const alcancaveis = new Set<string>();
+  const fila = [...(sucessoras.get(tarefaId) ?? [])];
+  while (fila.length) {
+    const atual = fila.pop()!;
+    if (alcancaveis.has(atual)) continue;
+    alcancaveis.add(atual);
+    fila.push(...(sucessoras.get(atual) ?? []));
+  }
+
+  return predecessoraIds.some((id) => alcancaveis.has(id));
 }
 
 /**
@@ -281,7 +303,7 @@ export async function criarTarefa(
 
   const parsed = tarefaSchema.safeParse({
     nome: formData.get("nome"),
-    duracao_dias: 1, // substituída pela dedução a partir do fim previsto
+    duracao_dias: formData.get("duracao_dias"),
     restricao_inicio_nao_antes_de: formData.get("restricao_inicio_nao_antes_de") || undefined,
     orcamento_item_id: formData.get("orcamento_item_id") || undefined,
   });
@@ -314,24 +336,8 @@ export async function criarTarefa(
     return { error: "Informe a data de início dessa tarefa." };
   }
 
-  const fimPrevisto = (formData.get("data_fim_previsto") as string | null)?.trim();
-  if (!fimPrevisto) return { error: "Informe o fim previsto da tarefa." };
-
-  /*
-   * Início da tarefa nova: a data informada, ou — quando ela se pendura na
-   * anterior — o dia seguinte ao fim da anterior. A tarefa ainda não existe,
-   * então não há data calculada para consultar; é a predecessora que diz
-   * quando esta pode começar.
-   */
-  let inicioParaContagem = parsed.data.restricao_inicio_nao_antes_de ?? null;
-  if (vaiEncadear && predecessora?.data_fim_cedo) {
-    const diaSeguinte = new Date(`${predecessora.data_fim_cedo}T00:00:00Z`);
-    diaSeguinte.setUTCDate(diaSeguinte.getUTCDate() + 1);
-    inicioParaContagem = diaSeguinte.toISOString().slice(0, 10);
-  }
-
-  const calculada = await duracaoPeloFim(supabase, obraId, inicioParaContagem, fimPrevisto);
-  if ("erro" in calculada) return { error: calculada.erro };
+  // A duração vem digitada; o fim é o CPM que calcula, logo abaixo, a partir
+  // dela e da predecessora. Era o contrário — ver a nota em `atualizarTarefa`.
 
   const { count } = await supabase
     .from("cronograma_tarefas")
@@ -344,7 +350,7 @@ export async function criarTarefa(
       etapa_id: etapaId,
       obra_id: obraId,
       nome: parsed.data.nome,
-      duracao_dias: calculada.duracao,
+      duracao_dias: parsed.data.duracao_dias,
       restricao_inicio_nao_antes_de: vaiEncadear ? null : parsed.data.restricao_inicio_nao_antes_de || null,
       orcamento_item_id: parsed.data.orcamento_item_id || null,
       ordem: (count ?? 0) + 1,
@@ -354,7 +360,7 @@ export async function criarTarefa(
 
   if (error || !novaTarefa) return { error: "Não foi possível criar a tarefa." };
 
-  if (predecessora) await definirPredecessora(supabase, novaTarefa.id, predecessora.id);
+  if (predecessora) await definirPredecessoras(supabase, novaTarefa.id, [predecessora.id]);
 
   try {
     await recalcularCronograma(supabase, obraId);
@@ -542,21 +548,20 @@ export async function atualizarTarefa(
   await requireRole("engenheiro");
 
   const temPredecessora = !!formData.get("tem_predecessora");
-  const predecessoraId = temPredecessora
-    ? ((formData.get("predecessora_id") as string | null) || "").trim()
-    : "";
+  // `getAll`: o seletor manda um campo por predecessora escolhida.
+  const predecessoraIds = temPredecessora
+    ? formData.getAll("predecessora_id").map((v) => String(v).trim()).filter(Boolean)
+    : [];
 
   const parsed = atualizarTarefaSchema.safeParse({
-    // Placeholder: a duração real é deduzida do fim logo abaixo. O schema
-    // segue exigindo o campo porque é ele que vai para o banco.
-    duracao_dias: 1,
+    duracao_dias: formData.get("duracao_dias"),
     restricao_inicio_nao_antes_de: formData.get("restricao_inicio_nao_antes_de") || undefined,
     data_inicio_real: formData.get("data_inicio_real") || undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
 
-  if (temPredecessora && !predecessoraId) {
-    return { error: "Selecione qual tarefa precede esta." };
+  if (temPredecessora && !predecessoraIds.length) {
+    return { error: "Selecione ao menos uma tarefa que precede esta." };
   }
 
   const supabase = await createClient();
@@ -570,55 +575,45 @@ export async function atualizarTarefa(
 
   if (!estaTarefa) return { error: "Tarefa não encontrada nesta obra." };
 
-  if (predecessoraId) {
-    if (predecessoraId === tarefaId) return { error: "Uma tarefa não pode preceder a si mesma." };
-
-    /*
-     * Aceita predecessora da mesma etapa — ou a que a tarefa JÁ TEM.
-     *
-     * O select só oferece tarefas da etapa, mas os templates encadeiam o fim
-     * de uma fase ao início da seguinte, e essas ligações entre etapas são o
-     * que faz o cronograma ter sequência. Recusá-las aqui faria qualquer
-     * edição de tarefa romper a ligação e jogar a etapa inteira para o começo
-     * da obra.
-     */
-    const { data: naMesmaEtapa } = await supabase
+  /*
+   * Predecessora pode ser de QUALQUER etapa da obra.
+   *
+   * Antes a tela só oferecia tarefas da mesma etapa e a ação recusava o resto.
+   * Mas o encadeamento real atravessa etapas o tempo todo — "marcação das
+   * paredes" espera o contrapiso (etapa 2) e a retirada do escoramento
+   * (etapa 3). A restrição por etapa descrevia uma obra que não existe.
+   */
+  if (predecessoraIds.length) {
+    const { data: candidatas } = await supabase
       .from("cronograma_tarefas")
       .select("id")
-      .eq("id", predecessoraId)
-      .eq("etapa_id", estaTarefa.etapa_id)
-      .maybeSingle();
+      .eq("obra_id", obraId)
+      .in("id", predecessoraIds);
 
-    if (!naMesmaEtapa) {
-      const { data: jaLigada } = await supabase
-        .from("cronograma_dependencias")
-        .select("tarefa_predecessora_id")
-        .eq("tarefa_sucessora_id", tarefaId)
-        .eq("tarefa_predecessora_id", predecessoraId)
-        .maybeSingle();
+    if ((candidatas?.length ?? 0) !== new Set(predecessoraIds).size) {
+      return { error: "Alguma das tarefas escolhidas não pertence a esta obra." };
+    }
 
-      if (!jaLigada) return { error: "A tarefa predecessora não pertence a esta etapa." };
+    if (await criariaCiclo(supabase, obraId, tarefaId, predecessoraIds)) {
+      return {
+        error:
+          "Essa ligação criaria um ciclo: a tarefa escolhida já depende desta, direta ou indiretamente.",
+      };
     }
   }
-
-  const fimPrevisto = (formData.get("data_fim_previsto") as string | null)?.trim();
-  if (!fimPrevisto) return { error: "Informe o fim previsto da tarefa." };
-
-  // O início é o informado agora, ou o que o cálculo já tinha apurado.
-  const { data: atual } = await supabase
-    .from("cronograma_tarefas")
-    .select("data_inicio_cedo")
-    .eq("id", tarefaId)
-    .single();
-
-  const inicio = parsed.data.restricao_inicio_nao_antes_de || atual?.data_inicio_cedo || null;
-  const calculada = await duracaoPeloFim(supabase, obraId, inicio, fimPrevisto);
-  if ("erro" in calculada) return { error: calculada.erro };
 
   const { error } = await supabase
     .from("cronograma_tarefas")
     .update({
-      duracao_dias: calculada.duracao,
+      // A duração passou a ser DIGITADA, e o fim é que vira resultado.
+      //
+      // Era o contrário: pedia-se o fim previsto e a duração saía da contagem
+      // de dias úteis entre início e fim. Com predecessora, o início é
+      // calculado e some da tela — para dizer "isto leva 10 dias" o
+      // engenheiro tinha de descobrir qual data final dava 10 dias úteis a
+      // partir de um início que ele não via. Era a conta do sistema, feita
+      // à mão.
+      duracao_dias: parsed.data.duracao_dias,
       restricao_inicio_nao_antes_de: parsed.data.restricao_inicio_nao_antes_de || null,
       data_inicio_real: parsed.data.data_inicio_real || null,
       // `data_fim_real` não entra: ela é escrita pela tela de Avanço, quando o
@@ -629,7 +624,7 @@ export async function atualizarTarefa(
 
   if (error) return { error: "Não foi possível atualizar a tarefa." };
 
-  await definirPredecessora(supabase, tarefaId, predecessoraId || null);
+  await definirPredecessoras(supabase, tarefaId, predecessoraIds);
 
   try {
     await recalcularCronograma(supabase, obraId);

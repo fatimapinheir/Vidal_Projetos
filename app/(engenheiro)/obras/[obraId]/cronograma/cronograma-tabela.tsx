@@ -102,6 +102,9 @@ export function CronogramaTabela({
   }
 
   const nomePorTarefaId = new Map(tarefas.map((t) => [t.id, t.nome]));
+  // A etapa aparece como subtítulo no seletor de predecessoras: com 152
+  // tarefas, "3.8 Conferência estrutural" sozinho não situa quem procura.
+  const nomeEtapaPorId = new Map(etapas.map((e) => [e.id, e.nome]));
 
   const dependenciasPorSucessora = new Map<string, Dependencia[]>();
   for (const dep of dependencias) {
@@ -201,12 +204,22 @@ export function CronogramaTabela({
                 <TableBody>
                   {tarefasDaEtapa.map((tarefa) => {
                     const deps = dependenciasPorSucessora.get(tarefa.id) ?? [];
-                    // Só tarefas DESTA etapa podem ser predecessoras: a
-                    // dependência que o engenheiro monta é dentro da frente de
-                    // serviço que ele está editando.
-                    const tarefasDaMesmaEtapa = tarefasDaEtapa
+                    /*
+                     * Candidatas: TODAS as tarefas da obra, menos esta.
+                     *
+                     * Eram só as da mesma etapa. Mas o encadeamento real
+                     * atravessa etapas o tempo todo — "marcação das paredes"
+                     * espera o contrapiso da etapa 2 e a retirada do
+                     * escoramento da etapa 3 —, e a tela recusava justamente
+                     * essas ligações.
+                     */
+                    const candidatas = tarefas
                       .filter((t) => t.id !== tarefa.id)
-                      .map((t) => ({ id: t.id, nome: t.nome }));
+                      .map((t) => ({
+                        id: t.id,
+                        nome: t.nome,
+                        etapa: nomeEtapaPorId.get(t.etapa_id) ?? "",
+                      }));
 
                     return (
                       <TableRow
@@ -250,13 +263,8 @@ export function CronogramaTabela({
                             <EditarTarefaDialog
                               obraId={obraId}
                               tarefa={tarefa}
-                              tarefasDaEtapa={tarefasDaMesmaEtapa}
-                              predecessoraAtualId={deps[0]?.tarefa_predecessora_id ?? null}
-                              predecessoraAtualNome={
-                                deps[0]
-                                  ? nomePorTarefaId.get(deps[0].tarefa_predecessora_id) ?? null
-                                  : null
-                              }
+                              tarefasDaObra={candidatas}
+                              predecessorasAtuais={deps.map((d) => d.tarefa_predecessora_id)}
                             />
                             <RemoverTarefaButton obraId={obraId} tarefaId={tarefa.id} />
                           </div>

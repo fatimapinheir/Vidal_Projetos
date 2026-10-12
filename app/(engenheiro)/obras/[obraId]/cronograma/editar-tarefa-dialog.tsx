@@ -22,8 +22,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { atualizarTarefa } from "@/app/actions/cronograma";
-
-const CLASSE_SELECT = "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm";
+import {
+  SeletorPredecessoras,
+  type TarefaOpcao,
+} from "@/components/cronograma/seletor-predecessoras";
 
 type Tarefa = {
   id: string;
@@ -52,19 +54,20 @@ type Tarefa = {
 export function EditarTarefaDialog({
   obraId,
   tarefa,
-  tarefasDaEtapa,
-  predecessoraAtualId,
-  predecessoraAtualNome,
+  tarefasDaObra,
+  predecessorasAtuais,
 }: {
   obraId: string;
   tarefa: Tarefa;
-  /** Candidatas a predecessora: as outras tarefas desta etapa. */
-  tarefasDaEtapa: { id: string; nome: string }[];
-  predecessoraAtualId: string | null;
-  predecessoraAtualNome: string | null;
+  /** Candidatas a predecessora: todas as tarefas da obra, menos esta. */
+  tarefasDaObra: TarefaOpcao[];
+  /** Ids das predecessoras que a tarefa tem hoje. Pode ser mais de uma. */
+  predecessorasAtuais: string[];
 }) {
   const [open, setOpen] = useState(false);
-  const [temPredecessora, setTemPredecessora] = useState(!!predecessoraAtualId);
+  const [temPredecessora, setTemPredecessora] = useState(!!predecessorasAtuais.length);
+  const [predecessoras, setPredecessoras] = useState<string[]>(predecessorasAtuais);
+  const [duracao, setDuracao] = useState(String(tarefa.duracao_dias));
   /*
    * Início como estado, semeado com a data que a tarefa JÁ TEM.
    *
@@ -96,8 +99,11 @@ export function EditarTarefaDialog({
      * e o erro volta do servidor, fora de contexto. Checando aqui, a mensagem
      * aparece ao lado do campo que falta.
      */
-    if (temPredecessora && !formData.get("predecessora_id")) {
-      return setErro("Selecione qual tarefa precede esta.");
+    if (temPredecessora && !predecessoras.length) {
+      return setErro("Selecione ao menos uma tarefa que precede esta.");
+    }
+    if (!Number(duracao) || Number(duracao) < 1) {
+      return setErro("A duração precisa ser de pelo menos 1 dia útil.");
     }
     if (!temPredecessora && !formData.get("restricao_inicio_nao_antes_de")) {
       return setErro("Sem predecessora, informe a data de início da tarefa.");
@@ -115,7 +121,9 @@ export function EditarTarefaDialog({
     setOpen(proximo);
     // Reidrata ao abrir: o componente não remonta entre uma abertura e outra.
     if (proximo) {
-      setTemPredecessora(!!predecessoraAtualId);
+      setTemPredecessora(!!predecessorasAtuais.length);
+      setPredecessoras(predecessorasAtuais);
+      setDuracao(String(tarefa.duracao_dias));
       setInicio(tarefa.restricao_inicio_nao_antes_de ?? tarefa.data_inicio_cedo ?? "");
       setErro(null);
     }
@@ -136,7 +144,7 @@ export function EditarTarefaDialog({
         </DialogHeader>
         <form action={salvar}>
           <FieldGroup>
-            {!!tarefasDaEtapa.length && (
+            {!!tarefasDaObra.length && (
               <Field orientation="horizontal">
                 <Checkbox
                   id="tem_predecessora"
@@ -154,7 +162,7 @@ export function EditarTarefaDialog({
                 <FieldContent>
                   <FieldLabel htmlFor="tem_predecessora">Essa tarefa tem predecessora</FieldLabel>
                   <FieldDescription>
-                    Marque se ela só pode começar depois que outra tarefa desta etapa terminar.
+                    Marque se ela só pode começar depois que outras terminarem.
                   </FieldDescription>
                 </FieldContent>
               </Field>
@@ -162,40 +170,25 @@ export function EditarTarefaDialog({
 
             {temPredecessora && (
               <Field>
-                <FieldLabel htmlFor="predecessora_id">Começa depois de</FieldLabel>
-                <select
-                  id="predecessora_id"
+                <FieldLabel>Começa depois de</FieldLabel>
+                {/*
+                  Várias predecessoras, de qualquer etapa.
+                  
+                  Era um select de uma só, limitado à etapa. Salvar apagava as
+                  demais em silêncio — quem abrisse a tarefa só para mudar a
+                  duração perdia o encadeamento.
+                */}
+                <SeletorPredecessoras
                   name="predecessora_id"
-                  required
-                  defaultValue={predecessoraAtualId ?? ""}
-                  onChange={() => setErro(null)}
-                  className={CLASSE_SELECT}
-                >
-                  <option value="" disabled>
-                    Selecione a tarefa...
-                  </option>
-                  {/*
-                    Predecessora de OUTRA etapa entra como opção própria.
-
-                    Os templates encadeiam o fim de uma fase ao início da
-                    seguinte — 31 ligações assim existem hoje. Sem esta opção o
-                    select cairia no vazio e salvar romperia a ligação,
-                    jogando todas as etapas para o dia 1 do cronograma.
-                  */}
-                  {predecessoraAtualId &&
-                    !tarefasDaEtapa.some((t) => t.id === predecessoraAtualId) && (
-                      <option value={predecessoraAtualId}>
-                        {predecessoraAtualNome ?? "Tarefa"} (outra etapa)
-                      </option>
-                    )}
-                  {tarefasDaEtapa.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.nome}
-                    </option>
-                  ))}
-                </select>
+                  tarefas={tarefasDaObra}
+                  selecionadas={predecessoras}
+                  aoMudar={(ids) => {
+                    setPredecessoras(ids);
+                    setErro(null);
+                  }}
+                />
                 <FieldDescription>
-                  O início é calculado a partir do fim dela — você não informa a data.
+                  O início sai da que terminar por último — você não informa a data.
                 </FieldDescription>
               </Field>
             )}
@@ -220,19 +213,41 @@ export function EditarTarefaDialog({
               </Field>
             )}
 
+            {/*
+              A duração é o campo; o fim é consequência.
+              
+              Era o contrário: pedia-se o fim previsto e a duração saía da
+              contagem de dias úteis entre início e fim. Com predecessora o
+              início é calculado e nem aparece na tela — para dizer "isto leva
+              10 dias" o engenheiro tinha de descobrir qual data final dava 10
+              dias úteis a partir de um início que ele não via.
+            */}
             <Field>
-              <FieldLabel htmlFor="data_fim_previsto">Fim previsto</FieldLabel>
+              <FieldLabel htmlFor="duracao_dias">Duração (dias úteis)</FieldLabel>
               <Input
-                id="data_fim_previsto"
-                name="data_fim_previsto"
-                type="date"
-                defaultValue={tarefa.data_fim_cedo ?? ""}
+                id="duracao_dias"
+                name="duracao_dias"
+                type="number"
+                min="1"
+                step="1"
+                value={duracao}
+                onChange={(e) => {
+                  setDuracao(e.target.value);
+                  setErro(null);
+                }}
                 required
+                className="sm:max-w-32"
               />
               <FieldDescription>
-                A duração atual é de {tarefa.duracao_dias}{" "}
-                {tarefa.duracao_dias === 1 ? "dia útil" : "dias úteis"} e sai do intervalo entre
-                início e fim.
+                De segunda a sexta; sábados, domingos e folgas cadastradas não contam.
+                {tarefa.data_fim_cedo && (
+                  <>
+                    {" "}
+                    Hoje a tarefa termina em{" "}
+                    {new Date(`${tarefa.data_fim_cedo}T00:00:00`).toLocaleDateString("pt-BR")} — o
+                    fim é recalculado ao salvar.
+                  </>
+                )}
               </FieldDescription>
             </Field>
 

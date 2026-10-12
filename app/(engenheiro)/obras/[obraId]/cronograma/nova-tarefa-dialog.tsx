@@ -158,11 +158,23 @@ export function NovaTarefaDialog({
               </Field>
             )}
 
+            {/* Duração digitada, fim calculado — ver a nota em
+                `atualizarTarefa`. */}
             <Field>
-              <FieldLabel htmlFor="data_fim_previsto">Fim previsto</FieldLabel>
-              <Input id="data_fim_previsto" name="data_fim_previsto" type="date" required />
+              <FieldLabel htmlFor="duracao_dias">Duração (dias úteis)</FieldLabel>
+              <Input
+                id="duracao_dias"
+                name="duracao_dias"
+                type="number"
+                min="1"
+                step="1"
+                defaultValue={1}
+                required
+                className="sm:max-w-32"
+              />
               <FieldDescription>
-                A duração sai do intervalo entre início e fim, contando só dias úteis.
+                De segunda a sexta; sábados, domingos e folgas cadastradas não contam. O fim é
+                calculado a partir daqui.
               </FieldDescription>
             </Field>
 
