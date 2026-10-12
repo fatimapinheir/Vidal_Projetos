@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import {
+  AlertCircle,
   ArrowRight,
   Building2,
   CalendarDays,
@@ -292,13 +293,27 @@ function CartaoRdo({
             </p>
           </div>
 
+          {/*
+            Sem diário, nenhum número aqui — nem o do cronograma.
+            
+            A contagem de frentes vem do cronograma e existe mesmo sem RDO,
+            mas num cartão que anuncia "aguardando o envio" um número cheio no
+            meio de dois travessões lê como se parte do diário tivesse
+            chegado. O cartão é sobre o que o engenheiro registrou hoje: o que
+            ele não registrou fica em branco, inclusive o que daria para
+            deduzir de outro lugar.
+          */}
           <div className="rounded-xl bg-muted/70 p-3">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Target className="size-4" aria-hidden />
               <span className="text-xs">Frentes de serviço</span>
             </div>
-            <p className="font-heading text-2xl font-semibold">{extra.frentesHoje}</p>
-            <p className="text-xs text-muted-foreground">em andamento</p>
+            <p className="font-heading text-2xl font-semibold">
+              {rdo ? extra.frentesHoje : <span className="text-muted-foreground">—</span>}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {rdo ? "em andamento" : "aguardando o diário"}
+            </p>
           </div>
 
           <div className="rounded-xl bg-muted/70 p-3">
@@ -327,10 +342,22 @@ function CartaoRdo({
           </div>
         </div>
 
+        {/*
+          O aviso em vermelho, a pedido.
+          
+          É a única coisa vermelha da área do cliente, e não contradiz a regra
+          de não mostrar atraso: não julga o andamento da obra, avisa que um
+          documento do dia ainda não chegou. Faixa com fundo, não só texto
+          colorido — vermelho sobre branco no meio de outros parágrafos passa
+          por engano de estilo; com a chapa, lê como aviso.
+        */}
         {!rdo && (
-          <p className="text-sm">
-            <span className="font-medium">Aguardando o envio.</span> O engenheiro ainda não
-            enviou o diário de hoje.
+          <p className="flex items-start gap-2.5 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>
+              <span className="font-semibold">Aguardando o envio.</span> O engenheiro ainda não
+              enviou o diário de hoje.
+            </span>
           </p>
         )}
 
