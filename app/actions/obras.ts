@@ -373,12 +373,19 @@ async function arquivosDaObra(
   supabase: Awaited<ReturnType<typeof createClient>>,
   obraId: string
 ): Promise<{ bucket: string; paths: string[] }[]> {
-  const [cotacoes, comprovantes, fotos, planilhas, folha, entrega] = await Promise.all([
+  const [cotacoes, anexosCompra, comprovantes, fotos, planilhas, folha, entrega] =
+    await Promise.all([
     supabase
       .from("compras")
       .select("anexo_cotacao_path")
       .eq("obra_id", obraId)
       .not("anexo_cotacao_path", "is", null),
+    // Anexos da compra (até três por ordem/lançamento, migração 0048). Cada
+    // linha diz em qual bucket mora — ver lib/compras/anexos.
+    supabase
+      .from("compra_anexos")
+      .select("bucket, path, compras!inner(obra_id)")
+      .eq("compras.obra_id", obraId),
     supabase
       .from("compra_parcelas")
       .select("comprovante_pagamento_path, compras!inner(obra_id)")
@@ -404,11 +411,23 @@ async function arquivosDaObra(
   const limpar = (valores: (string | null)[]) =>
     valores.filter((v): v is string => !!v && v.trim() !== "");
 
+  const anexosEm = (bucket: string) =>
+    (anexosCompra.data ?? []).filter((a) => a.bucket === bucket).map((a) => a.path);
+
   return [
-    { bucket: "cotacoes", paths: limpar((cotacoes.data ?? []).map((c) => c.anexo_cotacao_path)) },
+    {
+      bucket: "cotacoes",
+      paths: limpar([
+        ...(cotacoes.data ?? []).map((c) => c.anexo_cotacao_path),
+        ...anexosEm("cotacoes"),
+      ]),
+    },
     {
       bucket: "comprovantes-pagamento",
-      paths: limpar((comprovantes.data ?? []).map((p) => p.comprovante_pagamento_path)),
+      paths: limpar([
+        ...(comprovantes.data ?? []).map((p) => p.comprovante_pagamento_path),
+        ...anexosEm("comprovantes-pagamento"),
+      ]),
     },
     { bucket: "diario-obra", paths: limpar((fotos.data ?? []).map((f) => f.path)) },
     { bucket: "orcamentos", paths: limpar((planilhas.data ?? []).map((v) => v.arquivo_original_path)) },

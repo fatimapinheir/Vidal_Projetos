@@ -759,6 +759,28 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["compras"]["Insert"]>;
         Relationships: [];
       };
+      compra_anexos: {
+        Row: {
+          id: string;
+          compra_id: string;
+          bucket: "cotacoes" | "comprovantes-pagamento";
+          path: string;
+          nome: string;
+          criado_por: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          compra_id: string;
+          bucket: "cotacoes" | "comprovantes-pagamento";
+          path: string;
+          nome: string;
+          criado_por?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["compra_anexos"]["Insert"]>;
+        Relationships: [];
+      };
       compra_itens: {
         Row: {
           id: string;

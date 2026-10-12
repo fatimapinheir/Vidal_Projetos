@@ -27,8 +27,10 @@ import { ItemCompraPicker, type ItemCompraLocal } from "@/components/compras/ite
 import { CampoFornecedor } from "@/components/compras/campo-fornecedor";
 import { CampoCategoria, type Categoria } from "@/components/compras/campo-categoria";
 import { CamposNotaFiscal } from "@/components/compras/campos-nota-fiscal";
-import { Paperclip, Trash2 } from "lucide-react";
-import { enviarArquivoParaStorage } from "@/lib/storage/upload-direto";
+import { Trash2 } from "lucide-react";
+import { enviarArquivoParaStorage, removerArquivosDoStorage } from "@/lib/storage/upload-direto";
+import { SeletorAnexos } from "@/components/compras/seletor-anexos";
+import { MAX_ANEXOS_COMPRA } from "@/lib/compras/anexos";
 
 const initialState: CompraFormState = { error: null };
 
@@ -90,28 +92,41 @@ export function NovaCompraForm({
 }) {
   const action = createCompra.bind(null, obraId);
   const [state, formAction, pending] = useActionState(action, initialState);
-  const [anexo, setAnexo] = useState<File | null>(null);
+  const [anexos, setAnexos] = useState<File[]>([]);
   const [erroAnexo, setErroAnexo] = useState<string | null>(null);
   const [enviandoAnexo, setEnviandoAnexo] = useState(false);
 
   /**
-   * O anexo sobe direto ao Storage antes da ação e o formulário leva só o
-   * caminho: arquivo pela Server Action estoura o limite de payload em
+   * Os anexos sobem direto ao Storage antes da ação e o formulário leva só os
+   * caminhos: arquivo pela Server Action estoura o limite de payload em
    * produção. Antes, um erro de upload era descartado em silêncio e a ordem
    * de compra nascia sem o anexo que o usuário achava ter enviado.
+   *
+   * Em série: se o segundo falhar, o que já subiu é removido antes de
+   * desistir, para a tentativa frustrada não deixar arquivo órfão no bucket.
    */
   async function handleSubmit(formData: FormData) {
     setErroAnexo(null);
 
-    if (anexo) {
+    if (anexos.length) {
       setEnviandoAnexo(true);
-      const envio = await enviarArquivoParaStorage("cotacoes", obraId, anexo);
-      setEnviandoAnexo(false);
-      if (envio.path === null) {
-        setErroAnexo(envio.error);
-        return;
+      const enviados: { path: string; nome: string }[] = [];
+      for (const arquivo of anexos) {
+        const envio = await enviarArquivoParaStorage("cotacoes", obraId, arquivo);
+        if (envio.path === null) {
+          await removerArquivosDoStorage("cotacoes", enviados.map((e) => e.path));
+          setEnviandoAnexo(false);
+          setErroAnexo(envio.error);
+          return;
+        }
+        enviados.push({ path: envio.path, nome: arquivo.name });
       }
-      formData.set("anexo_cotacao_path", envio.path);
+      setEnviandoAnexo(false);
+
+      for (const anexo of enviados) {
+        formData.append("anexo_path", anexo.path);
+        formData.append("anexo_nome", anexo.nome);
+      }
     }
 
     formAction(formData);
@@ -297,34 +312,12 @@ export function NovaCompraForm({
             <Input id="data_entrega_prevista" name="data_entrega_prevista" type="date" />
           </Field>
 
-          <Field>
-            <FieldLabel htmlFor="anexo_cotacao">Anexo da cotação (opcional)</FieldLabel>
-            {/*
-              O `<input type="file">` nativo some no meio do formulário: o
-              navegador o desenha como um botão cinza colado num "Nenhum
-              arquivo escolhido", e ninguém o lê como ação. Escondido dentro de
-              um <label> estilizado, ele vira um botão igual aos outros.
-            */}
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium shadow-xs transition-colors hover:bg-muted">
-                <Paperclip className="size-4" aria-hidden />
-                {anexo ? "Trocar" : "Escolher arquivo"}
-                <input
-                  id="anexo_cotacao"
-                  type="file"
-                  className="sr-only"
-                  onChange={(e) => setAnexo(e.target.files?.[0] ?? null)}
-                />
-              </label>
-              <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-                {anexo ? anexo.name : "Nenhum arquivo escolhido"}
-              </span>
-              {anexo && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => setAnexo(null)}>
-                  Remover
-                </Button>
-              )}
-            </div>
+          <Field className="sm:col-span-2">
+            <FieldLabel htmlFor="anexo_cotacao">Anexos (opcional)</FieldLabel>
+            <SeletorAnexos id="anexo_cotacao" arquivos={anexos} aoMudar={setAnexos} />
+            <FieldDescription>
+              Até {MAX_ANEXOS_COMPRA} arquivos — cotação, orçamento do fornecedor, nota.
+            </FieldDescription>
             {erroAnexo && <FieldError>{erroAnexo}</FieldError>}
           </Field>
 

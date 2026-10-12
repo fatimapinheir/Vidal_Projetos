@@ -3,7 +3,6 @@
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,7 +21,9 @@ import { CamposNotaFiscal } from "./campos-nota-fiscal";
 import { ItemCompraPicker, type ItemCompraLocal } from "./item-compra-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trash2 } from "lucide-react";
-import { enviarArquivoParaStorage } from "@/lib/storage/upload-direto";
+import { enviarArquivoParaStorage, removerArquivosDoStorage } from "@/lib/storage/upload-direto";
+import { SeletorAnexos } from "./seletor-anexos";
+import { MAX_ANEXOS_COMPRA } from "@/lib/compras/anexos";
 import { criarLancamento, type LancamentoState } from "@/app/actions/lancamentos";
 import { hojeNoFuso } from "@/lib/fuso";
 
@@ -81,36 +82,52 @@ export function LancamentoForm({
 
   const [valor, setValor] = useState(0);
   const [itens, setItens] = useState<(ItemCompraLocal & { localId: number })[]>([]);
-  const [comprovante, setComprovante] = useState<File | null>(null);
+  const [comprovantes, setComprovantes] = useState<File[]>([]);
   const [erroArquivo, setErroArquivo] = useState<string | null>(null);
   const totalItens = itens.reduce((soma, item) => soma + totalDoItem(item), 0);
   const [enviandoArquivo, setEnviandoArquivo] = useState(false);
 
   /**
-   * O comprovante sobe direto ao Storage e o formulário leva só o caminho —
-   * binário em Server Action estoura o limite de payload em produção.
+   * Os comprovantes sobem direto ao Storage e o formulário leva só os
+   * caminhos — binário em Server Action estoura o limite de payload em
+   * produção.
+   *
+   * Em série, e não em paralelo: se o segundo arquivo falhar, o primeiro já
+   * subiu, e o que subiu é removido antes de desistir. Sem isso, cada tentativa
+   * frustrada deixaria arquivo órfão no bucket.
    */
   async function aoEnviar(formData: FormData) {
     setErroArquivo(null);
 
-    if (!comprovante) {
+    if (!comprovantes.length) {
       setErroArquivo("Anexe o comprovante do pagamento.");
       return;
     }
 
     setEnviandoArquivo(true);
-    const envio = await enviarArquivoParaStorage(
-      "comprovantes-pagamento",
-      obraId,
-      comprovante
-    );
+    const enviados: { path: string; nome: string }[] = [];
+    for (const arquivo of comprovantes) {
+      const envio = await enviarArquivoParaStorage("comprovantes-pagamento", obraId, arquivo);
+      if (envio.path === null) {
+        await removerArquivosDoStorage(
+          "comprovantes-pagamento",
+          enviados.map((e) => e.path)
+        );
+        setEnviandoArquivo(false);
+        setErroArquivo(envio.error);
+        return;
+      }
+      enviados.push({ path: envio.path, nome: arquivo.name });
+    }
     setEnviandoArquivo(false);
-    if (envio.path === null) {
-      setErroArquivo(envio.error);
-      return;
+
+    // O primeiro vira o comprovante da parcela; todos entram como anexo.
+    formData.set("comprovante_path", enviados[0].path);
+    for (const anexo of enviados) {
+      formData.append("anexo_path", anexo.path);
+      formData.append("anexo_nome", anexo.nome);
     }
 
-    formData.set("comprovante_path", envio.path);
     formData.set("itens", JSON.stringify(itens));
     // Com itens, o valor é a soma — o campo de moeda nem está montado.
     if (itens.length) formData.set("valor", String(totalItens));
@@ -286,23 +303,14 @@ export function LancamentoForm({
 
         <Field>
           <FieldLabel htmlFor="comprovante">Comprovante do pagamento</FieldLabel>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-muted">
-              <Paperclip className="size-4" aria-hidden />
-              {comprovante ? "Trocar arquivo" : "Escolher arquivo"}
-              <input
-                id="comprovante"
-                type="file"
-                className="sr-only"
-                onChange={(e) => setComprovante(e.target.files?.[0] ?? null)}
-              />
-            </label>
-            <span className="min-w-0 truncate text-sm text-muted-foreground">
-              {comprovante ? comprovante.name : "Nenhum arquivo escolhido"}
-            </span>
-          </div>
+          <SeletorAnexos
+            id="comprovante"
+            arquivos={comprovantes}
+            aoMudar={setComprovantes}
+          />
           <FieldDescription>
-            Obrigatório: o lançamento entra no sistema como pagamento já feito.
+            Obrigatório: o lançamento entra no sistema como pagamento já feito. Até{" "}
+            {MAX_ANEXOS_COMPRA} arquivos — comprovante, nota, foto do recibo.
           </FieldDescription>
           {erroArquivo && <FieldError>{erroArquivo}</FieldError>}
         </Field>
@@ -311,7 +319,12 @@ export function LancamentoForm({
 
         <Button
           type="submit"
-          disabled={pendente || enviandoArquivo || (itens.length ? totalItens : valor) <= 0}
+          disabled={
+            pendente ||
+            enviandoArquivo ||
+            !comprovantes.length ||
+            (itens.length ? totalItens : valor) <= 0
+          }
         >
           {pendente || enviandoArquivo ? "Salvando..." : "Registrar lançamento"}
         </Button>

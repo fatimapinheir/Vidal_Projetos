@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/auth/require-role";
 import { parseNumeroBR } from "@/lib/parse-numero-br";
+import { lerAnexosDoForm, salvarAnexosDaCompra } from "@/lib/compras/anexos";
 
 const itemSchema = z.object({
   orcamento_item_id: z.uuid().optional(),
@@ -35,6 +36,8 @@ const schema = z.object({
   ]),
   data_pagamento: z.string().min(1, "Informe a data do pagamento."),
   valor: z.number().positive("O valor precisa ser maior que zero."),
+  // O primeiro arquivo anexado. Continua obrigatório e continua indo para a
+  // parcela — ver o insert da parcela, mais abaixo.
   comprovante_path: z.string().min(1, "Anexe o comprovante do pagamento."),
 });
 
@@ -126,6 +129,15 @@ export async function criarLancamento(
 
   if (error || !compra) return { error: "Não foi possível registrar o lançamento." };
 
+  const erroAnexos = await salvarAnexosDaCompra(
+    supabase,
+    compra.id,
+    "comprovantes-pagamento",
+    lerAnexosDoForm(formData),
+    profile.id
+  );
+  if (erroAnexos) return { error: erroAnexos };
+
   let valorFinal = parsed.data.valor;
 
   if (itens.length) {
@@ -169,6 +181,16 @@ export async function criarLancamento(
     data_vencimento: parsed.data.data_pagamento,
     data_pagamento: parsed.data.data_pagamento,
     status: "paga",
+    /*
+     * O primeiro anexo também fica aqui, duplicando o caminho que já está em
+     * `compra_anexos`.
+     *
+     * De propósito: tudo que trata de pagamento no sistema lê o comprovante
+     * NA PARCELA — a tabela de parcelas da tela de detalhe, a limpeza de
+     * arquivos da obra, os lançamentos já registrados antes desta mudança.
+     * Deixar a parcela sem comprovante faria um pagamento pago aparecer sem
+     * prova em todas essas telas.
+     */
     comprovante_pagamento_path: parsed.data.comprovante_path,
   });
 

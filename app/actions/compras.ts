@@ -6,6 +6,13 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { getProfile } from "@/lib/auth/get-profile";
+import { requireAuth } from "@/lib/auth/require-role";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  arquivosDaCompra,
+  lerAnexosDoForm,
+  salvarAnexosDaCompra,
+} from "@/lib/compras/anexos";
 import { hojeNoFuso } from "@/lib/fuso";
 
 const parcelaSchema = z.object({
@@ -292,12 +299,16 @@ export async function createCompra(
     return { error: "Não foi possível criar a ordem de compra." };
   }
 
-  // O navegador já enviou o anexo ao Storage e manda só o caminho: arquivo
-  // pela Server Action estoura o limite de payload em produção.
-  const anexoPath = (formData.get("anexo_cotacao_path") as string) || null;
-  if (anexoPath) {
-    await supabase.from("compras").update({ anexo_cotacao_path: anexoPath }).eq("id", compra.id);
-  }
+  // O navegador já enviou os anexos ao Storage e manda só os caminhos:
+  // arquivo pela Server Action estoura o limite de payload em produção.
+  const erroAnexos = await salvarAnexosDaCompra(
+    supabase,
+    compra.id,
+    "cotacoes",
+    lerAnexosDoForm(formData),
+    profile.id
+  );
+  if (erroAnexos) return { error: erroAnexos };
 
   const { error: itensError } = await supabase.from("compra_itens").insert(
     itens.map((item, i) => ({
@@ -331,7 +342,10 @@ export async function createCompra(
   }
 
   revalidatePath(`/obras/${obraId}/compras`);
-  redirect(`/obras/${obraId}/compras/${compra.id}`);
+  // Volta para a lista, e não para a ordem recém-criada: salvar é o fim da
+  // tarefa, e a próxima coisa que se quer ver é a fila de compras. Quem
+  // precisar da ordem abre dela.
+  redirect(`/obras/${obraId}/compras`);
 }
 
 const buscaItemSchema = z.object({ termo: z.string().min(2) });
@@ -563,4 +577,79 @@ export async function pagarCompraAgoraAction(
   }
 
   if (error) throw new Error("Não foi possível aprovar e pagar a ordem de compra.");
+}
+
+/**
+ * Exclui uma ordem de compra ou um lançamento financeiro, com os itens,
+ * parcelas e arquivos que pertencem a ele.
+ *
+ * Quem pode é decidido pela RLS, não aqui: o engenheiro apaga qualquer uma
+ * (`eng_all_compras`), o cliente só o lançamento que ele mesmo registrou
+ * (`cli_delete_lancamento`, migração 0048). Por isso o delete sai com a sessão
+ * do usuário e o resultado é conferido pelas linhas afetadas — zero linha
+ * significa "a policy recusou", e aí o usuário merece ouvir isso em vez de um
+ * sucesso falso.
+ *
+ * Não há desfazer e não há lixeira. O valor sai do custo da obra na hora, o que
+ * é justamente o motivo de existir: um lançamento errado mente no total.
+ */
+export async function excluirCompra(compraId: string): Promise<{ error: string | null }> {
+  await requireAuth();
+  const supabase = await createClient();
+
+  const { data: compra } = await supabase
+    .from("compras")
+    .select("id, obra_id, eh_lancamento")
+    .eq("id", compraId)
+    .maybeSingle();
+
+  if (!compra) return { error: "Registro não encontrado." };
+
+  const rotulo = compra.eh_lancamento ? "lançamento" : "ordem de compra";
+
+  // Os caminhos são levantados ANTES do delete: depois dele as linhas que
+  // apontam para os arquivos já não existem, e os objetos ficariam órfãos no
+  // bucket, invisíveis e ocupando armazenamento pago.
+  const arquivos = await arquivosDaCompra(supabase, compraId);
+
+  const { data: apagadas, error } = await supabase
+    .from("compras")
+    .delete()
+    .eq("id", compraId)
+    .select("id");
+
+  if (error) return { error: `Não foi possível excluir este ${rotulo}.` };
+  if (!apagadas?.length) {
+    return {
+      error: compra.eh_lancamento
+        ? "Você só pode excluir lançamentos registrados por você."
+        : "Só o engenheiro pode excluir uma ordem de compra.",
+    };
+  }
+
+  /*
+   * A limpeza do Storage usa a service key, não a sessão do usuário.
+   *
+   * O cliente não tem policy de delete em `comprovantes-pagamento` (ver 0006),
+   * e dar-lhe uma abriria apagar o comprovante de QUALQUER parcela da obra,
+   * inclusive os que o engenheiro anexou — perder prova de pagamento é caro
+   * demais para destravar uma limpeza. Aqui os caminhos são exatamente os da
+   * compra que a RLS acabou de autorizar a apagar.
+   *
+   * É best-effort: a linha já se foi, e falha em remover arquivo não deve
+   * transformar uma exclusão concluída em erro na tela.
+   */
+  const admin = createAdminClient();
+  for (const { bucket, paths } of arquivos) {
+    if (paths.length) await admin.storage.from(bucket).remove(paths);
+  }
+
+  // Os dois lados: o lançamento do cliente aparece na tela do engenheiro e
+  // vice-versa, e os totais da obra mudam com ele.
+  revalidatePath(`/obras/${compra.obra_id}/compras`);
+  revalidatePath(`/obras/${compra.obra_id}`);
+  revalidatePath(`/portal/obras/${compra.obra_id}/compras`);
+  revalidatePath(`/portal/obras/${compra.obra_id}`);
+
+  return { error: null };
 }
