@@ -1094,6 +1094,10 @@ export interface Database {
         Args: { p_compra_id: string; p_parcela_id: string; p_comprovante_path: string };
         Returns: undefined;
       };
+      cli_marcar_entrega_lancamento: {
+        Args: { p_compra_id: string; p_entregue: boolean };
+        Returns: undefined;
+      };
     };
     Enums: {
       user_role: UserRole;

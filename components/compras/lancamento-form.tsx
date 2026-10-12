@@ -233,6 +233,15 @@ export function LancamentoForm({
             />
           </Field>
 
+          {/* Entrega: mesma pergunta da ordem de compra, mesma coluna no
+              banco. Quem paga material no balcão e combina a entrega para
+              quinta precisa dela; quem lança um IPTU, não — daí opcional. */}
+          <Field>
+            <FieldLabel htmlFor="data_entrega_prevista">Entrega prevista (opcional)</FieldLabel>
+            <Input id="data_entrega_prevista" name="data_entrega_prevista" type="date" />
+            <FieldDescription>Deixe vazio se não há mercadoria a receber.</FieldDescription>
+          </Field>
+
           <CamposNotaFiscal className="sm:col-span-2" />
         </div>
 

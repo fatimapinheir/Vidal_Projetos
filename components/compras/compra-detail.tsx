@@ -17,6 +17,7 @@ import { PagamentoEnviadoParcela } from "./pagamento-enviado-parcela";
 import { CompraAprovacaoActions } from "./compra-aprovacao-actions";
 import { EtapaOrcamentoSelect } from "./etapa-orcamento-select";
 import { formatDateBR as formatDate } from "@/lib/format-date";
+import { getProfile } from "@/lib/auth/get-profile";
 
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -30,6 +31,7 @@ export async function CompraDetail({
   viewerRole: "engenheiro" | "cliente";
 }) {
   const supabase = await createClient();
+  const profile = await getProfile();
 
   const { data: compra } = await supabase
     .from("compras")
@@ -129,6 +131,22 @@ export async function CompraDetail({
   }
 
   const parcelaUnica = parcelas?.length === 1 ? parcelas[0] : undefined;
+
+  /*
+   * Quem pode dizer que a mercadoria chegou.
+   *
+   * Engenheiro: em qualquer compra que prometeu entrega, e nas "pagar após o
+   * recebimento" mesmo sem previsão — lá é o botão que destrava as parcelas.
+   *
+   * Cliente: só no lançamento que ele mesmo registrou. Ele pagou e recebeu;
+   * depender do engenheiro para fechar a entrega de um gasto que o engenheiro
+   * nem viu passar deixaria a previsão parada para sempre. É só a tela — quem
+   * recusa de verdade é `cli_marcar_entrega_lancamento` (0049).
+   */
+  const podeMarcarEntrega =
+    viewerRole === "engenheiro"
+      ? compra.pagamento_apos_recebimento || !!compra.data_entrega_prevista
+      : compra.eh_lancamento && !!profile && compra.criado_por === profile.id;
 
 
   return (
@@ -310,8 +328,21 @@ export async function CompraDetail({
                   simplificado={viewerRole === "cliente"}
                 />
               </div>
-              {viewerRole === "engenheiro" && compra.pagamento_apos_recebimento && (
-                <RecebimentoOrdem compraId={compra.id} recebidoEm={compra.data_entrega_real} />
+              {/*
+                Confirmar recebimento aparece em toda compra que prometeu uma
+                entrega, não só nas "pagar após o recebimento".
+
+                Antes só aparecia nestas últimas, porque lá o botão libera as
+                parcelas. Mas a previsão existe nas outras também — e agora nos
+                lançamentos —, e sem botão nenhum ela ficava eternamente
+                "prevista" ou "atrasada", sem ninguém poder dizer que chegou.
+              */}
+              {podeMarcarEntrega && (
+                <RecebimentoOrdem
+                  compraId={compra.id}
+                  recebidoEm={compra.data_entrega_real}
+                  liberaPagamento={compra.pagamento_apos_recebimento}
+                />
               )}
             </div>
           </CardAction>

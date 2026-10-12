@@ -436,23 +436,44 @@ export async function recusarCompraAction(compraId: string, formData: FormData) 
  * parcelas — antes disso nenhuma aparece como pendente nem vence.
  */
 export async function confirmarRecebimentoOrdem(compraId: string, recebido: boolean) {
-  const profile = await requireRole("engenheiro");
+  const profile = await requireAuth();
   const supabase = await createClient();
 
-  await supabase
-    .from("compras")
-    .update({
-      data_entrega_real: recebido ? hojeNoFuso() : null,
-      recebimento_confirmado_por: recebido ? profile.id : null,
-      recebimento_confirmado_em: recebido ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", compraId);
+  if (profile.role === "engenheiro") {
+    await supabase
+      .from("compras")
+      .update({
+        data_entrega_real: recebido ? hojeNoFuso() : null,
+        recebimento_confirmado_por: recebido ? profile.id : null,
+        recebimento_confirmado_em: recebido ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", compraId);
+  } else {
+    /*
+     * O cliente passa por uma função no banco, não por este update.
+     *
+     * Ele não tem (e não deve ter) policy de update em `compras`: RLS autoriza
+     * a LINHA, não a coluna, e a policy que o deixasse marcar a entrega o
+     * deixaria reescrever valor e descrição do mesmo lançamento. A função
+     * `cli_marcar_entrega_lancamento` (0049) confere que o lançamento é dele e
+     * toca só a entrega — o resto continua fora do alcance.
+     */
+    const { error } = await supabase.rpc("cli_marcar_entrega_lancamento", {
+      p_compra_id: compraId,
+      p_entregue: recebido,
+    });
+    if (error) {
+      throw new Error("Não foi possível alterar a entrega deste lançamento.");
+    }
+  }
 
   const obraId = await resolveObraIdForCompra(compraId);
   if (obraId) {
     revalidatePath(`/obras/${obraId}/compras/${compraId}`);
     revalidatePath(`/obras/${obraId}/compras`);
+    revalidatePath(`/portal/obras/${obraId}/compras/${compraId}`);
+    revalidatePath(`/portal/obras/${obraId}/compras`);
     revalidatePath(`/portal/obras/${obraId}`);
   }
   revalidatePath("/dashboard");

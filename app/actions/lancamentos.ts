@@ -35,6 +35,16 @@ const schema = z.object({
     "outro",
   ]),
   data_pagamento: z.string().min(1, "Informe a data do pagamento."),
+  /*
+   * Entrega, opcional — e a mesma coluna da ordem de compra.
+   *
+   * Lançamento é pagamento já feito, não "pagamento sem mercadoria": quem
+   * paga o material no balcão e combina a entrega para quinta tem a mesma
+   * pergunta de entrega que uma ordem de compra tem. Metade dos lançamentos
+   * (IPTU, uma taxa) não entrega nada, e por isso o campo é opcional em vez
+   * de obrigatório com data inventada.
+   */
+  data_entrega_prevista: z.string().min(1).optional(),
   valor: z.number().positive("O valor precisa ser maior que zero."),
   // O primeiro arquivo anexado. Continua obrigatório e continua indo para a
   // parcela — ver o insert da parcela, mais abaixo.
@@ -74,6 +84,7 @@ export async function criarLancamento(
     nota_fiscal_emissao: formData.get("nota_fiscal_emissao") || undefined,
     forma_pagamento: formData.get("forma_pagamento"),
     data_pagamento: formData.get("data_pagamento"),
+    data_entrega_prevista: formData.get("data_entrega_prevista") || undefined,
     valor: parseNumeroBR(String(formData.get("valor") ?? "")),
     comprovante_path: formData.get("comprovante_path"),
   });
@@ -114,6 +125,7 @@ export async function criarLancamento(
       tipo_item: parsed.data.tipo_item ?? null,
       nota_fiscal_numero: parsed.data.nota_fiscal_numero ?? null,
       nota_fiscal_emissao: parsed.data.nota_fiscal_emissao ?? null,
+      data_entrega_prevista: parsed.data.data_entrega_prevista ?? null,
       eh_lancamento: true,
       // Já pago: nasce aprovado e sem exigir aprovação de ninguém.
       status: "paga",

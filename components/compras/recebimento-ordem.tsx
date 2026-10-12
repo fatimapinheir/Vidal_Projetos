@@ -16,9 +16,17 @@ import { confirmarRecebimentoOrdem } from "@/app/actions/compras";
 export function RecebimentoOrdem({
   compraId,
   recebidoEm,
+  liberaPagamento = false,
 }: {
   compraId: string;
   recebidoEm: string | null;
+  /**
+   * Se confirmar aqui destrava o pagamento das parcelas — só nas ordens
+   * "pagar após o recebimento". Nas demais, e no lançamento (que já está
+   * pago), isto só fecha a entrega, e a pergunta não pode prometer efeito
+   * que não vai acontecer.
+   */
+  liberaPagamento?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -26,8 +34,12 @@ export function RecebimentoOrdem({
 
   function handleClick() {
     const mensagem = recebido
-      ? "Desfazer o recebimento? As parcelas saem da lista de pagamentos até ser confirmado de novo."
-      : "Confirmar que a mercadoria chegou? As parcelas passam a contar como pagamento pendente.";
+      ? liberaPagamento
+        ? "Desfazer o recebimento? As parcelas saem da lista de pagamentos até ser confirmado de novo."
+        : "Desfazer o recebimento?"
+      : liberaPagamento
+        ? "Confirmar que a mercadoria chegou? As parcelas passam a contar como pagamento pendente."
+        : "Confirmar que a mercadoria chegou?";
     if (!confirm(mensagem)) return;
 
     startTransition(() => {
