@@ -21,6 +21,7 @@ function formatCurrency(value: number) {
 const SUFIXO: Record<string, string> = { dia: "/dia", hora: "/hora", mes: "/mês" };
 import { Paginacao } from "@/components/ui/paginacao";
 import { faixaDaPagina, lerPagina, POR_PAGINA_PADRAO } from "@/lib/paginacao";
+import { AjudaDaPagina } from "@/components/ui/ajuda-da-pagina";
 
 export default async function LocacoesObraPage({
   params,
@@ -97,18 +98,25 @@ export default async function LocacoesObraPage({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-heading text-lg font-semibold">Locação de equipamentos</h1>
-          <p className="text-sm text-muted-foreground">
-            Equipamentos alugados para a obra. Por dia e por hora o valor{" "}
-            <strong>continua correndo</strong> enquanto o equipamento estiver aqui: por dia, o
-            sistema conta sozinho os dias desde a data inicial; por hora, o valor sai das horas que
-            você informar. Marcar como <strong>devolvido</strong> encerra a contagem e congela o
-            valor na data da devolução. Na cobrança <strong>por mês</strong> é diferente: o sistema
-            gera uma ordem de compra com uma parcela por mês, e a mensalidade vira conta a pagar.
-            Aqui o valor conta as mensalidades dos meses que <strong>já começaram</strong>, mesmo
-            que o boleto só vença mais adiante — entrado o mês com o equipamento em obra, a
-            mensalidade dele já é devida.
-          </p>
+          <h1 className="flex items-center gap-1 font-heading text-lg font-semibold">
+            Locação de equipamentos
+            <AjudaDaPagina titulo="Locação de equipamentos">
+              <p>
+                Por dia e por hora o valor <strong>continua correndo</strong> enquanto o
+                equipamento estiver aqui: por dia, o sistema conta sozinho os dias desde a data
+                inicial; por hora, o valor sai das horas que você informar. Marcar como{" "}
+                <strong>devolvido</strong> encerra a contagem e congela o valor na data da
+                devolução.
+              </p>
+              <p>
+                Na cobrança <strong>por mês</strong> é diferente: o sistema gera uma ordem de
+                compra com uma parcela por mês, e a mensalidade vira conta a pagar. Aqui o valor
+                conta as mensalidades dos meses que <strong>já começaram</strong>, mesmo que o
+                boleto só vença mais adiante — entrado o mês com o equipamento em obra, a
+                mensalidade dele já é devida.
+              </p>
+            </AjudaDaPagina>
+          </h1>
         </div>
         <LocacaoDialog obraId={obraId} fornecedores={fornecedores ?? []} />
       </div>

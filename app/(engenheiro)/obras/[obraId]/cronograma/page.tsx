@@ -11,6 +11,7 @@ import { CronogramaVisao } from "./cronograma-visao";
 import { CronogramaTabela } from "./cronograma-tabela";
 import { CronogramaTimeline } from "@/components/cronograma/cronograma-timeline";
 import { CopiarDeOutraObraDialog } from "@/components/obras/copiar-de-outra-obra-dialog";
+import { AjudaDaPagina } from "@/components/ui/ajuda-da-pagina";
 
 export default async function CronogramaObraPage({
   params,
@@ -60,22 +61,32 @@ export default async function CronogramaObraPage({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="font-heading text-lg font-semibold">Cronograma (EAP)</h1>
-        <p className="text-sm text-muted-foreground">
-          Aqui fica o <strong>planejado</strong>: a obra em etapas e tarefas, com datas e a ordem
-          entre elas. O que foi de fato executado se registra em{" "}
-          <Link
-            href={`/obras/${obraId}/avanco`}
-            className="text-primary-texto underline underline-offset-4"
-          >
-            Avanço
-          </Link>
-          , pelo percentual de cada tarefa. O sistema calcula o caminho crítico — tarefas em
-          vermelho, sem folga, onde um atraso atrasa a obra inteira. Os dias de folga (feriados,
-          chuva) são cadastrados em <strong>Folgas</strong>. Quando o cronograma estiver pronto,{" "}
-          <strong>Fixar linha de base</strong> congela as datas atuais como referência de
-          comparação. A visão <strong>Timeline</strong> mostra tudo em barras no calendário.
-        </p>
+        <h1 className="flex items-center gap-1 font-heading text-lg font-semibold">
+          Cronograma (EAP)
+          <AjudaDaPagina titulo="Cronograma (EAP)">
+            <p>
+              Aqui fica o <strong>planejado</strong>: a obra em etapas e tarefas, com datas e a
+              ordem entre elas. O que foi de fato executado se registra em{" "}
+              <Link
+                href={`/obras/${obraId}/avanco`}
+                className="text-primary-texto underline underline-offset-4"
+              >
+                Avanço
+              </Link>
+              , pelo percentual de cada tarefa.
+            </p>
+            <p>
+              O sistema calcula o caminho crítico — tarefas em vermelho, sem folga, onde um atraso
+              atrasa a obra inteira. Os dias de folga (feriados, chuva) são cadastrados em{" "}
+              <strong>Folgas</strong>.
+            </p>
+            <p>
+              Quando o cronograma estiver pronto, <strong>Fixar linha de base</strong> congela as
+              datas atuais como referência de comparação. A visão <strong>Timeline</strong> mostra
+              tudo em barras no calendário.
+            </p>
+          </AjudaDaPagina>
+        </h1>
       </div>
 
       <div className="flex flex-wrap justify-end gap-2">

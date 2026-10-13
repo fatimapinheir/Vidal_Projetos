@@ -20,6 +20,7 @@ import { AdicionarItemNaEtapa, NovaEtapaButton, RemoverEtapaButton } from "@/com
 import { EditarItemDialog } from "@/components/orcamento/editar-item-dialog";
 import { ListaPorEtapa } from "@/components/orcamento/lista-por-etapa";
 import { DashboardOrcamento } from "@/components/orcamento/dashboard-orcamento";
+import { AjudaDaPagina } from "@/components/ui/ajuda-da-pagina";
 
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -86,13 +87,19 @@ export default async function OrcamentoObraPage({
 
   const cabecalho = (
     <div>
-      <h1 className="font-heading text-lg font-semibold">Orçamento</h1>
-      <p className="text-sm text-muted-foreground">
-        Aqui você monta o orçamento planejado desta obra — escolha itens da tabela SINAPI ou
-        cadastre itens avulsos, informando a quantidade que essa obra específica vai precisar.
-        Depois de ativado, isso vira a meta comparada com o avanço físico e o gasto real nas
-        ordens de compra.
-      </p>
+      <h1 className="flex items-center gap-1 font-heading text-lg font-semibold">
+        Orçamento
+        <AjudaDaPagina titulo="Orçamento">
+          <p>
+            Aqui você monta o orçamento planejado desta obra — escolha itens da tabela SINAPI ou
+            cadastre itens avulsos, informando a quantidade que essa obra específica vai precisar.
+          </p>
+          <p>
+            Depois de ativado, isso vira a meta comparada com o avanço físico e o gasto real nas
+            ordens de compra.
+          </p>
+        </AjudaDaPagina>
+      </h1>
     </div>
   );
 

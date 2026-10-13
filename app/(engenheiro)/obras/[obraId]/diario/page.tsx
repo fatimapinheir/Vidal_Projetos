@@ -11,6 +11,7 @@ import { BotaoExcluir } from "@/components/ui/botao-excluir";
 import { removerDiario } from "@/app/actions/diario";
 import { Paginacao } from "@/components/ui/paginacao";
 import { faixaDaPagina, lerPagina, POR_PAGINA_PADRAO } from "@/lib/paginacao";
+import { AjudaDaPagina } from "@/components/ui/ajuda-da-pagina";
 
 const climaIcone: Record<DiarioCondicao, { icone: typeof Sun; titulo: string }> = {
   ensolarado: { icone: Sun, titulo: "Ensolarado" },
@@ -81,14 +82,20 @@ export default async function DiarioObraPage({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-heading text-lg font-semibold">Diário de obra</h1>
-          <p className="text-sm text-muted-foreground">
-            Uma folha por dia. O efetivo, os equipamentos em obra, as tarefas previstas no
-            cronograma e as entregas de material já vêm preenchidos das outras telas — você escreve o
-            clima, as atividades, as ocorrências e as visitas. Ao{" "}
-            <strong>fechar o dia</strong>, esse conteúdo congela, a folha vira documento e o cliente
-            passa a vê-la no portal dele.
-          </p>
+          <h1 className="flex items-center gap-1 font-heading text-lg font-semibold">
+            Diário de obra
+            <AjudaDaPagina titulo="Diário de obra">
+              <p>
+                Uma folha por dia. Os equipamentos em obra, as tarefas previstas no cronograma e as
+                entregas de material já vêm preenchidos das outras telas — você escreve o efetivo
+                por função, o clima, as atividades, as ocorrências e as visitas.
+              </p>
+              <p>
+                Ao <strong>fechar o dia</strong>, esse conteúdo congela, a folha vira documento e o
+                cliente passa a vê-la no portal dele.
+              </p>
+            </AjudaDaPagina>
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           {!temHoje && (

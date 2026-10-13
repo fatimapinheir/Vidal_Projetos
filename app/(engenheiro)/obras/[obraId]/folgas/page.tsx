@@ -5,6 +5,7 @@ import { NovaFolgaDialog } from "./nova-folga-dialog";
 import { RemoverFolgaButton } from "./folgas-actions";
 import { Paginacao } from "@/components/ui/paginacao";
 import { faixaDaPagina, lerPagina, POR_PAGINA_PADRAO } from "@/lib/paginacao";
+import { AjudaDaPagina } from "@/components/ui/ajuda-da-pagina";
 
 export default async function FolgasObraPage({
   params,
@@ -53,12 +54,18 @@ export default async function FolgasObraPage({
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-heading text-lg font-semibold">Folgas</h1>
-          <p className="text-sm text-muted-foreground">
-            Dias que não contam como dia útil no cálculo do cronograma — cadastre qualquer data
-            (chuva, feriado local, recesso, o que for), independente de fim de semana. Elas afetam
-            automaticamente as datas de início/fim das tarefas em Cronograma.
-          </p>
+          <h1 className="flex items-center gap-1 font-heading text-lg font-semibold">
+            Folgas
+            <AjudaDaPagina titulo="Folgas">
+              <p>
+                Dias que não contam como dia útil no cálculo do cronograma — cadastre qualquer data
+                (chuva, feriado local, recesso, o que for), independente de fim de semana.
+              </p>
+              <p>
+                Elas afetam automaticamente as datas de início e fim das tarefas em Cronograma.
+              </p>
+            </AjudaDaPagina>
+          </h1>
         </div>
         <NovaFolgaDialog obraId={obraId} />
       </div>
