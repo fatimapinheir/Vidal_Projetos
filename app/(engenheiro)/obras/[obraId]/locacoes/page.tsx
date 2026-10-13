@@ -64,6 +64,8 @@ export default async function LocacoesObraPage({
         dataInicio: locacao.data_inicio,
         horasUtilizadas: locacao.horas_utilizadas,
         dataDevolucao: locacao.data_devolucao,
+        dataPrimeiroVencimento: locacao.data_primeiro_vencimento,
+        mesesContratados: locacao.meses_contratados,
       },
       hoje
     );
@@ -71,9 +73,22 @@ export default async function LocacoesObraPage({
     return { locacao, custo, locadorNome: fornecedor?.nome ?? "—" };
   });
 
+  /*
+   * Os três cartões falam de ACUMULADO — o que já correu até hoje.
+   *
+   * Na locação mensal isso são as mensalidades já vencidas, não o contrato
+   * inteiro: um contrato de seis meses assinado ontem acumulou uma. O que
+   * falta vencer aparece à parte, em "A vencer no contrato", porque é
+   * compromisso assumido e não gasto realizado — e é ele que explica a
+   * diferença entre o cartão e o total da linha.
+   */
   const totalEmUso = linhas.filter((l) => l.custo.emUso).reduce((s, l) => s + l.custo.valor, 0);
   const totalDevolvido = linhas.filter((l) => !l.custo.emUso).reduce((s, l) => s + l.custo.valor, 0);
   const quantidadeEmUso = linhas.filter((l) => l.custo.emUso).length;
+  const aVencerNoContrato = linhas.reduce(
+    (s, l) => s + Math.max(0, l.custo.valorContratado - l.custo.valor),
+    0
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -86,14 +101,15 @@ export default async function LocacoesObraPage({
             sistema conta sozinho os dias desde a data inicial; por hora, o valor sai das horas que
             você informar. Marcar como <strong>devolvido</strong> encerra a contagem e congela o
             valor na data da devolução. Na cobrança <strong>por mês</strong> é diferente: o sistema
-            gera uma ordem de compra com uma parcela por mês, e a mensalidade vira conta a pagar.
+            gera uma ordem de compra com uma parcela por mês, e a mensalidade vira conta a pagar —
+            aqui os valores contam só as mensalidades <strong>já vencidas</strong>.
           </p>
         </div>
         <LocacaoDialog obraId={obraId} fornecedores={fornecedores ?? []} />
       </div>
 
       {!!linhas.length && (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardContent className="flex items-center justify-between py-4">
               <p className="text-sm text-muted-foreground">Em uso</p>
@@ -112,6 +128,22 @@ export default async function LocacoesObraPage({
               <p className="font-heading text-xl font-semibold">{formatCurrency(totalDevolvido)}</p>
             </CardContent>
           </Card>
+          {/* Só aparece havendo contrato mensal: num quadro só de diárias
+              não existe nada combinado para vencer, e o cartão marcaria
+              R$ 0,00 para sempre. */}
+          {aVencerNoContrato > 0 && (
+            <Card>
+              <CardContent className="flex items-center justify-between py-4">
+                <p className="text-sm text-muted-foreground">
+                  A vencer no contrato
+                  <span className="block text-xs">mensalidades em contas a pagar</span>
+                </p>
+                <p className="font-heading text-xl font-semibold">
+                  {formatCurrency(aVencerNoContrato)}
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
@@ -166,31 +198,29 @@ export default async function LocacoesObraPage({
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-xs">
                   {locacao.unidade === "mes"
-                    ? `${locacao.meses_contratados ?? 1} ${(locacao.meses_contratados ?? 1) === 1 ? "mês" : "meses"}`
+                    ? `${custo.unidadesCobradas} de ${locacao.meses_contratados ?? 1} ${(locacao.meses_contratados ?? 1) === 1 ? "mês" : "meses"}`
                     : locacao.unidade === "dia"
                       ? `${custo.dias} ${custo.dias === 1 ? "dia" : "dias"}`
                       : `${custo.unidadesCobradas}h em ${custo.dias} ${custo.dias === 1 ? "dia" : "dias"}`}
                 </TableCell>
                 {/*
-                  Na cobrança mensal o total não vem da fórmula de dias: vem
-                  da ordem de compra que o sistema gerou, e é lá que se paga.
-                  Repetir o número aqui daria a impressão de dois gastos.
+                  Uma coluna, um significado: o que JÁ CORREU. Na mensal, as
+                  mensalidades vencidas — as demais ainda não são gasto, são
+                  compromisso, e aparecem na linha de baixo em cinza.
+                  
+                  Mostrar aqui o contrato inteiro foi a primeira tentativa, e
+                  dava R$ 1.800,00 na linha ao lado de "Acumulado em uso:
+                  R$ 0,00" no cartão. Duas réguas diferentes na mesma tela.
                 */}
                 <TableCell className={custo.emUso ? "font-medium" : ""}>
-                  {locacao.unidade === "mes" ? (
-                    <span className="whitespace-nowrap">
-                      {formatCurrency(
-                        locacao.quantidade *
-                          locacao.valor_unitario *
-                          (locacao.meses_contratados ?? 1)
-                      )}
+                  <span className="whitespace-nowrap">
+                    {formatCurrency(custo.valor)}
+                    {locacao.unidade === "mes" && (
                       <span className="block text-xs font-normal text-muted-foreground">
-                        em contas a pagar
+                        de {formatCurrency(custo.valorContratado)} contratados
                       </span>
-                    </span>
-                  ) : (
-                    formatCurrency(custo.valor)
-                  )}
+                    )}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">

@@ -164,23 +164,33 @@ export async function carregarVisaoGeral(supabase: Cliente, obraId: string) {
     .filter((c) => c.status === "paga")
     .reduce((s, c) => s + c.valor_total, 0);
 
-  // --- Locações ---
-  const custosLocacao = (locacoes ?? []).map((l) =>
-    calcularCustoLocacao(
-      {
-        quantidade: l.quantidade,
-        unidade: l.unidade,
-        valorUnitario: l.valor_unitario,
-        dataInicio: l.data_inicio,
-        horasUtilizadas: l.horas_utilizadas,
-        dataDevolucao: l.data_devolucao,
-      },
-      hoje
-    )
-  );
-  // Só dia e hora: a locação mensal devolve zero aqui, porque o dinheiro dela
-  // está na ordem de compra — ver `calcularCustoLocacao`. A soma das duas
-  // origens acontece logo abaixo, depois de separar as ordens de locação.
+  /*
+   * --- Locações ---
+   *
+   * A locação MENSAL fica de fora desta conta, de propósito. O dinheiro dela
+   * já está na ordem de compra que a mensalidade gerou, e essas ordens são
+   * somadas em `mensalidadesDeLocacao` logo abaixo — contá-la aqui também
+   * contaria o mesmo aluguel duas vezes no custo da obra.
+   *
+   * O filtro mora aqui, e não dentro de `calcularCustoLocacao`, porque é esta
+   * tela que não pode somar — a tela de locações precisa justamente do valor
+   * acumulado do mensal para o cartão "Acumulado em uso".
+   */
+  const custosLocacao = (locacoes ?? [])
+    .filter((l) => l.unidade !== "mes")
+    .map((l) =>
+      calcularCustoLocacao(
+        {
+          quantidade: l.quantidade,
+          unidade: l.unidade,
+          valorUnitario: l.valor_unitario,
+          dataInicio: l.data_inicio,
+          horasUtilizadas: l.horas_utilizadas,
+          dataDevolucao: l.data_devolucao,
+        },
+        hoje
+      )
+    );
   const custoLocacoesPorDiaria = custosLocacao.reduce((s, c) => s + c.valor, 0);
 
   /*
