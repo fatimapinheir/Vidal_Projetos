@@ -145,6 +145,8 @@ export function AppShell({
               userName={userName}
               userLabel={userLabel}
               obraLembrada={obraLembrada}
+              logoEmpresaUrl={logoEmpresaUrl}
+              logoEmpresaNome={logoEmpresaNome}
             />
           </div>
 

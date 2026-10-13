@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Menu, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/lib/auth/actions";
-import { Logo } from "@/components/marca/logo";
+import { LogoEmpresa } from "@/components/marca/logo-empresa";
 import { NavEntries } from "./nav-entries";
 import type { NavEntry } from "./app-shell";
 
@@ -21,11 +21,16 @@ export function MobileNav({
   userName,
   userLabel,
   obraLembrada = null,
+  logoEmpresaUrl = null,
+  logoEmpresaNome = null,
 }: {
   navItems: NavEntry[];
   userName: string;
   userLabel: string;
   obraLembrada?: string | null;
+  /** A mesma marca da lateral do desktop — ver `LogoEmpresa`. */
+  logoEmpresaUrl?: string | null;
+  logoEmpresaNome?: string | null;
 }) {
   const [aberto, setAberto] = useState(false);
 
@@ -76,7 +81,10 @@ export function MobileNav({
             className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-sidebar text-sidebar-foreground shadow-xl"
           >
             <div className="flex items-center justify-between gap-2 border-b border-sidebar-border px-4 py-4">
-              <Logo />
+              {/* A marca da construtora, como no topo da lateral. A gaveta é a
+                  lateral do celular — mostrar outra marca aqui seria dizer que
+                  são telas de donos diferentes. */}
+              <LogoEmpresa url={logoEmpresaUrl} nome={logoEmpresaNome} className="h-9" />
               <Button
                 type="button"
                 variant="ghost"
