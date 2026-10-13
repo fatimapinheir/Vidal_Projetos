@@ -185,8 +185,8 @@ export function EditarObraDialog({
                   <Input id="email" name="email" type="email" required />
                 </div>
                 <div className="w-full">
-                  <FieldLabel htmlFor="nome_cliente">Nome (se for novo)</FieldLabel>
-                  <Input id="nome_cliente" name="nome" />
+                  <FieldLabel htmlFor="nome_cliente">Nome do cliente</FieldLabel>
+                  <Input id="nome_cliente" name="nome" required />
                 </div>
               </Field>
               <FieldDescription>

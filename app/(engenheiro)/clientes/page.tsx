@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
+import { RenomearCliente } from "./renomear-cliente";
 
 export default async function ClientesPage() {
   const supabase = await createClient();
@@ -28,7 +29,7 @@ export default async function ClientesPage() {
         <h1 className="font-heading text-lg font-semibold">Clientes</h1>
         <p className="text-sm text-muted-foreground">
           Quem acompanha as obras pelo portal. O vínculo de um cliente com uma obra é feito na{" "}
-          <strong>edição da obra</strong> — aqui é a visão geral de quem já tem acesso e a quê.
+          <strong>edição da obra</strong> — aqui é a visão geral de quem já tem acesso e a quê — e onde se corrige um nome.
         </p>
       </div>
 
@@ -38,7 +39,7 @@ export default async function ClientesPage() {
           return (
             <div key={c.id} className="flex flex-col gap-2 rounded-xl border p-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="font-medium">{c.nome}</p>
+                <RenomearCliente id={c.id} nome={c.nome} />
                 <p className="text-sm text-muted-foreground">{c.email ?? "—"}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs">

@@ -8,9 +8,20 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth/require-role";
 import { soDigitos, validarDocumento } from "@/lib/documento";
 
+/*
+ * O nome é OBRIGATÓRIO, e já foi opcional.
+ *
+ * Opcional, o caminho rápido gravava o e-mail no lugar do nome — e o
+ * resultado aparecia em toda tela que mostra cliente: "ardilesvidal@hotmail.com
+ * aprovou a ordem de compra". Pior, não havia como corrigir depois: a página
+ * de clientes era só leitura, então um cadastro nascido assim ficava assim.
+ *
+ * Digitar o nome de quem se está convidando é trabalho de segundos para quem
+ * convida, e a alternativa custava um registro errado para sempre.
+ */
 const vincularSchema = z.object({
   email: z.email("Informe um email válido."),
-  nome: z.string().optional(),
+  nome: z.string().trim().min(1, "Informe o nome do cliente."),
 });
 
 export type VincularClienteState = { error: string | null; success?: boolean };
@@ -29,7 +40,7 @@ export async function vincularCliente(
 
   const parsed = vincularSchema.safeParse({
     email: formData.get("email"),
-    nome: formData.get("nome") || undefined,
+    nome: formData.get("nome"),
   });
 
   if (!parsed.success) {
@@ -60,7 +71,7 @@ export async function vincularCliente(
       email,
       password: tempPassword,
       email_confirm: true,
-      user_metadata: { nome: nome || email, role: "cliente" },
+      user_metadata: { nome, role: "cliente" },
     });
 
     if (createError || !created.user) {
@@ -269,5 +280,63 @@ export async function criarClienteParaObra(
     };
   }
 
+  return { error: null, success: true };
+}
+
+const renomearSchema = z.object({
+  clienteId: z.uuid(),
+  nome: z.string().trim().min(1, "Informe o nome."),
+});
+
+/**
+ * Corrige o nome de um cliente já cadastrado.
+ *
+ * Existe porque não existia: cliente convidado só com o e-mail ficava com o
+ * e-mail no lugar do nome, e nenhuma tela permitia arrumar. O dado errado
+ * aparecia em toda lista, em todo lançamento e no RDO.
+ *
+ * Escreve nos DOIS lugares. `profiles` é o que as telas leem; o metadata do
+ * `auth.users` é o que alimenta o gatilho `handle_new_user`, e deixá-lo
+ * desatualizado faria o nome velho ressuscitar se a conta fosse recriada.
+ */
+export async function renomearCliente(
+  _prevState: VincularClienteState,
+  formData: FormData
+): Promise<VincularClienteState> {
+  await requireRole("engenheiro");
+
+  const parsed = renomearSchema.safeParse({
+    clienteId: formData.get("cliente_id"),
+    nome: formData.get("nome"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const supabase = await createClient();
+  const { data: alvo } = await supabase
+    .from("profiles")
+    .select("id, role")
+    .eq("id", parsed.data.clienteId)
+    .maybeSingle();
+
+  if (!alvo) return { error: "Cliente não encontrado." };
+  if (alvo.role !== "cliente") return { error: "Esse cadastro não é de um cliente." };
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ nome: parsed.data.nome })
+    .eq("id", parsed.data.clienteId);
+
+  if (error) return { error: "Não foi possível salvar o nome." };
+
+  const admin = createAdminClient();
+  await admin.auth.admin.updateUserById(parsed.data.clienteId, {
+    user_metadata: { nome: parsed.data.nome },
+  });
+
+  revalidatePath("/clientes");
+  revalidatePath("/obras");
   return { error: null, success: true };
 }
