@@ -11,7 +11,7 @@ import {
 import { CompraStatusBadge } from "./status-badges";
 import { SituacaoFinanceiraBadge, SituacaoEntregaBadge } from "./situacao-badges";
 import { situacaoFinanceiraParcela, situacaoEntregaOrdem } from "@/lib/compras/situacao";
-import { PagarParcelaForm } from "./pagar-parcela-form";
+import { PagarParcelaDialog } from "./pagar-parcela-dialog";
 import { RecebimentoOrdem } from "./recebimento-ordem";
 import { PagamentoEnviadoParcela } from "./pagamento-enviado-parcela";
 import { CompraAprovacaoActions } from "./compra-aprovacao-actions";
@@ -370,9 +370,31 @@ export async function CompraDetail({
                 <TableRow>
                   <TableHead>#</TableHead>
                   <TableHead>Valor</TableHead>
-                  <TableHead>Vencimento</TableHead>
+                  {/*
+                    A coluna de vencimento some na tela do cliente.
+
+                    Para ele, o selo de "Financeiro" já diz a data em todos os
+                    estados que ele vê — "vence 25/10/2026" —, então a coluna
+                    repetia a mesma informação e, num celular, era ela que
+                    empurrava a tabela para fora da largura.
+
+                    O engenheiro continua com ela: no estado VENCIDO o selo
+                    dele troca a data por "há 3 dias", e sem a coluna a data
+                    sumiria justamente de quem precisa cobrar.
+                  */}
+                  {viewerRole === "engenheiro" && <TableHead>Vencimento</TableHead>}
                   <TableHead>Financeiro</TableHead>
-                  <TableHead>Comprovante</TableHead>
+                  {/*
+                    O comprovante também é coluna só para o engenheiro.
+
+                    Ela ocupava 118px e ficava vazia enquanto a parcela não
+                    fosse paga — num celular, era o que faltava para a tabela
+                    do cliente caber na tela e o botão de pagar ficar à vista
+                    sem rolagem lateral. Para ele o link desceu para dentro do
+                    "Financeiro", colado no selo que diz que a parcela foi
+                    paga: é onde a pergunta "e o comprovante?" nasce.
+                  */}
+                  {viewerRole === "engenheiro" && <TableHead>Comprovante</TableHead>}
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -381,27 +403,41 @@ export async function CompraDetail({
                   <TableRow key={p.id}>
                     <TableCell>{p.numero_parcela}</TableCell>
                     <TableCell>{formatCurrency(p.valor)}</TableCell>
-                    <TableCell>{formatDate(p.data_vencimento)}</TableCell>
+                    {viewerRole === "engenheiro" && (
+                      <TableCell>{formatDate(p.data_vencimento)}</TableCell>
+                    )}
                     <TableCell>
                       <SituacaoFinanceiraBadge
                         situacao={situacaoFinanceiraParcela(p)}
                         simplificado={viewerRole === "cliente"}
                       />
-                    </TableCell>
-                    <TableCell>
-                      {comprovantesUrls.has(p.id) ? (
+                      {viewerRole === "cliente" && comprovantesUrls.has(p.id) && (
                         <a
                           href={comprovantesUrls.get(p.id)}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-primary-texto underline underline-offset-4"
+                          className="mt-0.5 block text-xs text-primary-texto underline underline-offset-4"
                         >
-                          Ver
+                          Ver comprovante
                         </a>
-                      ) : (
-                        "—"
                       )}
                     </TableCell>
+                    {viewerRole === "engenheiro" && (
+                      <TableCell>
+                        {comprovantesUrls.has(p.id) ? (
+                          <a
+                            href={comprovantesUrls.get(p.id)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary-texto underline underline-offset-4"
+                          >
+                            Ver
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right">
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         {/* O passo do meio: liberada, lançada, depois paga. */}
@@ -419,10 +455,12 @@ export async function CompraDetail({
                         {compra.status === "aprovada" &&
                           p.status !== "paga" &&
                           p.liberada_para_pagamento && (
-                            <PagarParcelaForm
+                            <PagarParcelaDialog
                               obraId={compra.obra_id}
                               compraId={compra.id}
                               parcelaId={p.id}
+                              valor={p.valor}
+                              vencimento={formatDate(p.data_vencimento)}
                             />
                           )}
                       </div>
