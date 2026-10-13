@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
-import { Users, Wrench, ListChecks, Truck, HardHat } from "lucide-react";
+import { Users, Wrench, ListChecks, Truck } from "lucide-react";
 import type { ConteudoDia, EfetivoItem } from "@/lib/diario/montar-dia";
 import type { PresencaStatus } from "@/lib/types/database.types";
 import type { ReactNode } from "react";
@@ -112,6 +112,8 @@ export function ConteudoDiaSecoes({
   acaoEntrega,
   acaoEfetivo,
   atalhoEfetivo,
+  blocoEfetivo,
+  totalPorFuncao,
   campoEquipamentosExtras,
   campoEntregasExtras,
   equipamentosExtras,
@@ -121,6 +123,13 @@ export function ConteudoDiaSecoes({
   acaoEntrega?: (entregaParcelaId: string, recebidoEm: string | null) => ReactNode;
   acaoEfetivo?: (trabalhadorId: string, status: PresencaStatus | null) => ReactNode;
   atalhoEfetivo?: ReactNode;
+  /**
+   * O efetivo por função, montado pela página. Chega pronto porque é um
+   * componente de cliente com ações próprias, e esta peça é compartilhada.
+   */
+  blocoEfetivo?: ReactNode;
+  /** Soma das quantidades lançadas por função — o número do título. */
+  totalPorFuncao?: number;
   /**
    * Campos de texto para o que não veio de outra tela, quando o dia está
    * aberto para o engenheiro. Fechado ou na tela do cliente, o texto entra em
@@ -150,80 +159,80 @@ export function ConteudoDiaSecoes({
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Secao
-        titulo={`Efetivo${efetivo.length ? ` — ${contagem(totalEmObra)} em obra` : ""}`}
+        titulo={`Efetivo${totalPorFuncao ? ` — ${totalPorFuncao} em obra` : ""}`}
         icone={<Users className="size-4" />}
-        vazio={
-          acaoEfetivo
-            ? "Nenhum trabalhador alocado nessa obra ainda."
-            : "Nenhuma presença lançada nesse dia."
-        }
-        acao={semConfirmar ? atalhoEfetivo : null}
+        vazio="Nenhum efetivo lançado nesse dia."
       >
-        {efetivo.length || conteudo.responsaveis.length ? (
-          <div className="flex flex-col gap-3">
-            {/*
-              O responsável antes da contagem.
-              
-              É o nome que se procura na folha — quem estava no comando da
-              frente de serviço. Vem do cadastro de equipe, não da lista de
-              presença, e por isso aparece mesmo num dia sem ninguém
-              confirmado ainda.
-            */}
-            {!!conteudo.responsaveis.length && (
-              <p className="flex items-start gap-2 rounded-lg bg-muted/50 px-2.5 py-2">
-                <HardHat className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-                <span>
-                  <span className="block text-xs text-muted-foreground">
-                    {conteudo.responsaveis.length === 1
-                      ? "Responsável pela obra"
-                      : "Responsáveis pela obra"}
-                  </span>
-                  <span className="font-medium">{conteudo.responsaveis.join(", ")}</span>
-                </span>
-              </p>
-            )}
+        {/*
+          O efetivo do dia é a contagem por FUNÇÃO, digitada — ver
+          `EfetivoPorFuncao`, que a página passa pronta aqui.
 
-            {grupos.map((grupo) => (
-              <div key={grupo.funcao} className="flex flex-col gap-1">
-                <p className="flex items-baseline justify-between gap-2 border-b pb-1">
-                  <span className="font-medium">{grupo.funcao}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                    {grupo.emObra > 0
-                      ? `${contagem(grupo.emObra)} de ${grupo.pessoas.length} em obra`
-                      : grupo.semConfirmar
-                        ? `${grupo.semConfirmar} a confirmar`
-                        : "ninguém em obra"}
-                  </span>
-                </p>
-                <ul className="flex flex-col gap-1 pl-1">
-                  {grupo.pessoas.map((pessoa, i) => (
-                    <li
-                      key={pessoa.trabalhadorId ?? `${pessoa.nome}-${i}`}
-                      className="flex min-h-8 items-center justify-between gap-2"
-                    >
-                      <span
-                        className={
-                          pessoa.status === "falta"
-                            ? "text-sm text-muted-foreground line-through"
-                            : "text-sm"
-                        }
+          A lista por NOME continua existindo, logo abaixo e recolhida. Ela não
+          responde "quantos de cada função", que é a pergunta da folha, mas é
+          dela que sai o cálculo de diária no fechamento — some da tela sem
+          sumir do sistema.
+        */}
+        {blocoEfetivo}
+
+        {!!efetivo.length && (
+          <details className="group mt-3 border-t pt-2">
+            <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground">
+              <span>
+                Presença individual
+                {acaoEfetivo
+                  ? ` — ${contagem(totalEmObra)} de ${efetivo.length} confirmados`
+                  : ` — ${efetivo.length} ${efetivo.length === 1 ? "lançamento" : "lançamentos"}`}
+              </span>
+              <span className="block text-[11px]">
+                É daqui que sai o cálculo de diária no fechamento de folha.
+              </span>
+            </summary>
+
+            <div className="mt-2 flex flex-col gap-3">
+              {!!semConfirmar && atalhoEfetivo}
+
+              {grupos.map((grupo) => (
+                <div key={grupo.funcao} className="flex flex-col gap-1">
+                  <p className="flex items-baseline justify-between gap-2 border-b pb-1">
+                    <span className="font-medium">{grupo.funcao}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                      {grupo.emObra > 0
+                        ? `${contagem(grupo.emObra)} de ${grupo.pessoas.length} em obra`
+                        : grupo.semConfirmar
+                          ? `${grupo.semConfirmar} a confirmar`
+                          : "ninguém em obra"}
+                    </span>
+                  </p>
+                  <ul className="flex flex-col gap-1 pl-1">
+                    {grupo.pessoas.map((pessoa, i) => (
+                      <li
+                        key={pessoa.trabalhadorId ?? `${pessoa.nome}-${i}`}
+                        className="flex min-h-8 items-center justify-between gap-2"
                       >
-                        {pessoa.nome}
-                      </span>
-                      {acaoEfetivo && pessoa.trabalhadorId ? (
-                        acaoEfetivo(pessoa.trabalhadorId, pessoa.status)
-                      ) : pessoa.status ? (
-                        <Badge variant={pessoa.status === "falta" ? "outline" : "secondary"}>
-                          {statusLabel[pessoa.status]}
-                        </Badge>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        ) : null}
+                        <span
+                          className={
+                            pessoa.status === "falta"
+                              ? "text-sm text-muted-foreground line-through"
+                              : "text-sm"
+                          }
+                        >
+                          {pessoa.nome}
+                        </span>
+                        {acaoEfetivo && pessoa.trabalhadorId ? (
+                          acaoEfetivo(pessoa.trabalhadorId, pessoa.status)
+                        ) : pessoa.status ? (
+                          <Badge variant={pessoa.status === "falta" ? "outline" : "secondary"}>
+                            {statusLabel[pessoa.status]}
+                          </Badge>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
       </Secao>
 
       <Secao

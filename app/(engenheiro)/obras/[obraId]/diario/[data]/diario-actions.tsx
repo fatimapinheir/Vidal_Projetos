@@ -18,7 +18,6 @@ import {
   registrarFotos,
   salvarLegendaFoto,
   removerFoto,
-  removerDiario,
   salvarExtraDoDia,
   type CampoExtraDiario,
 } from "@/app/actions/diario";
@@ -450,56 +449,6 @@ export function CampoExtra({
       />
       <p className="text-xs text-muted-foreground">Um por linha. Salva ao sair do campo.</p>
     </div>
-  );
-}
-
-/**
- * Apaga a folha do dia inteira.
- *
- * Existe porque dia aberto por engano — data errada no calendário, duplicado
- * de um toque a mais no celular — não tinha como sair da lista, e ficava lá
- * como registro vazio de um dia em que ninguém esteve na obra.
- *
- * A confirmação diz o que vai embora com a folha, inclusive as fotos, e diz
- * quando a folha está FECHADA: nesse caso ela já é documento e o cliente já a
- * viu no portal dele.
- */
-export function ExcluirDiarioButton({
-  obraId,
-  data,
-  fechado,
-}: {
-  obraId: string;
-  data: string;
-  fechado: boolean;
-}) {
-  const [pending, startTransition] = useTransition();
-  const router = useRouter();
-
-  function handleClick() {
-    const dataBR = new Date(`${data}T00:00:00`).toLocaleDateString("pt-BR");
-    const aviso = fechado
-      ? `\n\nAtenção: essa folha está FECHADA — é documento, e o cliente já a enxerga no portal dele.`
-      : "";
-    if (
-      !confirm(
-        `Excluir o RDO de ${dataBR}? O registro do dia, as fotos anexadas e as presenças confirmadas na folha vão embora, e não dá para desfazer.${aviso}`
-      )
-    ) {
-      return;
-    }
-
-    startTransition(async () => {
-      await removerDiario(obraId, data);
-      router.push(`/obras/${obraId}/diario`);
-    });
-  }
-
-  return (
-    <Button onClick={handleClick} disabled={pending} variant="ghost" size="sm">
-      <Trash2 className="size-4" />
-      {pending ? "Excluindo..." : "Excluir RDO"}
-    </Button>
   );
 }
 

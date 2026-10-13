@@ -115,3 +115,61 @@ export async function alocarTrabalhadorNaObra(
   revalidatePath(`/obras/${obraId}/equipe`);
   return { error: null, success: true };
 }
+
+/**
+ * Apaga um colaborador do cadastro.
+ *
+ * Só apaga de verdade quem não deixou rastro. Presença lançada e fechamento de
+ * folha são HISTÓRICO — e o banco já recusa a exclusão por eles (as chaves
+ * estrangeiras são `no action`). Recusar com a mensagem do Postgres diria
+ * "violates foreign key constraint"; aqui a tela diz o que de fato aconteceu e
+ * o que fazer no lugar.
+ *
+ * Inativar continua sendo o caminho certo para quem trabalhou e saiu: o nome
+ * dele precisa continuar existindo nos dias em que esteve na obra e nos
+ * fechamentos que já foram pagos.
+ */
+export async function removerTrabalhador(
+  trabalhadorId: string
+): Promise<{ error: string | null }> {
+  await requireRole("engenheiro");
+  const supabase = await createClient();
+
+  const [{ count: presencas }, { count: fechamentos }, { count: equipesQueLidera }] =
+    await Promise.all([
+      supabase
+        .from("presencas")
+        .select("trabalhador_id", { count: "exact", head: true })
+        .eq("trabalhador_id", trabalhadorId),
+      supabase
+        .from("fechamentos_periodo")
+        .select("trabalhador_id", { count: "exact", head: true })
+        .eq("trabalhador_id", trabalhadorId),
+      supabase
+        .from("equipes")
+        .select("id", { count: "exact", head: true })
+        .eq("responsavel_id", trabalhadorId),
+    ]);
+
+  if (presencas || fechamentos) {
+    return {
+      error:
+        "Esse colaborador já tem presença ou fechamento lançado — apagá-lo apagaria o histórico da obra. Marque como inativo: ele some das listas de alocação e o que já passou continua de pé.",
+    };
+  }
+
+  if (equipesQueLidera) {
+    return {
+      error:
+        "Esse colaborador é responsável por uma equipe. Troque o responsável dela antes de apagá-lo.",
+    };
+  }
+
+  // Alocação em obra e participação em equipe caem por cascade: são vínculos
+  // do presente, não registro do que aconteceu.
+  const { error } = await supabase.from("trabalhadores").delete().eq("id", trabalhadorId);
+  if (error) return { error: "Não foi possível apagar o colaborador." };
+
+  revalidatePath("/trabalhadores");
+  return { error: null };
+}

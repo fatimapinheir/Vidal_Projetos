@@ -7,6 +7,7 @@ import { ChevronLeft, FileDown } from "lucide-react";
 import { formatDateBR } from "@/lib/format-date";
 import { conteudoParaExibir } from "@/lib/diario/montar-dia";
 import { ConteudoDiaSecoes } from "@/components/diario/conteudo-dia";
+import { EfetivoPorFuncao } from "@/components/diario/efetivo-por-funcao";
 import { DiarioForm } from "./diario-form";
 import {
   FecharDiaButton,
@@ -18,7 +19,6 @@ import {
   RemoverFotoButton,
   StatusDiarioBadge,
   CampoExtra,
-  ExcluirDiarioButton,
 } from "./diario-actions";
 
 const ISO_DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -40,16 +40,37 @@ export default async function DiarioDiaPage({
     .eq("data", data)
     .maybeSingle();
 
-  const [conteudo, { data: fotos }] = await Promise.all([
-    conteudoParaExibir(supabase, obraId, data, diario),
-    diario
-      ? supabase
-          .from("diario_fotos")
-          .select("id, path, legenda")
-          .eq("diario_id", diario.id)
-          .order("created_at")
-      : Promise.resolve({ data: [] }),
-  ]);
+  const [conteudo, { data: fotos }, { data: funcoes }, { data: efetivoFuncoes }] =
+    await Promise.all([
+      conteudoParaExibir(supabase, obraId, data, diario),
+      diario
+        ? supabase
+            .from("diario_fotos")
+            .select("id, path, legenda")
+            .eq("diario_id", diario.id)
+            .order("created_at")
+        : Promise.resolve({ data: [] }),
+      supabase.from("funcoes").select("id, nome").eq("ativo", true).order("nome"),
+      // O efetivo por função é do DIA e fica como foi digitado — não precisa de
+      // congelamento no fechamento, ao contrário do que é derivado de outras
+      // telas.
+      diario
+        ? supabase
+            .from("diario_efetivo_funcoes")
+            .select("funcao_id, quantidade, funcoes(nome)")
+            .eq("diario_id", diario.id)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+  const linhasEfetivo = (efetivoFuncoes ?? [])
+    .map((linha) => ({
+      funcaoId: linha.funcao_id,
+      funcao: (linha.funcoes as unknown as { nome: string } | null)?.nome ?? "—",
+      quantidade: linha.quantidade,
+    }))
+    .sort((a, b) => a.funcao.localeCompare(b.funcao, "pt-BR"));
+
+  const totalPorFuncao = linhasEfetivo.reduce((soma, l) => soma + l.quantidade, 0);
 
   const fotosComUrl = await Promise.all(
     (fotos ?? []).map(async (foto) => {
@@ -106,16 +127,15 @@ export default async function DiarioDiaPage({
               </Link>
             }
           />
+          {/* Excluir não mora aqui: a lixeira está na linha da listagem, que é
+              o padrão de exclusão do sistema inteiro. */}
           {diario && (
-            <>
-              <FecharDiaButton
-                obraId={obraId}
-                data={data}
-                fechado={fechado}
-                semConfirmar={semConfirmar}
-              />
-              <ExcluirDiarioButton obraId={obraId} data={data} fechado={fechado} />
-            </>
+            <FecharDiaButton
+              obraId={obraId}
+              data={data}
+              fechado={fechado}
+              semConfirmar={semConfirmar}
+            />
           )}
         </div>
       </div>
@@ -150,6 +170,17 @@ export default async function DiarioDiaPage({
           !fechado && semConfirmar > 0 ? (
             <ConfirmarEquipeButton obraId={obraId} data={data} semConfirmar={semConfirmar} />
           ) : null
+        }
+        totalPorFuncao={totalPorFuncao}
+        blocoEfetivo={
+          <EfetivoPorFuncao
+            obraId={obraId}
+            data={data}
+            responsaveis={conteudo.responsaveis}
+            linhas={linhasEfetivo}
+            funcoes={funcoes ?? []}
+            somenteLeitura={fechado}
+          />
         }
         /*
           Com o dia aberto os extras são campos; fechados, texto. Os dois

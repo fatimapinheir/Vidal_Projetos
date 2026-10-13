@@ -7,6 +7,8 @@ import { hojeIso } from "@/lib/locacoes/calculo";
 import { CloudRain, Cloud, Sun, CloudOff } from "lucide-react";
 import type { DiarioCondicao } from "@/lib/types/database.types";
 import { AbrirDiaForm } from "./abrir-dia-form";
+import { BotaoExcluir } from "@/components/ui/botao-excluir";
+import { removerDiario } from "@/app/actions/diario";
 import { Paginacao } from "@/components/ui/paginacao";
 import { faixaDaPagina, lerPagina, POR_PAGINA_PADRAO } from "@/lib/paginacao";
 
@@ -100,28 +102,54 @@ export default async function DiarioObraPage({
       </div>
 
       <div className="flex flex-col gap-2">
+        {/*
+          A lixeira fica NA LINHA, não dentro do dia.
+          
+          Estava na tela de detalhe, e por isso apagar um dia aberto por engano
+          — data errada no calendário, um toque a mais no celular — exigia
+          abrir o dia primeiro. A lista é onde se vê que ele sobra; é nela que
+          tem de haver como tirá-lo.
+          
+          O link deixou de envolver a linha inteira e passou a envolver só o
+          bloco de texto: um botão dentro de um link é marcação inválida, e o
+          clique na lixeira navegava antes de confirmar.
+        */}
         {dias?.map((dia) => (
-          <Link
+          <div
             key={dia.data}
-            href={`/obras/${obraId}/diario/${dia.data}`}
-            className="flex items-center justify-between gap-4 rounded-xl border p-3 transition-colors hover:bg-muted/50"
+            className="flex items-center justify-between gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/50"
           >
-            <div className="min-w-0">
-              <p className="flex items-center gap-2 text-sm font-medium">
-                {formatDateBR(dia.data)}
-                {dia.data === hoje && <Badge variant="outline">Hoje</Badge>}
-                {dia.fechado_em ? (
-                  <Badge variant="secondary">Fechado</Badge>
-                ) : (
-                  <Badge variant="outline">Aberto</Badge>
-                )}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {dia.atividades || dia.ocorrencias || "Sem anotações ainda."}
-              </p>
-            </div>
-            <ClimaDoDia clima={dia.clima} />
-          </Link>
+            <Link
+              href={`/obras/${obraId}/diario/${dia.data}`}
+              className="flex min-w-0 flex-1 items-center justify-between gap-4"
+            >
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 text-sm font-medium">
+                  {formatDateBR(dia.data)}
+                  {dia.data === hoje && <Badge variant="outline">Hoje</Badge>}
+                  {dia.fechado_em ? (
+                    <Badge variant="secondary">Fechado</Badge>
+                  ) : (
+                    <Badge variant="outline">Aberto</Badge>
+                  )}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {dia.atividades || dia.ocorrencias || "Sem anotações ainda."}
+                </p>
+              </div>
+              <ClimaDoDia clima={dia.clima} />
+            </Link>
+            <BotaoExcluir
+              rotulo="Excluir RDO"
+              confirmacao={
+                `Excluir o RDO de ${formatDateBR(dia.data)}? O registro do dia, as fotos anexadas e o efetivo lançado na folha vão embora, e não dá para desfazer.` +
+                (dia.fechado_em
+                  ? "\n\nAtenção: essa folha está FECHADA — é documento, e o cliente já a enxerga no portal dele."
+                  : "")
+              }
+              acao={removerDiario.bind(null, obraId, dia.data)}
+            />
+          </div>
         ))}
         {!dias?.length && (
           <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">

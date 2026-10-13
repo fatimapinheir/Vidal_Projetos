@@ -13,6 +13,8 @@ import type { FormaPagamento } from "@/lib/types/database.types";
 import { NovoTrabalhadorDialog } from "./novo-trabalhador-dialog";
 import { NovaEquipeDialog } from "./nova-equipe-dialog";
 import { DesativarEquipeButton } from "./equipes-actions";
+import { BotaoExcluir } from "@/components/ui/botao-excluir";
+import { removerTrabalhador } from "@/app/actions/trabalhadores";
 
 const EQUIPES_POR_PAGINA = 10;
 
@@ -89,6 +91,7 @@ export default async function ColaboradoresPage({
                 <TableHead>Pagamento</TableHead>
                 <TableHead>Telefone</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -129,11 +132,23 @@ export default async function ColaboradoresPage({
                       {t.ativo ? "Ativo" : "Inativo"}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-right">
+                    {/*
+                      A lixeira recusa quem tem histórico — presença lançada,
+                      fechamento pago — e explica por quê. Ver
+                      `removerTrabalhador`: para esses, o caminho é inativar.
+                    */}
+                    <BotaoExcluir
+                      rotulo="Excluir colaborador"
+                      confirmacao={`Apagar ${t.nome} do cadastro? Ele sai das equipes e das obras em que estava alocado, e não dá para desfazer.`}
+                      acao={removerTrabalhador.bind(null, t.id)}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
               {!trabalhadores?.length && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     Nenhum colaborador cadastrado ainda.
                   </TableCell>
                 </TableRow>

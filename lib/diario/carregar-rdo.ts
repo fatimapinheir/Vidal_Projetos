@@ -86,14 +86,23 @@ export async function carregarRdo(
   const { data: obra } = await supabase.from("obras").select("*").eq("id", obraId).single();
   if (!obra) return null;
 
-  const [{ data: vinculos }, { data: fotos }, conteudo] = await Promise.all([
-    supabase.from("obra_clientes").select("profiles(nome)").eq("obra_id", obraId),
-    diario
-      ? supabase.from("diario_fotos").select("path, legenda").eq("diario_id", diario.id)
-      : Promise.resolve({ data: null }),
-    // Dia fechado usa o congelado; aberto, o que o sistema sabe agora.
-    diario?.fechado_em ? Promise.resolve(null) : derivarConteudoDia(supabase, obraId, data),
-  ]);
+  const [{ data: vinculos }, { data: fotos }, conteudo, { data: efetivoFuncoes }] =
+    await Promise.all([
+      supabase.from("obra_clientes").select("profiles(nome)").eq("obra_id", obraId),
+      diario
+        ? supabase.from("diario_fotos").select("path, legenda").eq("diario_id", diario.id)
+        : Promise.resolve({ data: null }),
+      // Dia fechado usa o congelado; aberto, o que o sistema sabe agora.
+      diario?.fechado_em ? Promise.resolve(null) : derivarConteudoDia(supabase, obraId, data),
+      // O efetivo digitado por função. Não precisa de congelamento: ele já é
+      // do dia e ninguém o deriva de outra tela.
+      diario
+        ? supabase
+            .from("diario_efetivo_funcoes")
+            .select("quantidade, funcoes(nome)")
+            .eq("diario_id", diario.id)
+        : Promise.resolve({ data: null }),
+    ]);
 
   const contratante =
     (vinculos ?? [])
@@ -101,11 +110,31 @@ export async function carregarRdo(
       .filter(Boolean)
       .join(", ") || "—";
 
+  /*
+   * O efetivo do relatório vem do que foi DIGITADO por função, quando houver.
+   *
+   * É a resposta certa para o quadro: o RDO sempre pediu função e quantidade,
+   * e a contagem digitada no diário conta quem esteve na obra — inclusive a
+   * equipe que chegou com três pessoas e um único nome no cadastro.
+   *
+   * Sem lançamento por função, cai na contagem derivada das presenças
+   * individuais, que é como o relatório funcionava antes. As folhas antigas
+   * continuam imprimindo o que sempre imprimiram.
+   */
+  const porFuncaoDigitado: LinhaEfetivo[] = (efetivoFuncoes ?? [])
+    .map((linha) => ({
+      funcao: (linha.funcoes as unknown as { nome: string } | null)?.nome ?? "Não informada",
+      total: linha.quantidade,
+    }))
+    .sort((a, b) => a.funcao.localeCompare(b.funcao, "pt-BR"));
+
   // No dia aberto o efetivo traz a equipe inteira, inclusive quem ainda não foi
   // confirmado — isso serve para dar onde clicar na folha, não para o
   // relatório. Aqui só entra quem tem presença lançada.
   const efetivoBruto = (diario?.efetivo_snapshot ?? conteudo?.efetivo ?? []) as EfetivoItem[];
-  const efetivo = porFuncao(efetivoConfirmado(efetivoBruto));
+  const efetivo = porFuncaoDigitado.length
+    ? porFuncaoDigitado
+    : porFuncao(efetivoConfirmado(efetivoBruto));
   // Congelado tem precedência: trocar o responsável da equipe hoje não pode
   // reescrever quem assinava a obra num RDO de três meses atrás.
   const responsaveis =

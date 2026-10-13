@@ -562,6 +562,33 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["cronograma_dependencias"]["Insert"]>;
         Relationships: [];
       };
+      funcoes: {
+        Row: { id: string; nome: string; ativo: boolean; created_at: string };
+        Insert: { id?: string; nome: string; ativo?: boolean; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["funcoes"]["Insert"]>;
+        Relationships: [];
+      };
+      /** Quantas pessoas de cada função estiveram na obra no dia (0057). */
+      diario_efetivo_funcoes: {
+        Row: {
+          id: string;
+          diario_id: string;
+          funcao_id: string;
+          quantidade: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          diario_id: string;
+          funcao_id: string;
+          quantidade: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["diario_efetivo_funcoes"]["Insert"]>;
+        Relationships: [];
+      };
       diario_obra: {
         Row: {
           id: string;
