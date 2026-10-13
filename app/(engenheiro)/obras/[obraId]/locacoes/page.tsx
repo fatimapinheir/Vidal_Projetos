@@ -76,16 +76,19 @@ export default async function LocacoesObraPage({
   /*
    * Os três cartões falam de ACUMULADO — o que já correu até hoje.
    *
-   * Na locação mensal isso são as mensalidades já vencidas, não o contrato
-   * inteiro: um contrato de seis meses assinado ontem acumulou uma. O que
-   * falta vencer aparece à parte, em "A vencer no contrato", porque é
-   * compromisso assumido e não gasto realizado — e é ele que explica a
-   * diferença entre o cartão e o total da linha.
+   * Na locação mensal isso são as mensalidades dos meses que já começaram, e
+   * não o contrato inteiro: um contrato de seis meses assinado ontem acumulou
+   * uma. O mês corrente entra inteiro assim que vira o mês, antes do boleto
+   * vencer, porque é assim que o locador cobra — o equipamento esteve lá.
+   *
+   * Os meses que ainda não começaram aparecem à parte, em "A começar no
+   * contrato": são compromisso assumido, não gasto realizado, e é essa linha
+   * que explica a diferença entre o cartão e o total contratado.
    */
   const totalEmUso = linhas.filter((l) => l.custo.emUso).reduce((s, l) => s + l.custo.valor, 0);
   const totalDevolvido = linhas.filter((l) => !l.custo.emUso).reduce((s, l) => s + l.custo.valor, 0);
   const quantidadeEmUso = linhas.filter((l) => l.custo.emUso).length;
-  const aVencerNoContrato = linhas.reduce(
+  const aComecarNoContrato = linhas.reduce(
     (s, l) => s + Math.max(0, l.custo.valorContratado - l.custo.valor),
     0
   );
@@ -101,8 +104,10 @@ export default async function LocacoesObraPage({
             sistema conta sozinho os dias desde a data inicial; por hora, o valor sai das horas que
             você informar. Marcar como <strong>devolvido</strong> encerra a contagem e congela o
             valor na data da devolução. Na cobrança <strong>por mês</strong> é diferente: o sistema
-            gera uma ordem de compra com uma parcela por mês, e a mensalidade vira conta a pagar —
-            aqui os valores contam só as mensalidades <strong>já vencidas</strong>.
+            gera uma ordem de compra com uma parcela por mês, e a mensalidade vira conta a pagar.
+            Aqui o valor conta as mensalidades dos meses que <strong>já começaram</strong>, mesmo
+            que o boleto só vença mais adiante — entrado o mês com o equipamento em obra, a
+            mensalidade dele já é devida.
           </p>
         </div>
         <LocacaoDialog obraId={obraId} fornecedores={fornecedores ?? []} />
@@ -118,7 +123,7 @@ export default async function LocacoesObraPage({
           </Card>
           <Card>
             <CardContent className="flex items-center justify-between py-4">
-              <p className="text-sm text-muted-foreground">Acumulado em uso</p>
+              <p className="text-sm text-muted-foreground">Acumulado em uso do mês</p>
               <p className="font-heading text-xl font-semibold">{formatCurrency(totalEmUso)}</p>
             </CardContent>
           </Card>
@@ -131,15 +136,15 @@ export default async function LocacoesObraPage({
           {/* Só aparece havendo contrato mensal: num quadro só de diárias
               não existe nada combinado para vencer, e o cartão marcaria
               R$ 0,00 para sempre. */}
-          {aVencerNoContrato > 0 && (
+          {aComecarNoContrato > 0 && (
             <Card>
               <CardContent className="flex items-center justify-between py-4">
                 <p className="text-sm text-muted-foreground">
-                  A vencer no contrato
-                  <span className="block text-xs">mensalidades em contas a pagar</span>
+                  A começar no contrato
+                  <span className="block text-xs">meses que ainda não entraram</span>
                 </p>
                 <p className="font-heading text-xl font-semibold">
-                  {formatCurrency(aVencerNoContrato)}
+                  {formatCurrency(aComecarNoContrato)}
                 </p>
               </CardContent>
             </Card>
@@ -198,7 +203,11 @@ export default async function LocacoesObraPage({
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-xs">
                   {locacao.unidade === "mes"
-                    ? `${custo.unidadesCobradas} de ${locacao.meses_contratados ?? 1} ${(locacao.meses_contratados ?? 1) === 1 ? "mês" : "meses"}`
+                    ? // Zero significa contrato que ainda não entrou no primeiro
+                      // mês — "0º de 6 meses" não quer dizer nada.
+                      custo.unidadesCobradas === 0
+                      ? `a começar · ${locacao.meses_contratados ?? 1} meses`
+                      : `${custo.unidadesCobradas}º de ${locacao.meses_contratados ?? 1} ${(locacao.meses_contratados ?? 1) === 1 ? "mês" : "meses"}`
                     : locacao.unidade === "dia"
                       ? `${custo.dias} ${custo.dias === 1 ? "dia" : "dias"}`
                       : `${custo.unidadesCobradas}h em ${custo.dias} ${custo.dias === 1 ? "dia" : "dias"}`}

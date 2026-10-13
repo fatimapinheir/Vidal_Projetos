@@ -22,8 +22,9 @@ export type CustoLocacao = {
   /**
    * O que JÁ CORREU até a referência.
    *
-   * Por dia e por hora é o custo acumulado. Por mês são as mensalidades que já
-   * venceram — um contrato de seis meses assinado ontem acumulou uma, não seis.
+   * Por dia e por hora é o custo acumulado. Por mês são as mensalidades dos
+   * meses que já começaram — um contrato de seis meses assinado ontem acumulou
+   * uma, não seis.
    */
   valor: number;
   /**
@@ -69,17 +70,30 @@ function somarMeses(iso: string, meses: number): string {
   return alvo.toISOString().slice(0, 10);
 }
 
-/** Quantas mensalidades já venceram até `fimIso`, no máximo as contratadas. */
-function mensalidadesVencidas(locacao: LocacaoCalculavel, fimIso: string): number {
+/**
+ * Quantas mensalidades já correram até `fimIso`, no máximo as contratadas.
+ *
+ * Conta pelo MÊS do vencimento, não pelo dia: entrado o mês com o equipamento
+ * na obra, a mensalidade dele já é devida. É como o locador cobra — a diária
+ * de outubro não passa a existir no dia 16 porque o boleto vence no dia 16; o
+ * equipamento esteve lá o mês todo.
+ *
+ * Comparar pelo dia era a primeira versão, e deixava o acumulado em R$ 0,00
+ * durante as duas primeiras semanas de uso de um equipamento que estava na
+ * obra desde o dia 1º.
+ */
+function mensalidadesCorridas(locacao: LocacaoCalculavel, fimIso: string): number {
   if (!locacao.dataPrimeiroVencimento) return 0;
   const contratadas = Math.max(1, locacao.mesesContratados ?? 1);
-  let vencidas = 0;
-  // As datas são crescentes: a primeira que não venceu encerra a contagem.
-  while (vencidas < contratadas) {
-    if (somarMeses(locacao.dataPrimeiroVencimento, vencidas) > fimIso) break;
-    vencidas += 1;
+  const mesLimite = fimIso.slice(0, 7);
+  let corridas = 0;
+  // Os vencimentos são crescentes: o primeiro mês futuro encerra a contagem.
+  while (corridas < contratadas) {
+    const vencimento = somarMeses(locacao.dataPrimeiroVencimento, corridas);
+    if (vencimento.slice(0, 7) > mesLimite) break;
+    corridas += 1;
   }
-  return vencidas;
+  return corridas;
 }
 
 function diasCorridos(inicioIso: string, fimIso: string): number {
@@ -97,7 +111,8 @@ function diasCorridos(inicioIso: string, fimIso: string): number {
  * Por hora: quantidade × valor × horas informadas pelo engenheiro. Os dias
  *           continuam sendo calculados, mas só como informação de quanto tempo
  *           o equipamento ficou na obra — não entram no valor.
- * Por mês:  quantidade × valor × mensalidades JÁ VENCIDAS, e `valorContratado`
+ * Por mês:  quantidade × valor × mensalidades JÁ CORRIDAS — as dos meses que
+ *           já começaram, ver `mensalidadesCorridas` —, e `valorContratado`
  *           traz o contrato inteiro. A primeira versão devolvia zero aqui,
  *           porque o dinheiro do mensal entra no custo da obra pela ordem de
  *           compra e somá-lo de novo contaria duas vezes — mas o efeito na
@@ -117,12 +132,12 @@ export function calcularCustoLocacao(
   const dias = Math.max(0, diasCorridos(locacao.dataInicio, fim));
 
   if (locacao.unidade === "mes") {
-    const vencidas = mensalidadesVencidas(locacao, fim);
+    const corridas = mensalidadesCorridas(locacao, fim);
     const porMes = locacao.quantidade * locacao.valorUnitario;
     return {
       dias,
-      unidadesCobradas: vencidas,
-      valor: porMes * vencidas,
+      unidadesCobradas: corridas,
+      valor: porMes * corridas,
       valorContratado: porMes * Math.max(1, locacao.mesesContratados ?? 1),
       emUso,
     };
