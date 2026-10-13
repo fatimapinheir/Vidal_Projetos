@@ -1111,6 +1111,11 @@ export interface Database {
         Args: Record<string, never>;
         Returns: boolean;
       };
+      /** Soma de `valor_total` das compras que casam com o filtro da listagem (0056). */
+      somar_compras_da_obra: {
+        Args: { p_obra_id: string; p_tipo?: string | null; p_busca?: string | null };
+        Returns: number;
+      };
       /** Null quando deu tudo certo; a mensagem para o usuário quando não (0054). */
       sincronizar_mensalidades_locacao: {
         Args: { p_locacao_id: string };

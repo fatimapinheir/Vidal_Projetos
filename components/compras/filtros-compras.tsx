@@ -34,6 +34,7 @@ export function FiltrosCompras({
   busca,
   tipo,
   resultados,
+  soma,
 }: {
   /** Caminho da lista, sem query. */
   base: string;
@@ -41,6 +42,8 @@ export function FiltrosCompras({
   tipo: TipoFiltro;
   /** Quantas linhas o filtro encontrou na obra inteira. */
   resultados: number;
+  /** Quanto essas linhas somam. Vem do banco, não da página carregada. */
+  soma: number;
 }) {
   const router = useRouter();
   const [termo, setTermo] = useState(busca);
@@ -102,15 +105,29 @@ export function FiltrosCompras({
           Filtros
         </Button>
         {filtrando && (
-          <span className="text-xs text-muted-foreground">
-            {resultados} {resultados === 1 ? "resultado" : "resultados"}
+          <span className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
+            <span>
+              {resultados} {resultados === 1 ? "resultado" : "resultados"}
+            </span>
+            {/*
+              A soma ao lado da contagem, destacada.
+              
+              "8 resultados" responde quantos; quem filtra por mão de obra ou
+              por um fornecedor quer saber QUANTO — e a conta estava sendo
+              feita no olho, somando a coluna de valor linha a linha. Ela cobre
+              o filtro inteiro, não a página: com 25 por página, somar o que
+              está na tela responderia outra pergunta.
+            */}
+            <span className="font-semibold text-foreground tabular-nums">
+              {soma.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+            </span>
             <button
               type="button"
               onClick={() => {
                 setTermo("");
                 irPara({ busca: "", tipo: "todos" });
               }}
-              className="ml-2 underline underline-offset-4 hover:text-foreground"
+              className="underline underline-offset-4 hover:text-foreground"
             >
               limpar
             </button>

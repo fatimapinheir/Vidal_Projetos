@@ -75,7 +75,16 @@ export default async function ComprasObraPage({
    * pelos ids deles. São poucas dezenas de fornecedores — a lista de ids cabe
    * folgada na requisição.
    */
-  const termoSeguro = busca.replace(/[,()*]/g, " ").trim();
+  /*
+   * O termo perde os caracteres de significado especial.
+   *
+   * `, ( ) *` quebram a mini-linguagem de filtro do PostgREST; `% _ \` são
+   * curingas do LIKE. Os cinco são REMOVIDOS, não escapados, porque a soma do
+   * rodapé vem de `somar_compras_da_obra` no banco e as duas consultas têm de
+   * encontrar o mesmo conjunto — senão a tela diz "8 resultados" e soma um
+   * nono. Remover é a única regra que os dois lados expressam igual.
+   */
+  const termoSeguro = busca.replace(/[,()*%_\\]/g, " ").replace(/\s+/g, " ").trim();
   const { data: fornecedoresCasando } = termoSeguro
     ? await supabase.from("fornecedores").select("id").ilike("nome", `%${termoSeguro}%`)
     : { data: null };
@@ -109,7 +118,21 @@ export default async function ComprasObraPage({
   if (tipo !== "todos") consultaContagem = consultaContagem.eq("tipo_item", tipo);
   if (condicaoBusca) consultaContagem = consultaContagem.or(condicaoBusca);
 
-  const { count } = await consultaContagem;
+  /*
+   * Soma e contagem vão juntas — e a soma vem do BANCO, não das linhas.
+   *
+   * Somar o que está na tela responderia "quanto há nesta página" em vez de
+   * "quanto o filtro encontrou", e trazer todas as linhas só para somá-las
+   * esbarraria no teto de 1000 do PostgREST, que corta em silêncio.
+   */
+  const [{ count }, { data: somaFiltrada }] = await Promise.all([
+    consultaContagem,
+    supabase.rpc("somar_compras_da_obra", {
+      p_obra_id: obraId,
+      p_tipo: tipo === "todos" ? null : tipo,
+      p_busca: termoSeguro || null,
+    }),
+  ]);
 
   const total = count ?? 0;
   const { pagina, de, ate } = faixaDaPagina(lerPagina(paginaParam), total);
@@ -216,6 +239,7 @@ export default async function ComprasObraPage({
         busca={busca}
         tipo={tipo}
         resultados={total}
+        soma={Number(somaFiltrada ?? 0)}
       />
 
       <TabelaAjustavel id="ordens-de-compra" colunas={COLUNAS}>
