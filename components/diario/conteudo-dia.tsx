@@ -54,7 +54,6 @@ export function ConteudoDiaSecoes({
   conteudo,
   acaoEntrega,
   blocoEfetivo,
-  totalPorFuncao,
   campoEquipamentosExtras,
   campoEntregasExtras,
   equipamentosExtras,
@@ -67,8 +66,6 @@ export function ConteudoDiaSecoes({
    * componente de cliente com ações próprias, e esta peça é compartilhada.
    */
   blocoEfetivo?: ReactNode;
-  /** Soma das quantidades lançadas por função — o número do título. */
-  totalPorFuncao?: number;
   /**
    * Campos de texto para o que não veio de outra tela, quando o dia está
    * aberto para o engenheiro. Fechado ou na tela do cliente, o texto entra em
@@ -86,8 +83,16 @@ export function ConteudoDiaSecoes({
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      {/*
+        O título não carrega mais a contagem.
+        
+        Ela vinha do servidor, e a tabela passou a se atualizar sozinha no
+        navegador — o número do título ficaria para trás a cada lançamento, dois
+        totais discordando na mesma tela. O total vive no rodapé da tabela, que
+        é onde ele é somado.
+      */}
       <Secao
-        titulo={`Efetivo${totalPorFuncao ? ` — ${totalPorFuncao} em obra` : ""}`}
+        titulo="Efetivo"
         icone={<Users className="size-4" />}
         vazio="Nenhum efetivo lançado nesse dia."
       >

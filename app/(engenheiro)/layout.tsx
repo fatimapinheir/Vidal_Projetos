@@ -39,12 +39,20 @@ const navItems: NavEntry[] = [
 ];
 
 export default async function EngenheiroLayout({ children }: { children: React.ReactNode }) {
-  const [profile, obraLembrada, lateralRecolhida] = await Promise.all([
+  /*
+   * A logo entra no mesmo Promise.all, e não numa espera própria depois dele.
+   *
+   * Estava solta embaixo, e por ser `await` em sequência custava uma ida e
+   * volta inteira ao Supabase — em TODA página do engenheiro, inclusive nas
+   * que o `router.refresh()` de uma ação dispara. Ela não depende de nada que
+   * o bloco acima devolve; estar fora era descuido, não necessidade.
+   */
+  const [profile, obraLembrada, lateralRecolhida, logo] = await Promise.all([
     requireRole("engenheiro"),
     lerObraAtiva(),
     lerLateralRecolhida(),
+    createClient().then(buscarLogoEmpresa),
   ]);
-  const logo = await buscarLogoEmpresa(await createClient());
 
   return (
     <AppShell

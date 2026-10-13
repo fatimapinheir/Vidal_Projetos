@@ -81,7 +81,6 @@ export default async function DiarioDiaPage({
     }))
     .sort((a, b) => a.funcao.localeCompare(b.funcao, "pt-BR"));
 
-  const totalPorFuncao = linhasEfetivo.reduce((soma, l) => soma + l.quantidade, 0);
 
   const fotosComUrl = await Promise.all(
     (fotos ?? []).map(async (foto) => {
@@ -155,7 +154,6 @@ export default async function DiarioDiaPage({
                 />
               )
         }
-        totalPorFuncao={totalPorFuncao}
         blocoEfetivo={
           <EfetivoPorFuncao
             obraId={obraId}

@@ -32,14 +32,21 @@ const SECOES = [
 ];
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  const profile = await requireRole("cliente");
-  const lateralRecolhida = await lerLateralRecolhida();
-
+  /*
+   * Quatro esperas em fila viraram uma.
+   *
+   * Eram `await` um atrás do outro, e nenhum dependia do anterior: cada um
+   * custava uma ida e volta inteira ao Supabase antes de o próximo começar —
+   * em toda página do portal. Só o cliente precisa existir antes do resto, e
+   * é ele que `requireRole` resolve.
+   */
   const supabase = await createClient();
-  const logo = await buscarLogoEmpresa(supabase);
-  const { count: quantasObras } = await supabase
-    .from("obra_clientes")
-    .select("obra_id", { count: "exact", head: true });
+  const [profile, lateralRecolhida, logo, { count: quantasObras }] = await Promise.all([
+    requireRole("cliente"),
+    lerLateralRecolhida(),
+    buscarLogoEmpresa(supabase),
+    supabase.from("obra_clientes").select("obra_id", { count: "exact", head: true }),
+  ]);
 
   const navItems: NavEntry[] = [
     ...SECOES.map((secao) => ({

@@ -70,7 +70,7 @@ export async function salvarEfetivoDaFuncao(
   data: string,
   funcaoId: string,
   quantidade: number | string
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; criouDiario?: boolean }> {
   const profile = await requireRole("engenheiro");
 
   const parsed = quantidadeSchema.safeParse(quantidade);
@@ -90,6 +90,13 @@ export async function salvarEfetivoDaFuncao(
   }
 
   let diarioId = diario?.id;
+  /*
+   * Criar a folha muda OUTRAS partes da tela — a seção de fotos deixa de
+   * dizer "salve o diário primeiro", o botão de fechar o dia aparece. Só
+   * nesse caso a tela precisa ser recarregada inteira; nos demais, a tabela
+   * de efetivo se atualiza sozinha. Ver `EfetivoPorFuncao`.
+   */
+  let criouDiario = false;
   if (!diarioId) {
     const { data: criado, error } = await supabase
       .from("diario_obra")
@@ -98,6 +105,7 @@ export async function salvarEfetivoDaFuncao(
       .single();
     if (error || !criado) return { error: "Não foi possível abrir a folha do dia." };
     diarioId = criado.id;
+    criouDiario = true;
   }
 
   if (parsed.data === 0) {
@@ -123,14 +131,7 @@ export async function salvarEfetivoDaFuncao(
 
   revalidatePath(`/obras/${obraId}/diario/${data}`);
   revalidatePath(`/obras/${obraId}/diario`);
-  return { error: null };
+  return { error: null, criouDiario };
 }
 
-/** Tira a função da folha do dia. É a lixeira da linha. */
-export async function removerEfetivoDaFuncao(
-  obraId: string,
-  data: string,
-  funcaoId: string
-): Promise<{ error: string | null }> {
-  return salvarEfetivoDaFuncao(obraId, data, funcaoId, 0);
-}
+

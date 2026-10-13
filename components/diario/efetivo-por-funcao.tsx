@@ -37,8 +37,8 @@ export function EfetivoPorFuncao({
   obraId,
   data,
   responsaveis,
-  linhas,
-  funcoes,
+  linhas: linhasDoServidor,
+  funcoes: funcoesDoServidor,
   somenteLeitura,
 }: {
   obraId: string;
@@ -55,38 +55,82 @@ export function EfetivoPorFuncao({
   const [cadastrando, setCadastrando] = useState(false);
   const [nomeNovo, setNomeNovo] = useState("");
 
+  /*
+   * A tabela e a lista de funções vivem AQUI, e não em cada ida ao servidor.
+   *
+   * Antes todo clique terminava em `router.refresh()`, e isso recarregava a
+   * folha inteira: a regra de acesso, o layout, o conteúdo derivado das
+   * outras telas e as URLs assinadas de cada foto. Meia dúzia de idas e
+   * voltas ao Supabase para mudar um número numa linha — era isso que fazia
+   * incluir e excluir função parecerem travados.
+   *
+   * Agora o estado local responde na hora e a ação grava em segundo plano.
+   * Dando erro, a linha volta ao que era e o aviso aparece: a tela nunca
+   * afirma algo que o banco não aceitou.
+   */
+  const [linhas, setLinhas] = useState(linhasDoServidor);
+  const [funcoes, setFuncoes] = useState(funcoesDoServidor);
+
   const jaNaFolha = new Set(linhas.map((l) => l.funcaoId));
   const disponiveis = funcoes.filter((f) => !jaNaFolha.has(f.id));
   const total = linhas.reduce((soma, l) => soma + l.quantidade, 0);
 
-  function salvar(funcaoId: string, quantidade: number) {
+  /** Aplica a mudança na tabela sem ir ao servidor. Zero tira a linha. */
+  function aplicar(funcaoId: string, nome: string, quantidade: number) {
+    setLinhas((atuais) => {
+      if (quantidade <= 0) return atuais.filter((l) => l.funcaoId !== funcaoId);
+      if (atuais.some((l) => l.funcaoId === funcaoId)) {
+        return atuais.map((l) => (l.funcaoId === funcaoId ? { ...l, quantidade } : l));
+      }
+      return [...atuais, { funcaoId, funcao: nome, quantidade }].sort((a, b) =>
+        a.funcao.localeCompare(b.funcao, "pt-BR")
+      );
+    });
+  }
+
+  function salvar(funcaoId: string, nome: string, quantidade: number) {
+    const anterior = linhas;
+    aplicar(funcaoId, nome, quantidade);
+
     iniciar(async () => {
       const resultado = await salvarEfetivoDaFuncao(obraId, data, funcaoId, quantidade);
       if (resultado.error) {
+        setLinhas(anterior);
         toast.error(resultado.error);
         return;
       }
-      router.refresh();
+      // Só quando a folha do dia nasceu agora: aí outras seções da tela mudam
+      // de estado e precisam ser redesenhadas.
+      if (resultado.criouDiario) router.refresh();
     });
   }
 
   function cadastrarEAdicionar() {
+    const nome = nomeNovo.trim();
     iniciar(async () => {
-      const resultado = await criarFuncao(nomeNovo);
+      const resultado = await criarFuncao(nome);
       if (resultado.error || !resultado.funcaoId) {
         toast.error(resultado.error ?? "Não foi possível cadastrar a função.");
         return;
       }
+      const id = resultado.funcaoId;
+      // A função nova entra na lista local: sem isto ela só apareceria no
+      // seletor depois de uma recarga, e é justamente a recarga que saiu.
+      setFuncoes((atuais) =>
+        atuais.some((f) => f.id === id) ? atuais : [...atuais, { id, nome }]
+      );
+      setNomeNovo("");
+      setCadastrando(false);
       // Entra na folha já com uma pessoa: quem cadastra uma função no meio do
       // preenchimento do dia é porque ela esteve na obra.
-      const salvou = await salvarEfetivoDaFuncao(obraId, data, resultado.funcaoId, 1);
+      aplicar(id, nome, 1);
+      const salvou = await salvarEfetivoDaFuncao(obraId, data, id, 1);
       if (salvou.error) {
+        aplicar(id, nome, 0);
         toast.error(salvou.error);
         return;
       }
-      setNomeNovo("");
-      setCadastrando(false);
-      router.refresh();
+      if (salvou.criouDiario) router.refresh();
     });
   }
 
@@ -121,7 +165,7 @@ export function EfetivoPorFuncao({
               if (!escolhido) return;
               if (escolhido === CADASTRAR) return setCadastrando(true);
               // Entra com uma pessoa; a quantidade se ajusta no campo.
-              salvar(escolhido, 1);
+              salvar(escolhido, funcoes.find((f) => f.id === escolhido)?.nome ?? "—", 1);
             }}
             className="h-8 min-w-44 flex-1 rounded-lg border border-input bg-transparent px-2.5 text-sm disabled:opacity-60"
           >
@@ -164,6 +208,15 @@ export function EfetivoPorFuncao({
                         de seis funções é mais ruído que ajuda.
                       */
                       <Input
+                        /*
+                          A chave carrega a quantidade de propósito. O campo é
+                          não controlado — digitar não mexe no estado, só o
+                          sair do campo mexe —, e numa reversão por erro do
+                          servidor ele continuaria mostrando o que foi
+                          digitado. Mudando a chave, ele remonta com o valor
+                          que o banco aceitou.
+                        */
+                        key={`${linha.funcaoId}-${linha.quantidade}`}
                         type="number"
                         min={0}
                         max={999}
@@ -174,7 +227,7 @@ export function EfetivoPorFuncao({
                         onBlur={(e) => {
                           const valor = Number(e.target.value);
                           if (!Number.isFinite(valor) || valor === linha.quantidade) return;
-                          salvar(linha.funcaoId, valor);
+                          salvar(linha.funcaoId, linha.funcao, valor);
                         }}
                         className="h-8 text-right tabular-nums"
                       />
@@ -189,7 +242,7 @@ export function EfetivoPorFuncao({
                         disabled={pendente}
                         aria-label={`Tirar ${linha.funcao} da folha`}
                         title="Tirar da folha"
-                        onClick={() => salvar(linha.funcaoId, 0)}
+                        onClick={() => salvar(linha.funcaoId, linha.funcao, 0)}
                       >
                         <Trash2 className="size-4" />
                       </Button>
