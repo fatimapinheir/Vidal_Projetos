@@ -101,6 +101,43 @@ export function EfetivoPorFuncao({
         </div>
       )}
 
+      {/*
+        O seletor vem ANTES da tabela.
+        
+        Estava depois, e a ordem contradizia o gesto: numa folha vazia — que é
+        como todo dia começa — a tela abria com um campo solto no meio do nada
+        e a tabela só nascia depois do primeiro lançamento. Escolher a função é
+        o primeiro passo; ele fica onde o olho começa, e a tabela cresce
+        embaixo à medida que as funções entram.
+      */}
+      {!somenteLeitura && (
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value=""
+            disabled={pendente}
+            aria-label="Adicionar função à folha do dia"
+            onChange={(e) => {
+              const escolhido = e.target.value;
+              if (!escolhido) return;
+              if (escolhido === CADASTRAR) return setCadastrando(true);
+              // Entra com uma pessoa; a quantidade se ajusta no campo.
+              salvar(escolhido, 1);
+            }}
+            className="h-8 min-w-44 flex-1 rounded-lg border border-input bg-transparent px-2.5 text-sm disabled:opacity-60"
+          >
+            <option value="">Selecione uma função...</option>
+            {disponiveis.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.nome}
+              </option>
+            ))}
+            {/* "Cadastrar" dentro do próprio seletor: quem percebe que falta
+                uma função percebe no momento de escolhê-la. */}
+            <option value={CADASTRAR}>+ Cadastrar função...</option>
+          </select>
+        </div>
+      )}
+
       {linhas.length > 0 && (
         <div className="overflow-hidden rounded-lg border">
           <table className="w-full text-sm">
@@ -172,33 +209,6 @@ export function EfetivoPorFuncao({
         </div>
       )}
 
-      {!somenteLeitura && (
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value=""
-            disabled={pendente}
-            aria-label="Adicionar função à folha do dia"
-            onChange={(e) => {
-              const escolhido = e.target.value;
-              if (!escolhido) return;
-              if (escolhido === CADASTRAR) return setCadastrando(true);
-              // Entra com uma pessoa; a quantidade se ajusta no campo.
-              salvar(escolhido, 1);
-            }}
-            className="h-8 min-w-44 flex-1 rounded-lg border border-input bg-transparent px-2.5 text-sm disabled:opacity-60"
-          >
-            <option value="">Selecione uma função...</option>
-            {disponiveis.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.nome}
-              </option>
-            ))}
-            {/* "Cadastrar" dentro do próprio seletor: quem percebe que falta
-                uma função percebe no momento de escolhê-la. */}
-            <option value={CADASTRAR}>+ Cadastrar função...</option>
-          </select>
-        </div>
-      )}
 
       {!linhas.length && somenteLeitura && (
         <p className="text-muted-foreground">Nenhum efetivo lançado nesse dia.</p>

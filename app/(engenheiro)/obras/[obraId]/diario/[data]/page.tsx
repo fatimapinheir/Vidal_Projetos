@@ -50,7 +50,20 @@ export default async function DiarioDiaPage({
             .eq("diario_id", diario.id)
             .order("created_at")
         : Promise.resolve({ data: [] }),
-      supabase.from("funcoes").select("id, nome").eq("ativo", true).order("nome"),
+      /*
+       * Por `ordem`, não por nome.
+       *
+       * Alfabética é a ordem de quem procura numa lista que não conhece. Esta
+       * é para quem abre o seletor dez vezes por dia: pedreiro, ajudante,
+       * mestre — e não "ajudante, armador, betoneiro". As cadastradas depois
+       * entram no fim e se ordenam por nome entre si.
+       */
+      supabase
+        .from("funcoes")
+        .select("id, nome")
+        .eq("ativo", true)
+        .order("ordem")
+        .order("nome"),
       // O efetivo por função é do DIA e fica como foi digitado — não precisa de
       // congelamento no fechamento, ao contrário do que é derivado de outras
       // telas.

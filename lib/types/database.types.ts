@@ -563,8 +563,15 @@ export interface Database {
         Relationships: [];
       };
       funcoes: {
-        Row: { id: string; nome: string; ativo: boolean; created_at: string };
-        Insert: { id?: string; nome: string; ativo?: boolean; created_at?: string };
+        Row: { id: string; nome: string; ativo: boolean; ordem: number; created_at: string };
+        Insert: {
+          id?: string;
+          nome: string;
+          ativo?: boolean;
+          /** Ordem no seletor. As cadastradas depois entram no fim (1000). */
+          ordem?: number;
+          created_at?: string;
+        };
         Update: Partial<Database["public"]["Tables"]["funcoes"]["Insert"]>;
         Relationships: [];
       };
