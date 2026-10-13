@@ -1,61 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
 import { Users, Wrench, ListChecks, Truck } from "lucide-react";
-import type { ConteudoDia, EfetivoItem } from "@/lib/diario/montar-dia";
-import type { PresencaStatus } from "@/lib/types/database.types";
+import type { ConteudoDia } from "@/lib/diario/montar-dia";
 import type { ReactNode } from "react";
 
-const statusLabel: Record<PresencaStatus, string> = {
-  presente: "Presente",
-  falta: "Falta",
-  meia_diaria: "Meia diária",
-};
-
-const SEM_FUNCAO = "Sem função informada";
-
-/**
- * O efetivo agrupado por função.
- *
- * É a forma como a folha passou a ser lida. A lista por nome respondia "quem
- * esteve em obra", e numa obra com dez serventes alocados de duas equipes essa
- * resposta não serve a ninguém: o engenheiro não reconhece os nomes e quem lê
- * o documento quer saber o tamanho da frente de serviço. Agrupar por função
- * dá a contagem que o RDO sempre imprimiu — e os nomes continuam ali dentro,
- * porque é neles que se clica para confirmar presença.
- *
- * A contagem é de quem está EM OBRA: falta não conta, e meia diária conta
- * meio — a mesma régua do fechamento de folha e do RDO. Quem ainda não foi
- * confirmado fica fora da conta e aparece como pendência no grupo.
- */
-function agruparPorFuncao(efetivo: EfetivoItem[]) {
-  const grupos = new Map<string, { funcao: string; pessoas: EfetivoItem[] }>();
-  for (const pessoa of efetivo) {
-    const chave = pessoa.funcao?.trim() || SEM_FUNCAO;
-    const grupo = grupos.get(chave) ?? { funcao: chave, pessoas: [] };
-    grupo.pessoas.push(pessoa);
-    grupos.set(chave, grupo);
-  }
-  return [...grupos.values()]
-    .map((g) => ({
-      ...g,
-      emObra: g.pessoas.reduce(
-        (soma, p) =>
-          soma + (p.status === "presente" ? 1 : p.status === "meia_diaria" ? 0.5 : 0),
-        0
-      ),
-      semConfirmar: g.pessoas.filter((p) => !p.status).length,
-    }))
-    .sort((a, b) => {
-      // Quem já tem gente em obra sobe: a folha abre no que está acontecendo.
-      if (!!a.emObra !== !!b.emObra) return a.emObra ? -1 : 1;
-      // "Sem função informada" vai sempre para o fim — é lacuna de cadastro,
-      // não uma função de obra.
-      if ((a.funcao === SEM_FUNCAO) !== (b.funcao === SEM_FUNCAO)) {
-        return a.funcao === SEM_FUNCAO ? 1 : -1;
-      }
-      return a.funcao.localeCompare(b.funcao, "pt-BR");
-    });
-}
 
 /** Texto livre em itens, um por linha não vazia — igual ao RDO. */
 function emLinhas(texto: string | null | undefined): string[] {
@@ -63,11 +11,6 @@ function emLinhas(texto: string | null | undefined): string[] {
     .split("\n")
     .map((l) => l.replace(/^[-•\s]+/, "").trim())
     .filter(Boolean);
-}
-
-/** "4" e "3,5" — meia diária existe e `toFixed(1)` em inteiro mostraria "4,0". */
-function contagem(valor: number) {
-  return valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
 }
 
 function Secao({
@@ -110,8 +53,6 @@ function Secao({
 export function ConteudoDiaSecoes({
   conteudo,
   acaoEntrega,
-  acaoEfetivo,
-  atalhoEfetivo,
   blocoEfetivo,
   totalPorFuncao,
   campoEquipamentosExtras,
@@ -121,8 +62,6 @@ export function ConteudoDiaSecoes({
 }: {
   conteudo: ConteudoDia;
   acaoEntrega?: (entregaParcelaId: string, recebidoEm: string | null) => ReactNode;
-  acaoEfetivo?: (trabalhadorId: string, status: PresencaStatus | null) => ReactNode;
-  atalhoEfetivo?: ReactNode;
   /**
    * O efetivo por função, montado pela página. Chega pronto porque é um
    * componente de cliente com ações próprias, e esta peça é compartilhada.
@@ -142,17 +81,6 @@ export function ConteudoDiaSecoes({
 }) {
   const { equipamentos, tarefas, entregas } = conteudo;
 
-  // Sem ação de presença (folha fechada, ou tela do cliente) a linha sem
-  // lançamento não existe: ela só serve para dar onde clicar. Mostrá-la ali
-  // viraria "pessoa sem presença" num documento, que não é o que a folha diz.
-  const efetivo = acaoEfetivo
-    ? conteudo.efetivo
-    : conteudo.efetivo.filter((pessoa) => !!pessoa.status);
-
-  const grupos = agruparPorFuncao(efetivo);
-  const totalEmObra = grupos.reduce((soma, g) => soma + g.emObra, 0);
-  const semConfirmar = efetivo.filter((e) => !e.status).length;
-
   const extrasEquipamentos = emLinhas(equipamentosExtras);
   const extrasEntregas = emLinhas(entregasExtras);
 
@@ -164,75 +92,21 @@ export function ConteudoDiaSecoes({
         vazio="Nenhum efetivo lançado nesse dia."
       >
         {/*
-          O efetivo do dia é a contagem por FUNÇÃO, digitada — ver
-          `EfetivoPorFuncao`, que a página passa pronta aqui.
+          O efetivo do dia é o responsável da equipe mais a contagem por
+          FUNÇÃO — ver `EfetivoPorFuncao`, que a página passa pronto aqui.
 
-          A lista por NOME continua existindo, logo abaixo e recolhida. Ela não
-          responde "quantos de cada função", que é a pergunta da folha, mas é
-          dela que sai o cálculo de diária no fechamento — some da tela sem
-          sumir do sistema.
+          A lista nominal saiu. Ela vinha dos colaboradores alocados um a um na
+          obra, e isso não é como a obra funciona: a equipe é contratada com um
+          responsável, e quem chega no dia varia. A folha mostrava seis nomes
+          fixos enquanto a frente de serviço tinha outra composição, e
+          desativar a equipe não mudava nada na folha — prova de que ela nem
+          olhava para a equipe.
+
+          O lançamento de presença individual continua existindo na tela de
+          Presenças, que é de onde o fechamento de folha tira a diária. Como as
+          duas coisas se encontram no fechamento fica para quando mexermos nele.
         */}
         {blocoEfetivo}
-
-        {!!efetivo.length && (
-          <details className="group mt-3 border-t pt-2">
-            <summary className="cursor-pointer list-none text-xs text-muted-foreground hover:text-foreground">
-              <span>
-                Presença individual
-                {acaoEfetivo
-                  ? ` — ${contagem(totalEmObra)} de ${efetivo.length} confirmados`
-                  : ` — ${efetivo.length} ${efetivo.length === 1 ? "lançamento" : "lançamentos"}`}
-              </span>
-              <span className="block text-[11px]">
-                É daqui que sai o cálculo de diária no fechamento de folha.
-              </span>
-            </summary>
-
-            <div className="mt-2 flex flex-col gap-3">
-              {!!semConfirmar && atalhoEfetivo}
-
-              {grupos.map((grupo) => (
-                <div key={grupo.funcao} className="flex flex-col gap-1">
-                  <p className="flex items-baseline justify-between gap-2 border-b pb-1">
-                    <span className="font-medium">{grupo.funcao}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                      {grupo.emObra > 0
-                        ? `${contagem(grupo.emObra)} de ${grupo.pessoas.length} em obra`
-                        : grupo.semConfirmar
-                          ? `${grupo.semConfirmar} a confirmar`
-                          : "ninguém em obra"}
-                    </span>
-                  </p>
-                  <ul className="flex flex-col gap-1 pl-1">
-                    {grupo.pessoas.map((pessoa, i) => (
-                      <li
-                        key={pessoa.trabalhadorId ?? `${pessoa.nome}-${i}`}
-                        className="flex min-h-8 items-center justify-between gap-2"
-                      >
-                        <span
-                          className={
-                            pessoa.status === "falta"
-                              ? "text-sm text-muted-foreground line-through"
-                              : "text-sm"
-                          }
-                        >
-                          {pessoa.nome}
-                        </span>
-                        {acaoEfetivo && pessoa.trabalhadorId ? (
-                          acaoEfetivo(pessoa.trabalhadorId, pessoa.status)
-                        ) : pessoa.status ? (
-                          <Badge variant={pessoa.status === "falta" ? "outline" : "secondary"}>
-                            {statusLabel[pessoa.status]}
-                          </Badge>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </details>
-        )}
       </Secao>
 
       <Secao

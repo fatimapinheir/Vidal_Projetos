@@ -12,8 +12,6 @@ import { DiarioForm } from "./diario-form";
 import {
   FecharDiaButton,
   RecebimentoToggle,
-  PresencaSelect,
-  ConfirmarEquipeButton,
   FotosUpload,
   LegendaFoto,
   RemoverFotoButton,
@@ -95,9 +93,6 @@ export default async function DiarioDiaPage({
   );
 
   const fechado = !!diario?.fechado_em;
-  // Pessoas da equipe que ainda não têm presença lançada nesse dia. Elas
-  // aparecem na folha para serem confirmadas ali, mas não entram no documento.
-  const semConfirmar = fechado ? 0 : conteudo.efetivo.filter((p) => !p.status).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -142,14 +137,7 @@ export default async function DiarioDiaPage({
           />
           {/* Excluir não mora aqui: a lixeira está na linha da listagem, que é
               o padrão de exclusão do sistema inteiro. */}
-          {diario && (
-            <FecharDiaButton
-              obraId={obraId}
-              data={data}
-              fechado={fechado}
-              semConfirmar={semConfirmar}
-            />
-          )}
+          {diario && <FecharDiaButton obraId={obraId} data={data} fechado={fechado} />}
         </div>
       </div>
 
@@ -166,23 +154,6 @@ export default async function DiarioDiaPage({
                   recebidoEm={recebidoEm}
                 />
               )
-        }
-        acaoEfetivo={
-          fechado
-            ? undefined
-            : (trabalhadorId, status) => (
-                <PresencaSelect
-                  obraId={obraId}
-                  data={data}
-                  trabalhadorId={trabalhadorId}
-                  status={status}
-                />
-              )
-        }
-        atalhoEfetivo={
-          !fechado && semConfirmar > 0 ? (
-            <ConfirmarEquipeButton obraId={obraId} data={data} semConfirmar={semConfirmar} />
-          ) : null
         }
         totalPorFuncao={totalPorFuncao}
         blocoEfetivo={

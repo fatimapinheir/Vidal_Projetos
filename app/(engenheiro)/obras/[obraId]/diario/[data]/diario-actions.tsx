@@ -28,27 +28,23 @@ export function FecharDiaButton({
   obraId,
   data,
   fechado,
-  semConfirmar = 0,
 }: {
   obraId: string;
   data: string;
   fechado: boolean;
-  /** Pessoas da equipe sem presença lançada — elas não entram na folha. */
-  semConfirmar?: number;
 }) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
   function handleClick() {
-    // Quem não foi confirmado fica fora do documento. Fechar sem saber disso é
-    // o jeito mais fácil de emitir um RDO com efetivo menor do que o real.
-    const aviso =
-      semConfirmar > 0
-        ? `\n\nAtenção: ${semConfirmar === 1 ? "1 pessoa da equipe está" : `${semConfirmar} pessoas da equipe estão`} sem presença confirmada e não ${semConfirmar === 1 ? "vai" : "vão"} entrar na folha.`
-        : "";
+    /*
+     * O aviso de "gente sem presença confirmada" saiu junto com a lista
+     * nominal: o efetivo da folha agora é a contagem por função, digitada, e
+     * não há o que ficar de fora por falta de confirmação.
+     */
     const mensagem = fechado
       ? "Reabrir esse dia? Ele sai da vista do cliente e volta a acompanhar as outras telas. Fica registrado que foi reaberto."
-      : `Fechar esse dia? O efetivo, os equipamentos, as tarefas e as entregas ficam congelados como estão agora, e o cliente passa a ver essa folha.${aviso}`;
+      : "Fechar esse dia? O efetivo, os equipamentos, as tarefas e as entregas ficam congelados como estão agora, e o cliente passa a ver essa folha.";
     if (!confirm(mensagem)) return;
 
     startTransition(() => {
@@ -109,6 +105,11 @@ const OPCOES_PRESENCA: { valor: "" | PresencaStatus; rotulo: string }[] = [
 ];
 
 /**
+ * ESTACIONADO. Não está em uso desde que o efetivo do diário virou contagem
+ * por função; fica aqui para quando o fechamento de folha for revisto, que é
+ * onde a presença individual precisa aparecer. Quem lança presença hoje usa a
+ * tela de Presenças.
+ *
  * Confirma a presença de uma pessoa sem sair da folha do dia.
  *
  * Grava na tabela `presencas`, a mesma da tela de presenças — a folha é só um
@@ -169,7 +170,11 @@ export function PresencaSelect({
   );
 }
 
-/** Atalho do dia normal: equipe inteira em obra, sem confirmar um por um. */
+/**
+ * ESTACIONADO junto com `PresencaSelect` — ver a nota acima.
+ *
+ * Atalho do dia normal: equipe inteira em obra, sem confirmar um por um.
+ */
 export function ConfirmarEquipeButton({
   obraId,
   data,
