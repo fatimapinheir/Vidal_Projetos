@@ -9,7 +9,10 @@ import { formatarEndereco } from "@/lib/obra-cadastro";
 import { LembretesCard } from "@/components/lembretes/lembretes-card";
 import { buscarLembretes } from "@/lib/lembretes";
 import { carregarVisaoGeral } from "@/lib/obras/visao-geral";
+import { carregarExtraCliente, saudacao, primeiroNome } from "@/lib/obras/visao-cliente";
 import { VisaoGeralObra } from "@/components/obras/visao-geral/visao-geral-obra";
+import { VisaoGeralCliente } from "@/components/obras/visao-geral/visao-geral-cliente";
+import { SeletorDeVisao } from "@/components/obras/visao-geral/seletor-de-visao";
 import { buscarDadosTimeline } from "@/lib/cronograma/timeline-dados";
 import { CronogramaTimeline } from "@/components/cronograma/cronograma-timeline";
 import { EquipeDaObraCard, type EquipeNaObra } from "./equipe-da-obra-card";
@@ -77,9 +80,12 @@ export default async function ObraOverviewPage({
   // Só vale mostrar a timeline depois que o CPM rodou e as tarefas têm datas.
   const temTimeline = timeline.tarefas.some((t) => t.inicio && t.fim);
 
-  const [lembretes, dadosVisao, imagens] = await Promise.all([
+  const [lembretes, dadosVisao, extraCliente, imagens] = await Promise.all([
     buscarLembretes(supabase, { obraId }),
     carregarVisaoGeral(supabase, obraId),
+    // Os mesmos dados da tela inicial do cliente — é o que permite conferir a
+    // prévia sem pedir a senha dele.
+    carregarExtraCliente(supabase, obraId),
     assinarImagensObra(supabase, obra),
   ]);
 
@@ -130,7 +136,26 @@ export default async function ObraOverviewPage({
       )}
 
       <div className="md:col-span-3">
-        <VisaoGeralObra dados={dadosVisao} obraId={obraId} />
+        <SeletorDeVisao
+          doCliente={
+            <VisaoGeralCliente
+              dados={dadosVisao}
+              extra={extraCliente}
+              obraId={obraId}
+              base={`/obras/${obraId}`}
+              obra={{
+                nome: obra.nome,
+                detalhe: formatarEndereco(obra),
+                status: statusOptions.find((o) => o.value === obra.status)?.label ?? obra.status,
+                capaUrl: imagens.capa,
+                rdoUrl: imagens.rdo,
+              }}
+              saudacao={saudacao()}
+              nomeCliente={primeiroNome(clientes[0]?.nome ?? "cliente")}
+            />
+          }
+          doEngenheiro={<VisaoGeralObra dados={dadosVisao} obraId={obraId} />}
+        />
       </div>
 
       {temTimeline && (

@@ -166,10 +166,10 @@ export async function CompraDetail({
             <p className="text-sm text-muted-foreground">{fornecedor?.nome}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {/* Editar só o lançamento, e só para o engenheiro. A ordem de
-                compra tem plano de parcelas, aprovação e pagamento no meio —
-                corrigir aquilo é outra tela. */}
-            {viewerRole === "engenheiro" && compra.eh_lancamento && (
+            {/* Editar é do engenheiro, e vale para os dois tipos. O que a
+                ordem de compra não deixa mexer é o valor já pago — a tela de
+                edição trata disso. */}
+            {viewerRole === "engenheiro" && (
               <Button
                 nativeButton={false}
                 variant="outline"

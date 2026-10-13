@@ -52,7 +52,7 @@ export async function carregarVisaoGeral(supabase: Cliente, obraId: string) {
   ] = await Promise.all([
     supabase
       .from("compras")
-      .select("id, descricao, valor_total, status, tipo_item, fornecedores(nome)")
+      .select("id, descricao, valor_total, status, tipo_item, locacao_id, fornecedores(nome)")
       .eq("obra_id", obraId),
     supabase
       .from("vw_compra_parcelas")
@@ -178,7 +178,10 @@ export async function carregarVisaoGeral(supabase: Cliente, obraId: string) {
       hoje
     )
   );
-  const custoLocacoes = custosLocacao.reduce((s, c) => s + c.valor, 0);
+  // Só dia e hora: a locação mensal devolve zero aqui, porque o dinheiro dela
+  // está na ordem de compra — ver `calcularCustoLocacao`. A soma das duas
+  // origens acontece logo abaixo, depois de separar as ordens de locação.
+  const custoLocacoesPorDiaria = custosLocacao.reduce((s, c) => s + c.valor, 0);
 
   /*
    * --- Custo da obra, repartido pelo TIPO que o engenheiro classificou ---
@@ -196,12 +199,26 @@ export async function carregarVisaoGeral(supabase: Cliente, obraId: string) {
   const comprometidas = todasCompras.filter(
     (c) => c.status === "aprovada" || c.status === "paga"
   );
+
+  /*
+   * As ordens geradas por locação mensal saem do balde de compras.
+   *
+   * Elas são ordens de compra de verdade — têm parcelas, vencem, aceitam
+   * comprovante —, mas o que compram é equipamento alugado, e o gráfico já tem
+   * uma faixa para isso. Deixadas entre as compras, apareceriam como material
+   * ou como "Outros" e o engenheiro veria o aluguel do andaime somando na
+   * mesma barra do cimento. Ver `sincronizar_mensalidades_locacao` (0054).
+   */
+  const ordensDeLocacao = comprometidas.filter((c) => !!c.locacao_id);
+  const comprasComuns = comprometidas.filter((c) => !c.locacao_id);
+  const mensalidadesDeLocacao = ordensDeLocacao.reduce((s, c) => s + c.valor_total, 0);
+
   const somarTipo = (tipo: TipoItemOrcamento | null) =>
-    comprometidas
+    comprasComuns
       .filter((c) => (c.tipo_item ?? null) === tipo)
       .reduce((s, c) => s + c.valor_total, 0);
 
-  const gastoCompras = valorAprovado + valorPagoCompras;
+  const gastoCompras = comprasComuns.reduce((s, c) => s + c.valor_total, 0);
   const materiais = somarTipo("material");
   const servicos = somarTipo("servico");
   const maoDeObraEmCompras = somarTipo("mao_de_obra");
@@ -211,6 +228,8 @@ export async function carregarVisaoGeral(supabase: Cliente, obraId: string) {
    * escondê-la dentro de materiais faria a comparação mentir para cima.
    */
   const semClassificacao = somarTipo(null);
+
+  const custoLocacoes = custoLocacoesPorDiaria + mensalidadesDeLocacao;
 
   const custoFolha = maoDeObra?.total ?? 0;
   /** Folha mais o que foi lançado como mão de obra nas compras. */

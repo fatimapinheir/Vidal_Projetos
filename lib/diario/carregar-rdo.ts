@@ -20,10 +20,17 @@ export type DadosRdo = {
   /** Logo da construtora, para o cabeçalho. Nula, o cabeçalho usa texto. */
   logoEmpresaUrl: string | null;
   temperatura: number | null;
-  umidade: number | null;
   condicaoDia: DiarioCondicao | null;
   efetivo: LinhaEfetivo[];
   totalEfetivo: number;
+  /**
+   * Quem comandou a frente de serviço — o responsável das equipes alocadas.
+   *
+   * Entra no quadro de efetivo porque é a primeira coisa que se procura ali:
+   * a contagem por função diz o tamanho da equipe, o nome diz com quem falar.
+   * Vazio em folha fechada antes da 0055, e aí a linha não é impressa.
+   */
+  responsaveis: string[];
   atividades: string | null;
   ocorrencias: string | null;
   fotos: FotoRdo[];
@@ -99,6 +106,10 @@ export async function carregarRdo(
   // relatório. Aqui só entra quem tem presença lançada.
   const efetivoBruto = (diario?.efetivo_snapshot ?? conteudo?.efetivo ?? []) as EfetivoItem[];
   const efetivo = porFuncao(efetivoConfirmado(efetivoBruto));
+  // Congelado tem precedência: trocar o responsável da equipe hoje não pode
+  // reescrever quem assinava a obra num RDO de três meses atrás.
+  const responsaveis =
+    (diario?.responsaveis_snapshot as string[] | null) ?? conteudo?.responsaveis ?? [];
 
   const fotosComUrl = await Promise.all(
     (fotos ?? []).map(async (f) => {
@@ -156,10 +167,10 @@ export async function carregarRdo(
     assinaturaUrl,
     logoEmpresaUrl,
     temperatura: diario?.temperatura ?? null,
-    umidade: diario?.umidade ?? null,
     condicaoDia: diario?.clima ?? null,
     efetivo,
     totalEfetivo: efetivo.reduce((s, e) => s + e.total, 0),
+    responsaveis,
     atividades: diario?.atividades ?? null,
     ocorrencias: diario?.ocorrencias ?? null,
     fotos: fotosComUrl,

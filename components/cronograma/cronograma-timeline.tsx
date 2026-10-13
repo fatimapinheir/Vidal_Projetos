@@ -48,8 +48,76 @@ function diaDeHoje(): number {
   return paraDia(`${y}-${m}-${d}`);
 }
 
+/**
+ * Em que pé está a tarefa, para colorir a barra programada.
+ *
+ * Sai das datas reais, que a tela de Avanço escreve a partir do percentual
+ * medido — `data_inicio_real` aparece na primeira medição acima de zero e
+ * `data_fim_real` quando chega a 100%. Logo "andamento" aqui significa
+ * "tem avanço lançado", nunca "a data planejada já passou".
+ */
+type EstadoTarefa = "concluida" | "andamento" | "nao_iniciada";
+
+function estadoDaTarefa(t: TarefaTimeline): EstadoTarefa {
+  if (t.fimReal) return "concluida";
+  if (t.inicioReal) return "andamento";
+  return "nao_iniciada";
+}
+
+/**
+ * Estado da etapa: o agregado das tarefas dela, com a mesma régua da trilha
+ * da tela inicial — concluída só quando todas fecharam, em andamento quando
+ * qualquer uma começou.
+ */
+function estadoDaEtapa(tarefas: TarefaTimeline[]): EstadoTarefa {
+  if (!tarefas.length) return "nao_iniciada";
+  const estados = tarefas.map(estadoDaTarefa);
+  if (estados.every((e) => e === "concluida")) return "concluida";
+  if (estados.some((e) => e !== "nao_iniciada")) return "andamento";
+  return "nao_iniciada";
+}
+
+const ROTULO_ESTADO: Record<EstadoTarefa, string> = {
+  concluida: "Concluída",
+  andamento: "Em andamento",
+  nao_iniciada: "Não iniciada",
+};
+
+/**
+ * A cor da barra programada é o estado. Nada mais.
+ *
+ * Antes havia duas barras por linha — a programada e uma segunda, de execução
+ * real, empilhada embaixo. Confirmar uma etapa desenhava essa segunda barra e
+ * o quadro dobrava de informação: duas réguas quase idênticas, deslocadas por
+ * poucos dias, que ninguém conseguia comparar de relance. Agora a execução
+ * entra como cor na própria barra do plano — verde concluído, azul em
+ * andamento — e o quadro volta a ter uma linha por tarefa.
+ *
+ * O desvio contra o planejado continua legível para o engenheiro: é a
+ * distância entre a barra e o retângulo tracejado da linha de base.
+ */
+const COR_BARRA: Record<EstadoTarefa, string> = {
+  concluida: "bg-sucesso",
+  andamento: "bg-primary",
+  nao_iniciada: "bg-foreground/85",
+};
+
+/** A barra da etapa é mais apagada que as das tarefas: é um agregado, não um dado. */
+const COR_ETAPA: Record<EstadoTarefa, string> = {
+  concluida: "bg-sucesso/70",
+  andamento: "bg-primary/70",
+  nao_iniciada: "bg-muted-foreground",
+};
+
 type Linha =
-  | { tipo: "etapa"; id: string; nome: string; inicio: number | null; fim: number | null }
+  | {
+      tipo: "etapa";
+      id: string;
+      nome: string;
+      inicio: number | null;
+      fim: number | null;
+      estado: EstadoTarefa;
+    }
   | { tipo: "tarefa"; id: string; tarefa: TarefaTimeline; inicio: number | null; fim: number | null };
 
 export function CronogramaTimeline({
@@ -64,7 +132,7 @@ export function CronogramaTimeline({
   alturaMaxima?: number | string;
   /**
    * Esconde tudo o que fala de atraso: caminho crítico, linha de base, margem
-   * e a barra de real em amarelo. É o modo do portal do cliente.
+   * e os dias de atraso no tooltip. É o modo do portal do cliente.
    *
    * Não é uma versão "pobre" da timeline — é outra pergunta. O engenheiro
    * olha o quadro para saber onde intervir, e para isso precisa ver o que
@@ -84,8 +152,11 @@ export function CronogramaTimeline({
     for (const etapa of etapas) {
       const daEtapa = tarefas.filter((t) => t.etapaId === etapa.id);
       const inicios = daEtapa.map((t) => t.inicio).filter((d): d is string => !!d).map(paraDia);
+      // Só datas programadas. Esticar a barra da etapa até o fim REAL da
+      // última tarefa misturava plano e execução numa barra só, e era por isso
+      // que a faixa da etapa não batia com as tarefas embaixo dela.
       const fins = daEtapa
-        .map((t) => t.fimReal ?? t.fim)
+        .map((t) => t.fim)
         .filter((d): d is string => !!d)
         .map(paraDia);
       resultado.push({
@@ -94,6 +165,7 @@ export function CronogramaTimeline({
         nome: etapa.nome,
         inicio: inicios.length ? Math.min(...inicios) : null,
         fim: fins.length ? Math.max(...fins) : null,
+        estado: estadoDaEtapa(daEtapa),
       });
       for (const tarefa of daEtapa) {
         resultado.push({
@@ -112,7 +184,8 @@ export function CronogramaTimeline({
   const intervalo = useMemo(() => {
     const datas: number[] = [];
     for (const t of tarefas) {
-      for (const iso of [t.inicio, t.fim, t.baselineInicio, t.baselineFim, t.inicioReal, t.fimReal]) {
+      // Real fora da conta: não há mais barra de real para caber na tela.
+      for (const iso of [t.inicio, t.fim, t.baselineInicio, t.baselineFim]) {
         if (iso) datas.push(paraDia(iso));
       }
     }
@@ -492,9 +565,12 @@ export function CronogramaTimeline({
                     ? linha.inicio !== null &&
                       linha.fim !== null && (
                         <div
-                          className="absolute top-2.5 h-2 rounded-sm bg-muted-foreground"
+                          className={cn("absolute top-2.5 h-2 rounded-sm", COR_ETAPA[linha.estado])}
                           style={{ left: x(linha.inicio), width: larguraBarra(linha.inicio, linha.fim) }}
-                          title={`${linha.nome}: ${formatDateBR(diaParaIso(linha.inicio))} – ${formatDateBR(diaParaIso(linha.fim))}`}
+                          title={[
+                            `${linha.nome}: ${formatDateBR(diaParaIso(linha.inicio))} – ${formatDateBR(diaParaIso(linha.fim))}`,
+                            ROTULO_ESTADO[linha.estado],
+                          ].join("\n")}
                         />
                       )
                     : renderBarrasTarefa(linha.tarefa, x, larguraBarra, simplificado)}
@@ -518,25 +594,21 @@ function renderBarrasTarefa(
   const previstoFim = tarefa.fim ? paraDia(tarefa.fim) : null;
   const baseInicio = tarefa.baselineInicio ? paraDia(tarefa.baselineInicio) : null;
   const baseFim = tarefa.baselineFim ? paraDia(tarefa.baselineFim) : null;
-  const realInicio = tarefa.inicioReal ? paraDia(tarefa.inicioReal) : null;
-  const realFim = tarefa.fimReal ? paraDia(tarefa.fimReal) : null;
 
-  const atraso =
-    baseFim !== null && (realFim ?? previstoFim) !== null ? (realFim ?? previstoFim)! - baseFim : null;
+  const estado = estadoDaTarefa(tarefa);
+  const atraso = baseFim !== null && previstoFim !== null ? previstoFim - baseFim : null;
 
-  // No modo simplificado o detalhe para nas datas. Linha de base, margem,
-  // atraso e "tarefa crítica" são leitura de desvio — sairiam da tela e
-  // voltariam pelo tooltip.
+  // No modo simplificado o detalhe para nas datas e no estado. Linha de base,
+  // margem, atraso e "tarefa crítica" são leitura de desvio — sairiam da tela
+  // e voltariam pelo tooltip.
   const detalhe = [
     tarefa.nome,
     previstoInicio !== null && previstoFim !== null
       ? `${simplificado ? "Programado" : "Previsto"}: ${formatDateBR(diaParaIso(previstoInicio))} – ${formatDateBR(diaParaIso(previstoFim))} (${tarefa.duracaoDias}d)`
       : null,
+    ROTULO_ESTADO[estado],
     !simplificado && baseInicio !== null && baseFim !== null
       ? `Linha de base: ${formatDateBR(diaParaIso(baseInicio))} – ${formatDateBR(diaParaIso(baseFim))}`
-      : null,
-    realInicio !== null
-      ? `${simplificado ? "Executado" : "Real"}: ${formatDateBR(diaParaIso(realInicio))} – ${realFim !== null ? formatDateBR(diaParaIso(realFim)) : "em andamento"}`
       : null,
     !simplificado && tarefa.folgaDias !== null ? `Margem: ${tarefa.folgaDias}d` : null,
     !simplificado && atraso !== null && atraso > 0 ? `Atraso: ${atraso}d` : null,
@@ -557,34 +629,22 @@ function renderBarrasTarefa(
       {previstoInicio !== null && previstoFim !== null && (
         <div
           className={cn(
-            // Tarefa comum em branco, crítica em vermelho. O vermelho aqui é
-            // sinal, não decoração — se a barra normal também fosse vermelha
-            // (a cor da marca), o caminho crítico sumiria no meio das outras.
             "absolute h-2 rounded-full",
-            // Sem a linha de base, a barra programada ocupa o topo da faixa:
-            // ela foi desenhada deslocada para caber dentro do retângulo
-            // tracejado, que aqui não existe.
-            simplificado ? "top-1.5" : "top-2",
-            !simplificado && tarefa.critica ? "bg-destructive" : "bg-foreground/85"
+            // Centrada na faixa: com uma barra só, não há mais o par
+            // programado/real que empurrava as duas para fora do meio.
+            "top-2.5",
+            /*
+             * O caminho crítico fica em vermelho apenas enquanto a tarefa não
+             * começou — é lá que o aviso serve, porque é onde ainda se pode
+             * remanejar. Depois de iniciada, o estado manda na cor, e a
+             * criticidade continua dita pelo nome em vermelho na coluna da
+             * esquerda e pelas setas vermelhas de dependência.
+             */
+            !simplificado && tarefa.critica && estado === "nao_iniciada"
+              ? "bg-destructive"
+              : COR_BARRA[estado]
           )}
           style={{ left: x(previstoInicio), width: larguraBarra(previstoInicio, previstoFim) }}
-          title={detalhe}
-        />
-      )}
-      {realInicio !== null && (
-        <div
-          className={cn(
-            "absolute h-2 rounded-full",
-            simplificado ? "top-4.5" : "top-5",
-            // Verde sempre, no modo do cliente: a barra existe para mostrar o
-            // que já foi executado, e o amarelo a transformaria em alerta.
-            !simplificado && atraso !== null && atraso > 0 ? "bg-atencao" : "bg-sucesso",
-            realFim === null && "opacity-70"
-          )}
-          style={{
-            left: x(realInicio),
-            width: larguraBarra(realInicio, realFim ?? Math.max(realInicio, diaDeHoje())),
-          }}
           title={detalhe}
         />
       )}
@@ -596,21 +656,18 @@ function Legenda({ simplificado }: { simplificado: boolean }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
       <span className="inline-flex items-center gap-1.5">
-        <span className="h-2 w-4 rounded-full bg-foreground/85" />{" "}
-        {simplificado ? "Programado" : "Previsto"}
+        <span className="h-2 w-4 rounded-full bg-foreground/85" /> Não iniciada
       </span>
-      {!simplificado && (
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-4 rounded-full bg-destructive" /> Crítica
-        </span>
-      )}
       <span className="inline-flex items-center gap-1.5">
-        <span className="h-2 w-4 rounded-full bg-sucesso" /> {simplificado ? "Executado" : "Real"}
+        <span className="h-2 w-4 rounded-full bg-primary" /> Em andamento
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-2 w-4 rounded-full bg-sucesso" /> Concluída
       </span>
       {!simplificado && (
         <>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-4 rounded-full bg-atencao" /> Real atrasado
+            <span className="h-2 w-4 rounded-full bg-destructive" /> Crítica a iniciar
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="h-4 w-4 rounded border border-dashed border-muted-foreground/60" /> Linha

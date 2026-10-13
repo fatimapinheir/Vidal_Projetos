@@ -22,7 +22,8 @@ export type DiarioValores = {
   ocorrencias: string | null;
   visitas: string | null;
   temperatura: number | null;
-  umidade: number | null;
+  equipamentos_extras: string | null;
+  entregas_extras: string | null;
 };
 
 export function DiarioForm({
@@ -73,41 +74,31 @@ export function DiarioForm({
           </FieldDescription>
         </Field>
 
-        <Field orientation="responsive">
-          <div className="w-full">
-            <FieldLabel htmlFor="temperatura">Temperatura (°C)</FieldLabel>
-            <Input
-              id="temperatura"
-              name="temperatura"
-              type="number"
-              step="0.1"
-              min="-20"
-              max="60"
-              defaultValue={valores?.temperatura ?? ""}
-              disabled={somenteLeitura}
-            />
-          </div>
-          <div className="w-full">
-            <FieldLabel htmlFor="umidade">Umidade (%)</FieldLabel>
-            <Input
-              id="umidade"
-              name="umidade"
-              type="number"
-              step="1"
-              min="0"
-              max="100"
-              defaultValue={valores?.umidade ?? ""}
-              disabled={somenteLeitura}
-            />
-          </div>
-          <div className="w-full">
-            {/* Opcionais: aparecem no relatório quando preenchidos e somem
-                quando não — documento com temperatura zerada por omissão
-                seria pior que documento sem o campo. */}
-            <FieldDescription>
-              Opcionais. Entram no relatório diário quando preenchidos.
-            </FieldDescription>
-          </div>
+        {/*
+          Um campo de medida, não dois.
+          
+          A umidade saiu junto com a coluna (0052): medi-la exige instrumento
+          que não está no bolso de ninguém em obra, e o resultado era um campo
+          sempre em branco imprimindo travessão no documento. A temperatura
+          fica porque o celular informa.
+        */}
+        <Field>
+          <FieldLabel htmlFor="temperatura">Temperatura (°C)</FieldLabel>
+          <Input
+            id="temperatura"
+            name="temperatura"
+            type="number"
+            step="0.1"
+            min="-20"
+            max="60"
+            defaultValue={valores?.temperatura ?? ""}
+            disabled={somenteLeitura}
+            className="sm:max-w-32"
+          />
+          {/* Opcional: aparece no relatório quando preenchida e some quando
+              não — documento com temperatura zerada por omissão seria pior
+              que documento sem o campo. */}
+          <FieldDescription>Opcional. Entra no relatório diário quando preenchida.</FieldDescription>
         </Field>
 
         <Field>

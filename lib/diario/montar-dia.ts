@@ -34,12 +34,28 @@ export type EntregaItem = {
 
 export type ConteudoDia = {
   efetivo: EfetivoItem[];
+  /**
+   * Quem responde pela obra no dia: o responsável das equipes alocadas.
+   *
+   * Vem separado do efetivo porque é informação de outra natureza. A lista de
+   * efetivo responde "quantas pessoas de cada função estavam em obra"; esta
+   * responde "quem estava no comando". Misturar as duas fazia o encarregado
+   * aparecer como uma linha de função qualquer, e era justamente o nome que o
+   * engenheiro procurava na folha.
+   */
+  responsaveis: string[];
   equipamentos: EquipamentoItem[];
   tarefas: TarefaItem[];
   entregas: EntregaItem[];
 };
 
-const VAZIO: ConteudoDia = { efetivo: [], equipamentos: [], tarefas: [], entregas: [] };
+const VAZIO: ConteudoDia = {
+  efetivo: [],
+  responsaveis: [],
+  equipamentos: [],
+  tarefas: [],
+  entregas: [],
+};
 
 /**
  * Quem de fato entra no documento: só linha com presença lançada.
@@ -66,6 +82,7 @@ export async function derivarConteudoDia(
   const [
     { data: alocados },
     { data: presencas },
+    { data: equipesNaObra },
     { data: locacoes },
     { data: tarefas },
     { data: entregasDoDia },
@@ -83,6 +100,13 @@ export async function derivarConteudoDia(
         .select("trabalhador_id, status, observacoes, trabalhadores(nome, funcao)")
         .eq("obra_id", obraId)
         .eq("data", data),
+      // O responsável vem da EQUIPE alocada, não da lista de pessoas: é o
+      // cadastro de equipe que diz quem encabeça a frente de serviço.
+      supabase
+        .from("obra_equipes")
+        .select("equipes(responsavel:trabalhadores!responsavel_id(nome))")
+        .eq("obra_id", obraId)
+        .eq("ativo", true),
       supabase
         .from("locacoes_equipamento")
         .select("equipamento, quantidade, fornecedores(nome)")
@@ -95,11 +119,20 @@ export async function derivarConteudoDia(
         .eq("obra_id", obraId)
         .lte("data_inicio_cedo", data)
         .gte("data_fim_cedo", data),
+      /*
+       * Entregas do dia: as PREVISTAS para hoje e as CONFIRMADAS hoje.
+       *
+       * Era só a previsão, e isso deixava de fora o caso mais comum de todos:
+       * a carga que estava prevista para terça e chegou na quinta aparecia na
+       * folha de terça (como não recebida) e não aparecia na de quinta — o dia
+       * em que o caminhão de fato entrou na obra. A folha do dia tem de dizer
+       * o que aconteceu naquele dia.
+       */
       supabase
         .from("compras")
         .select("id, descricao, data_entrega_real, fornecedores(nome)")
         .eq("obra_id", obraId)
-        .eq("data_entrega_prevista", data),
+        .or(`data_entrega_prevista.eq.${data},data_entrega_real.eq.${data}`),
     ]);
 
   // Equipe primeiro, presenças por cima. Nessa ordem porque a presença manda:
@@ -136,8 +169,20 @@ export async function derivarConteudoDia(
     });
   }
 
+  const responsaveis = [
+    ...new Set(
+      (equipesNaObra ?? [])
+        .map((v) => {
+          const eq = v.equipes as unknown as { responsavel: { nome: string } | null } | null;
+          return eq?.responsavel?.nome;
+        })
+        .filter((n): n is string => !!n)
+    ),
+  ].sort((a, b) => a.localeCompare(b, "pt-BR"));
+
   return {
     efetivo: [...porTrabalhador.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
+    responsaveis,
 
     equipamentos: (locacoes ?? []).map((l) => {
       const fornecedor = l.fornecedores as unknown as { nome: string } | null;
@@ -178,6 +223,7 @@ export async function conteudoParaExibir(
   diario: {
     fechado_em: string | null;
     efetivo_snapshot: unknown;
+    responsaveis_snapshot: unknown;
     equipamentos_snapshot: unknown;
     tarefas_snapshot: unknown;
     entregas_snapshot: unknown;
@@ -189,6 +235,10 @@ export async function conteudoParaExibir(
 
   return {
     efetivo: (diario.efetivo_snapshot as EfetivoItem[] | null) ?? [],
+    // Os responsáveis vão dentro do próprio congelado do efetivo — ver
+    // `fecharDia`. Folha antiga não tem o campo e fica sem a linha, que é
+    // melhor que inventar o nome de quem comandava meses atrás.
+    responsaveis: (diario.responsaveis_snapshot as string[] | null) ?? [],
     equipamentos: (diario.equipamentos_snapshot as EquipamentoItem[] | null) ?? [],
     tarefas: (diario.tarefas_snapshot as TarefaItem[] | null) ?? [],
     entregas: (diario.entregas_snapshot as EntregaItem[] | null) ?? [],

@@ -107,7 +107,7 @@ export default async function PortalLancamentosPage({
       icone: <Wrench className="size-3.5" aria-hidden />,
     },
     {
-      rotulo: "Sem classificação",
+      rotulo: "Outros",
       valor: dados.semClassificacao,
       cor: "fill-chart-5",
       icone: <CircleHelp className="size-3.5" aria-hidden />,

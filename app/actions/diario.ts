@@ -22,19 +22,23 @@ const textoOpcional = z.preprocess(
 
 const diarioSchema = z.object({
   clima: climaOpcional,
-  // Medidas do RDO. Vazio vira null: documento com temperatura zerada por
-  // omissão seria pior que documento sem o campo.
+  /*
+   * Medida do RDO. Vazio vira null: documento com temperatura zerada por
+   * omissão seria pior que documento sem o campo.
+   *
+   * A umidade saiu (0052): medi-la exige instrumento que ninguém tem no bolso,
+   * e o campo em branco só imprimia um travessão no documento.
+   */
   temperatura: z.preprocess(
     (v) => (v === "" || v == null ? undefined : v),
     z.coerce.number().min(-20).max(60).optional()
   ),
-  umidade: z.preprocess(
-    (v) => (v === "" || v == null ? undefined : v),
-    z.coerce.number().int().min(0).max(100).optional()
-  ),
   atividades: textoOpcional,
   ocorrencias: textoOpcional,
   visitas: textoOpcional,
+  // Texto livre para o que não veio de outra tela — ver a migração 0052.
+  equipamentos_extras: textoOpcional,
+  entregas_extras: textoOpcional,
 });
 
 /** Uma folha fechada é documento — só volta a aceitar escrita depois de reaberta. */
@@ -63,11 +67,12 @@ export async function salvarDiario(
   const profile = await requireRole("engenheiro");
   const parsed = diarioSchema.safeParse({
     temperatura: formData.get("temperatura"),
-    umidade: formData.get("umidade"),
     clima: formData.get("clima"),
     atividades: formData.get("atividades"),
     ocorrencias: formData.get("ocorrencias"),
     visitas: formData.get("visitas"),
+    equipamentos_extras: formData.get("equipamentos_extras"),
+    entregas_extras: formData.get("entregas_extras"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
 
@@ -79,11 +84,12 @@ export async function salvarDiario(
 
   const campos = {
     temperatura: parsed.data.temperatura ?? null,
-    umidade: parsed.data.umidade ?? null,
     clima: parsed.data.clima ?? null,
     atividades: parsed.data.atividades ?? null,
     ocorrencias: parsed.data.ocorrencias ?? null,
     visitas: parsed.data.visitas ?? null,
+    equipamentos_extras: parsed.data.equipamentos_extras ?? null,
+    entregas_extras: parsed.data.entregas_extras ?? null,
   };
 
   const { error } = existente
@@ -96,6 +102,64 @@ export async function salvarDiario(
         .insert({ obra_id: obraId, data, ...campos, registrado_por: profile.id });
 
   if (error) return { error: "Não foi possível salvar o diário." };
+
+  revalidatePath(`/obras/${obraId}/diario`);
+  revalidatePath(`/obras/${obraId}/diario/${data}`);
+  return { error: null, success: true };
+}
+
+const CAMPOS_EXTRAS = ["equipamentos_extras", "entregas_extras"] as const;
+export type CampoExtraDiario = (typeof CAMPOS_EXTRAS)[number];
+
+/**
+ * Escreve um dos campos de texto livre da folha, sem passar pelo formulário.
+ *
+ * Eles vivem dentro das seções de equipamentos e entregas, e não no cartão
+ * "Registro do dia", porque é ali que a lacuna aparece: o engenheiro está
+ * olhando "nenhum equipamento locado nesse dia" com a betoneira do vizinho
+ * rodando ao lado. Mandá-lo rolar até outro cartão para anotar isso é o tipo
+ * de desvio que faz o campo não ser usado.
+ *
+ * Cria a folha se ela ainda não existir — é a mesma regra de `salvarDiario`.
+ * Sem isso, anotar um equipamento num dia virgem daria "salve o diário
+ * primeiro", e salvar o diário é justamente o que a pessoa está fazendo.
+ */
+export async function salvarExtraDoDia(
+  obraId: string,
+  data: string,
+  campo: CampoExtraDiario,
+  texto: string
+): Promise<DiarioFormState> {
+  const profile = await requireRole("engenheiro");
+
+  // O nome do campo vem do navegador: sem esta checagem ele endereçaria
+  // qualquer coluna de `diario_obra`.
+  if (!CAMPOS_EXTRAS.includes(campo)) return { error: "Campo inválido." };
+
+  const supabase = await createClient();
+  const existente = await garantirAberto(supabase, obraId, data);
+  if (existente?.fechado) {
+    return { error: "Esse dia está fechado. Reabra antes de editar." };
+  }
+
+  const valor = texto.trim() || null;
+  // Objeto montado por ramo, e não com chave calculada: chave calculada vira
+  // `string` para o TypeScript e o cliente do Supabase recusa o tipo.
+  const campos =
+    campo === "equipamentos_extras"
+      ? { equipamentos_extras: valor }
+      : { entregas_extras: valor };
+
+  const { error } = existente
+    ? await supabase
+        .from("diario_obra")
+        .update({ ...campos, updated_at: new Date().toISOString() })
+        .eq("id", existente.id)
+    : await supabase
+        .from("diario_obra")
+        .insert({ obra_id: obraId, data, ...campos, registrado_por: profile.id });
+
+  if (error) return { error: "Não foi possível salvar." };
 
   revalidatePath(`/obras/${obraId}/diario`);
   revalidatePath(`/obras/${obraId}/diario/${data}`);
@@ -130,6 +194,9 @@ export async function fecharDia(obraId: string, data: string): Promise<DiarioFor
         status: pessoa.status,
         observacoes: pessoa.observacoes ?? null,
       })),
+      // Congelado junto: trocar o responsável da equipe em janeiro não pode
+      // reescrever quem comandava a obra em outubro.
+      responsaveis_snapshot: conteudo.responsaveis,
       equipamentos_snapshot: conteudo.equipamentos,
       tarefas_snapshot: conteudo.tarefas,
       // O id da parcela não vai pro congelado: ele serve pra confirmar
@@ -166,6 +233,7 @@ export async function reabrirDia(obraId: string, data: string): Promise<DiarioFo
     .from("diario_obra")
     .update({
       efetivo_snapshot: null,
+      responsaveis_snapshot: null,
       equipamentos_snapshot: null,
       tarefas_snapshot: null,
       entregas_snapshot: null,

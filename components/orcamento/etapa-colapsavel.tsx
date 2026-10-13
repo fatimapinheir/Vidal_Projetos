@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { useEstadoDasEtapas } from "./controle-etapas";
 
 /**
  * Uma etapa do orçamento que abre e fecha.
@@ -17,6 +18,8 @@ import { cn } from "@/lib/utils";
  * Fechada, a etapa continua dizendo o que interessa de longe: nome, quantos
  * itens e quanto soma. Um orçamento de 438 itens vira 21 linhas legíveis, e
  * quem procura "quanto tem em alvenaria" não rola mais a lista inteira.
+ *
+ * Abre por padrão; o padrão e o "Recolher todas" vêm do `ControleEtapas`.
  */
 export function EtapaColapsavel({
   etapa,
@@ -24,7 +27,6 @@ export function EtapaColapsavel({
   subtotal,
   colunas,
   acoes,
-  abertaInicialmente,
   rodape,
   children,
 }: {
@@ -34,11 +36,23 @@ export function EtapaColapsavel({
   subtotal: string;
   colunas: number;
   acoes?: ReactNode;
-  abertaInicialmente: boolean;
   rodape?: ReactNode;
   children: ReactNode;
 }) {
-  const [aberta, setAberta] = useState(abertaInicialmente);
+  const { padrao, versao } = useEstadoDasEtapas();
+
+  /*
+   * Estado local que cede ao comando geral.
+   *
+   * Guarda junto a versão em que a escolha foi feita: se o usuário mandou
+   * recolher tudo depois disso, a versão não bate mais e vale o padrão novo.
+   * Derivar em vez de sincronizar por efeito evita o quadro piscando aberto
+   * antes de fechar.
+   */
+  const [local, setLocal] = useState({ versao, aberta: padrao });
+  const aberta = local.versao === versao ? local.aberta : padrao;
+  const setAberta = (proxima: (atual: boolean) => boolean) =>
+    setLocal({ versao, aberta: proxima(aberta) });
 
   return (
     <>

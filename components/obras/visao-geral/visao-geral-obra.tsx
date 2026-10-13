@@ -139,7 +139,7 @@ export function VisaoGeralObra({
                 {
                   // Sem isto a barra somaria menos que o custo total, e a
                   // diferença não teria nome em lugar nenhum.
-                  rotulo: "Sem classificação",
+                  rotulo: "Outros",
                   valor: d.semClassificacao,
                   cor: "bg-chart-5",
                   icone: <CircleHelp className="size-3.5" aria-hidden />,

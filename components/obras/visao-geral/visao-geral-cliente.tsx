@@ -504,6 +504,7 @@ export function VisaoGeralCliente({
   obra,
   saudacao,
   nomeCliente,
+  base = `/portal/obras/${obraId}`,
 }: {
   dados: DadosVisaoGeral;
   extra: DadosClienteExtra;
@@ -519,9 +520,14 @@ export function VisaoGeralCliente({
   };
   saudacao: string;
   nomeCliente: string;
+  /**
+   * Raiz dos links desta tela. O padrão é o portal, porque é dela que a tela
+   * nasceu; a visão geral da obra passa a raiz do engenheiro para que a prévia
+   * não jogue quem clica numa área a que ele não tem acesso.
+   */
+  base?: string;
 }) {
   const d = dados;
-  const base = `/portal/obras/${obraId}`;
 
   const SaudacaoIcone = saudacao === "Boa noite" ? Moon : Sun;
 
@@ -584,10 +590,10 @@ export function VisaoGeralCliente({
       icone: <Wrench className="size-3.5" aria-hidden />,
     },
     {
-      // Só aparece quando existe: uma fatia "sem classificação" num orçamento
+      // Só aparece quando existe: uma fatia "Outros" num orçamento
       // todo classificado seria ruído. Quando existe, precisa aparecer — é
       // gasto real que não entra em comparação nenhuma.
-      rotulo: "Sem classificação",
+      rotulo: "Outros",
       valor: d.semClassificacao,
       cor: "fill-chart-5",
       icone: <CircleHelp className="size-3.5" aria-hidden />,

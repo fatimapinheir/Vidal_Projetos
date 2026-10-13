@@ -100,10 +100,6 @@ export function RdoDocumento({ dados }: { dados: DadosRdo }) {
               <strong>{dados.temperatura != null ? `${dados.temperatura}°C` : "—"}</strong>
             </div>
             <div>
-              <span>UMIDADE</span>
-              <strong>{dados.umidade != null ? `${dados.umidade}%` : "—"}</strong>
-            </div>
-            <div>
               <span>CONDIÇÃO</span>
               <strong>{rotuloCondicao(dados.condicaoDia).toUpperCase()}</strong>
             </div>
@@ -114,6 +110,25 @@ export function RdoDocumento({ dados }: { dados: DadosRdo }) {
           <h2>
             <span>3</span> EFETIVO
           </h2>
+          {/*
+            O responsável antes da tabela.
+            
+            A tabela responde "quantos de cada função", que é o que o RDO
+            sempre pediu. Falta a outra metade da pergunta: com quem se falou
+            em obra naquele dia. O nome vem do cadastro de equipe e é
+            congelado no fechamento, então um RDO antigo continua nomeando
+            quem comandava na época.
+          */}
+          {!!dados.responsaveis.length && (
+            <p className="rdo-responsavel">
+              <span>
+                {dados.responsaveis.length === 1
+                  ? "RESPONSÁVEL EM OBRA:"
+                  : "RESPONSÁVEIS EM OBRA:"}
+              </span>{" "}
+              {dados.responsaveis.join(", ")}
+            </p>
+          )}
           <table className="rdo-tabela">
             <thead>
               <tr>

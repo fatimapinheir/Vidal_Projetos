@@ -17,6 +17,8 @@ import {
   LegendaFoto,
   RemoverFotoButton,
   StatusDiarioBadge,
+  CampoExtra,
+  ExcluirDiarioButton,
 } from "./diario-actions";
 
 const ISO_DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -105,12 +107,15 @@ export default async function DiarioDiaPage({
             }
           />
           {diario && (
-            <FecharDiaButton
-              obraId={obraId}
-              data={data}
-              fechado={fechado}
-              semConfirmar={semConfirmar}
-            />
+            <>
+              <FecharDiaButton
+                obraId={obraId}
+                data={data}
+                fechado={fechado}
+                semConfirmar={semConfirmar}
+              />
+              <ExcluirDiarioButton obraId={obraId} data={data} fechado={fechado} />
+            </>
           )}
         </div>
       </div>
@@ -146,6 +151,37 @@ export default async function DiarioDiaPage({
             <ConfirmarEquipeButton obraId={obraId} data={data} semConfirmar={semConfirmar} />
           ) : null
         }
+        /*
+          Com o dia aberto os extras são campos; fechados, texto. Os dois
+          caminhos existem porque folha fechada é documento: dá para ler o que
+          foi anotado, não para reescrever.
+        */
+        campoEquipamentosExtras={
+          fechado ? undefined : (
+            <CampoExtra
+              obraId={obraId}
+              data={data}
+              campo="equipamentos_extras"
+              valor={diario?.equipamentos_extras ?? null}
+              rotulo="Outros equipamentos em obra"
+              exemplo={"Betoneira emprestada do Zé\nAndaime do pessoal da pintura"}
+            />
+          )
+        }
+        campoEntregasExtras={
+          fechado ? undefined : (
+            <CampoExtra
+              obraId={obraId}
+              data={data}
+              campo="entregas_extras"
+              valor={diario?.entregas_extras ?? null}
+              rotulo="Outras entregas recebidas"
+              exemplo={"20 sacos de cimento — sem ordem lançada\n1 carga de areia"}
+            />
+          )
+        }
+        equipamentosExtras={diario?.equipamentos_extras ?? null}
+        entregasExtras={diario?.entregas_extras ?? null}
       />
 
       <Card>

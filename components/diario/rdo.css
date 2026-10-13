@@ -98,12 +98,16 @@
 .rdo-grade p { margin: 0; }
 .rdo-grade span { color: #5a6273; font-weight: 600; font-size: 0.86em; }
 
-.rdo-clima { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.76em; }
+/* Duas caixas desde a 0052, quando a umidade saiu do relatório. */
+.rdo-clima { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.76em; }
 .rdo-clima div {
   border: 1px solid #d8dbe2; border-radius: 0.38em; padding: 0.57em 0.76em; text-align: center;
 }
 .rdo-clima span { display: block; color: #5a6273; font-size: 0.76em; letter-spacing: 0.08em; }
 .rdo-clima strong { font-size: 1.24em; }
+
+.rdo-responsavel { margin: 0 0 0.57em; }
+.rdo-responsavel span { color: #5a6273; font-weight: 600; font-size: 0.86em; letter-spacing: 0.04em; }
 
 .rdo-tabela { width: 100%; border-collapse: collapse; }
 .rdo-tabela th, .rdo-tabela td {
@@ -157,7 +161,6 @@
   .rdo { padding: 1.4em; }
   .rdo-grade,
   .rdo-duas-colunas { grid-template-columns: 1fr; }
-  .rdo-clima { grid-template-columns: 1fr 1fr; }
   .rdo-fotos { grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -189,7 +192,7 @@
   }
   /* A tela estreita não manda no papel. */
   .rdo-grade, .rdo-duas-colunas { grid-template-columns: 1fr 1fr; }
-  .rdo-clima { grid-template-columns: repeat(3, 1fr); }
+  .rdo-clima { grid-template-columns: repeat(2, 1fr); }
   .rdo-fotos { grid-template-columns: repeat(4, 1fr); }
   .rdo-fotos img { height: 6.67em; }
   .rdo-acoes { display: none; }

@@ -106,6 +106,7 @@ export async function carregarExtraCliente(
     { data: diario },
     { data: itens },
     { data: todasTarefas },
+    { data: avancos },
     { data: folgas },
   ] = await Promise.all([
     supabase
@@ -115,13 +116,22 @@ export async function carregarExtraCliente(
       .lte("data_inicio_cedo", fimSemana)
       .gte("data_fim_cedo", inicioSemana)
       .order("data_inicio_cedo"),
-    // A regra de acesso só devolve dia fechado — rascunho do engenheiro não
-    // chega aqui, e é isso que faz "aguardando o envio" ser verdade.
+    /*
+     * Só dia FECHADO, dito aqui e não deixado para a RLS.
+     *
+     * Para o cliente a policy já bastava: `cli_select_diario` exige
+     * `fechado_em is not null`. Mas esta mesma função alimenta a prévia da
+     * tela do cliente que o engenheiro abre na visão geral da obra, e para o
+     * engenheiro a policy devolve tudo, rascunho incluído. Sem o filtro
+     * explícito, a prévia mostraria um RDO que o cliente ainda não recebeu —
+     * justamente o que ela existe para não deixar acontecer.
+     */
     supabase
       .from("diario_obra")
       .select("data, atividades, clima, temperatura, efetivo_snapshot")
       .eq("obra_id", obraId)
       .eq("data", hoje)
+      .not("fechado_em", "is", null)
       .maybeSingle(),
     // Orçado por frente: é o denominador das barras de "executado x pago".
     // Sem ele, "materiais pagos: 55%" não teria de que ser 55%. Só a versão
@@ -134,7 +144,13 @@ export async function carregarExtraCliente(
     // Todas as tarefas, para montar a trilha de etapas da tela inicial.
     supabase
       .from("cronograma_tarefas")
-      .select("id, data_inicio_cedo, data_fim_real, cronograma_etapas(id, nome, ordem)")
+      .select("id, duracao_dias, cronograma_etapas(id, nome, ordem)")
+      .eq("obra_id", obraId),
+    // O avanço medido de cada tarefa. É ele, e só ele, que diz se uma etapa
+    // começou — ver o comentário da trilha mais abaixo.
+    supabase
+      .from("vw_avanco_atual")
+      .select("cronograma_tarefa_id, percentual")
       .eq("obra_id", obraId),
     supabase
       .from("cronograma_folgas")
@@ -162,12 +178,27 @@ export async function carregarExtraCliente(
   /*
    * A trilha de etapas: concluída, em andamento, a iniciar.
    *
-   * "Em andamento" é etapa que já tem tarefa concluída mas não todas, OU cuja
-   * primeira tarefa já deveria ter começado. O segundo caso importa: sem ele,
-   * a etapa que acabou de começar aparece como "a iniciar" e o cliente acha
-   * que a obra parou.
+   * O estado sai do AVANÇO MEDIDO, nunca do calendário.
+   *
+   * Antes, uma etapa virava "em andamento" só porque a data planejada de
+   * início da primeira tarefa já havia passado. O efeito era o oposto do
+   * pretendido: metade da trilha aparecia azul numa obra onde nada tinha sido
+   * lançado, o cliente lia aquilo como serviço em execução, e a tela deixava
+   * de distinguir o que está rodando do que está apenas atrasado. Agora uma
+   * etapa só sai de "a iniciar" quando existe medição de avanço maior que
+   * zero em alguma tarefa dela.
+   *
+   * O percentual é ponderado por duração — a mesma régua de
+   * `vw_progresso_obra`. Média simples faria "limpeza do terreno" (2 dias)
+   * pesar igual a "alvenaria" (30 dias), e concluir as tarefas curtas infla o
+   * número sem obra feita.
    */
-  const porEtapa = new Map<string, EtapaResumo>();
+  const percentualPorTarefa = new Map(
+    (avancos ?? []).map((a) => [a.cronograma_tarefa_id, Number(a.percentual) || 0])
+  );
+
+  type Acumulado = EtapaResumo & { diasPlanejados: number; diasExecutados: number };
+  const porEtapa = new Map<string, Acumulado>();
   for (const t of todasTarefas ?? []) {
     const etapa = t.cronograma_etapas as unknown as {
       id: string;
@@ -185,16 +216,29 @@ export async function carregarExtraCliente(
         concluidas: 0,
         situacao: "a_iniciar",
         percentual: 0,
-      } satisfies EtapaResumo);
+        diasPlanejados: 0,
+        diasExecutados: 0,
+      } satisfies Acumulado);
+
+    // Duração zero existe (marco), e pesaria nada na ponderação. Conta como
+    // um dia para que uma etapa só de marcos ainda tenha percentual.
+    const dias = Math.max(1, t.duracao_dias ?? 1);
+    const avanco = percentualPorTarefa.get(t.id) ?? 0;
+
     atual.total += 1;
-    if (t.data_fim_real) atual.concluidas += 1;
-    else if ((t.data_inicio_cedo ?? "9999") <= hoje) atual.situacao = "andamento";
+    atual.diasPlanejados += dias;
+    atual.diasExecutados += (dias * avanco) / 100;
+    if (avanco >= 100) atual.concluidas += 1;
+    else if (avanco > 0) atual.situacao = "andamento";
+
     porEtapa.set(etapa.id, atual);
   }
   const etapas = [...porEtapa.values()]
-    .map((e) => ({
+    .map(({ diasPlanejados, diasExecutados, ...e }) => ({
       ...e,
-      percentual: e.total ? Math.round((e.concluidas / e.total) * 100) : 0,
+      percentual: diasPlanejados
+        ? Math.round((diasExecutados / diasPlanejados) * 100)
+        : 0,
       situacao:
         e.total > 0 && e.concluidas === e.total
           ? ("concluida" as const)

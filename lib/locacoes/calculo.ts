@@ -47,6 +47,11 @@ function diasCorridos(inicioIso: string, fimIso: string): number {
  * Por hora: quantidade × valor × horas informadas pelo engenheiro. Os dias
  *           continuam sendo calculados, mas só como informação de quanto tempo
  *           o equipamento ficou na obra — não entram no valor.
+ * Por mês:  ZERO aqui. O contrato mensal não é custo que corre: é uma série de
+ *           obrigações com data, e elas viram parcelas de uma ordem de compra
+ *           (ver `sincronizar_mensalidades_locacao`, migração 0054). O valor
+ *           entra no custo da obra por aquela ordem. Somar também aqui contaria
+ *           o mesmo dinheiro duas vezes.
  */
 export function calcularCustoLocacao(
   locacao: LocacaoCalculavel,
@@ -57,6 +62,10 @@ export function calcularCustoLocacao(
 
   // Locação lançada com início no futuro ainda não acumulou nada.
   const dias = Math.max(0, diasCorridos(locacao.dataInicio, fim));
+
+  if (locacao.unidade === "mes") {
+    return { dias, unidadesCobradas: 0, valor: 0, emUso };
+  }
 
   const unidadesCobradas = locacao.unidade === "dia" ? dias : locacao.horasUtilizadas;
   const valor = locacao.quantidade * locacao.valorUnitario * unidadesCobradas;

@@ -320,6 +320,219 @@ export async function createCompra(
   redirect(`/obras/${obraId}/compras`);
 }
 
+/**
+ * Edita uma ordem de compra já registrada.
+ *
+ * Existia só para lançamento financeiro, e a tela de ordem de compra mandava
+ * de volta ao detalhe — o que na prática significava recriar a ordem para
+ * corrigir um fornecedor trocado ou uma descrição mal escrita, e perder no
+ * caminho os anexos e o histórico de aprovação.
+ *
+ * O que pode mudar depende de DINHEIRO JÁ MOVIMENTADO, e não do estado da
+ * aprovação:
+ *
+ *   - Nenhuma parcela paga nem com pagamento enviado → tudo é editável,
+ *     inclusive itens, desconto e o plano de parcelas, que é reescrito.
+ *   - Alguma parcela já paga ou enviada → o valor congela. Itens, desconto e
+ *     parcelas ficam como estão, e só os campos cadastrais mudam.
+ *
+ * O corte é esse porque reescrever um plano de parcelas que já tem uma paga
+ * significaria escolher qual pagamento jogar fora. Os campos cadastrais não
+ * têm esse problema: corrigir o número da nota de uma ordem paga é justamente
+ * o que se quer poder fazer.
+ */
+export async function atualizarCompra(
+  obraId: string,
+  compraId: string,
+  _prevState: CompraFormState,
+  formData: FormData
+): Promise<CompraFormState> {
+  await requireRole("engenheiro");
+
+  const parsed = compraSchema.safeParse({
+    fornecedor_id: formData.get("fornecedor_id"),
+    descricao: formData.get("descricao"),
+    forma_pagamento: formData.get("forma_pagamento"),
+    data_cotacao: formData.get("data_cotacao"),
+    categoria_id: formData.get("categoria_id") || undefined,
+    tipo_item: formData.get("tipo_item") || undefined,
+    data_entrega_prevista: formData.get("data_entrega_prevista") || undefined,
+    nota_fiscal_numero: formData.get("nota_fiscal_numero") || undefined,
+    nota_fiscal_emissao: formData.get("nota_fiscal_emissao") || undefined,
+    orcamento_etapa: formData.get("orcamento_etapa") || undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const supabase = await createClient();
+
+  // A ordem tem de ser desta obra: o id vem da URL, e sem o filtro uma
+  // requisição forjada editaria compra de outra obra.
+  const { data: compra } = await supabase
+    .from("compras")
+    .select("id, eh_lancamento")
+    .eq("id", compraId)
+    .eq("obra_id", obraId)
+    .maybeSingle();
+
+  if (!compra) return { error: "Ordem de compra não encontrada nesta obra." };
+  if (compra.eh_lancamento) {
+    return { error: "Lançamento financeiro se edita pela tela de lançamento." };
+  }
+
+  const { data: parcelasAtuais } = await supabase
+    .from("compra_parcelas")
+    .select("id, status, data_pagamento, comprovante_pagamento_path, pagamento_enviado_em")
+    .eq("compra_id", compraId);
+
+  const valorCongelado = (parcelasAtuais ?? []).some(
+    (p) =>
+      p.status === "paga" ||
+      !!p.data_pagamento ||
+      !!p.comprovante_pagamento_path ||
+      !!p.pagamento_enviado_em
+  );
+
+  const etapa = await etapaOrcamentoValida(supabase, obraId, parsed.data.orcamento_etapa);
+  if (etapa.error) return { error: etapa.error };
+
+  const requerAprovacaoCliente = !!formData.get("requer_aprovacao_cliente");
+  const pagamentoAposRecebimento = !!formData.get("pagamento_apos_recebimento");
+
+  const cadastrais = {
+    fornecedor_id: parsed.data.fornecedor_id,
+    descricao: parsed.data.descricao,
+    forma_pagamento: parsed.data.forma_pagamento,
+    data_cotacao: parsed.data.data_cotacao,
+    requer_aprovacao_cliente: requerAprovacaoCliente,
+    pagamento_apos_recebimento: pagamentoAposRecebimento,
+    orcamento_etapa: etapa.nome,
+    categoria_id: parsed.data.categoria_id ?? null,
+    tipo_item: parsed.data.tipo_item ?? null,
+    data_entrega_prevista: parsed.data.data_entrega_prevista ?? null,
+    nota_fiscal_numero: parsed.data.nota_fiscal_numero ?? null,
+    nota_fiscal_emissao: parsed.data.nota_fiscal_emissao ?? null,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (valorCongelado) {
+    const { error } = await supabase
+      .from("compras")
+      .update(cadastrais)
+      .eq("id", compraId)
+      .eq("obra_id", obraId);
+    if (error) return { error: "Não foi possível salvar a ordem de compra." };
+    revalidarCompra(obraId, compraId);
+    redirect(`/obras/${obraId}/compras/${compraId}`);
+  }
+
+  // Daqui para baixo o valor também muda: itens, desconto e parcelas vêm do
+  // formulário e precisam fechar a mesma conta exigida na criação.
+  const itensRaw = formData.get("itens");
+  if (!itensRaw) return { error: "Adicione ao menos um item à ordem de compra." };
+
+  let itens: z.infer<typeof itemCompraSchema>[];
+  try {
+    itens = z.array(itemCompraSchema).parse(JSON.parse(String(itensRaw)));
+  } catch (err) {
+    return {
+      error:
+        err instanceof z.ZodError
+          ? err.issues[0]?.message ?? "Item inválido."
+          : "Não foi possível interpretar os itens.",
+    };
+  }
+  if (!itens.length) return { error: "Adicione ao menos um item à ordem de compra." };
+
+  const descontoNota = descontoNotaSchema.safeParse({
+    desconto_tipo: formData.get("desconto_tipo") || undefined,
+    desconto_valor: formData.get("desconto_valor") || undefined,
+  });
+  if (!descontoNota.success) {
+    return { error: descontoNota.error.issues[0]?.message ?? "Desconto da nota inválido." };
+  }
+
+  const parcelasResult = parseParcelas(formData);
+  if (parcelasResult.error !== undefined) return { error: parcelasResult.error };
+  const { parcelas } = parcelasResult;
+  if (!parcelas.length) return { error: "Adicione ao menos uma parcela." };
+
+  const subtotalItens = itens.reduce((sum, item) => sum + calcularTotalItem(item), 0);
+  const valorTotalEsperado = calcularTotalItem({
+    quantidade: 1,
+    preco_unitario: subtotalItens,
+    desconto_tipo: descontoNota.data.desconto_tipo,
+    desconto_valor: descontoNota.data.desconto_valor,
+  });
+  const valorParcelas = parcelas.reduce((sum, p) => sum + p.valor, 0);
+  if (Math.abs(valorParcelas - valorTotalEsperado) > 0.01) {
+    return {
+      error: `A soma das parcelas (${valorParcelas.toFixed(2)}) precisa bater com o total da ordem de compra (${valorTotalEsperado.toFixed(2)}).`,
+    };
+  }
+
+  const { error: erroCompra } = await supabase
+    .from("compras")
+    .update({
+      ...cadastrais,
+      desconto_tipo: descontoNota.data.desconto_tipo ?? null,
+      desconto_valor: descontoNota.data.desconto_valor ?? 0,
+    })
+    .eq("id", compraId)
+    .eq("obra_id", obraId);
+
+  if (erroCompra) return { error: "Não foi possível salvar a ordem de compra." };
+
+  /*
+   * Itens e parcelas são trocados por inteiro, não casados linha a linha.
+   *
+   * Casar exigiria identidade estável dos itens no formulário, e o seletor de
+   * itens não tem — ele monta a lista no navegador. Apagar e reinserir dá o
+   * mesmo resultado e não deixa meio caminho: nenhuma das duas tabelas é
+   * referenciada por outra coisa, e as parcelas aqui estão todas pendentes,
+   * sem pagamento nem comprovante para perder.
+   */
+  await supabase.from("compra_itens").delete().eq("compra_id", compraId);
+  const { error: erroItens } = await supabase.from("compra_itens").insert(
+    itens.map((item, i) => ({
+      compra_id: compraId,
+      orcamento_item_id: item.orcamento_item_id ?? null,
+      descricao: item.descricao,
+      unidade: item.unidade,
+      quantidade: item.quantidade,
+      preco_unitario: item.preco_unitario,
+      desconto_tipo: item.desconto_tipo ?? null,
+      desconto_valor: item.desconto_valor ?? 0,
+      ordem: i + 1,
+    }))
+  );
+  if (erroItens) return { error: "Não foi possível salvar os itens da ordem de compra." };
+
+  await supabase.from("compra_parcelas").delete().eq("compra_id", compraId);
+  const { error: erroParcelas } = await supabase.from("compra_parcelas").insert(
+    parcelas.map((p, i) => ({
+      compra_id: compraId,
+      numero_parcela: i + 1,
+      valor: p.valor,
+      data_vencimento: p.data_vencimento,
+    }))
+  );
+  if (erroParcelas) return { error: "Itens salvos, mas houve erro ao salvar as parcelas." };
+
+  revalidarCompra(obraId, compraId);
+  redirect(`/obras/${obraId}/compras/${compraId}`);
+}
+
+function revalidarCompra(obraId: string, compraId: string) {
+  revalidatePath(`/obras/${obraId}/compras`);
+  revalidatePath(`/obras/${obraId}/compras/${compraId}`);
+  revalidatePath(`/obras/${obraId}/orcamento`);
+  revalidatePath(`/obras/${obraId}`);
+  revalidatePath(`/portal/obras/${obraId}`);
+}
+
 const buscaItemSchema = z.object({ termo: z.string().min(2) });
 
 /** Busca itens do planejamento ATIVO da obra — usada ao montar uma ordem de compra. */

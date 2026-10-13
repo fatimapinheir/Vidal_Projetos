@@ -1,26 +1,31 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LancamentoForm } from "@/components/compras/lancamento-form";
+import { OrdemCompraForm } from "@/components/compras/ordem-compra-form";
 import { etapasDoOrcamentoAtivo } from "@/lib/compras/etapa-orcamento";
 
 /** `date` do Postgres chega como ISO completo; o input quer só o dia. */
 const soData = (valor: string | null) => valor?.slice(0, 10) ?? "";
 
 /**
- * Edição de um lançamento financeiro já registrado.
+ * Edição de uma compra já registrada — lançamento financeiro ou ordem de compra.
  *
- * Só lançamento. A ordem de compra tem plano de parcelas — possivelmente com
- * parcela já paga, comprovante anexado e aprovação do cliente registrada — e
- * mexer no valor dela significa refazer esse plano. Isso é outra tela, e
- * fingir que o mesmo formulário dá conta produziria um estado inconsistente
- * no primeiro uso.
+ * Os dois formulários são diferentes porque as duas coisas são diferentes: o
+ * lançamento é um pagamento que já aconteceu, a ordem é um plano de compra com
+ * itens, parcelas e condições. O que esta tela faz é escolher qual deles abrir.
+ *
+ * Por um tempo a ordem de compra simplesmente não era editável — caía de volta
+ * no detalhe —, e corrigir um fornecedor trocado exigia recriar a ordem e
+ * perder anexos e histórico de aprovação. O que de fato não pode ser reescrito
+ * é o dinheiro já movimentado, e isso é tratado dentro do formulário: ver
+ * `valorCongelado`.
  */
-export default async function EditarLancamentoPage({
+export default async function EditarCompraPage({
   params,
 }: {
   params: Promise<{ obraId: string; compraId: string }>;
@@ -42,15 +47,33 @@ export default async function EditarLancamentoPage({
     ]);
 
   if (!compra) notFound();
-  // Ordem de compra cai de volta no detalhe em vez de abrir um formulário que
-  // não sabe editá-la.
-  if (!compra.eh_lancamento) redirect(`/obras/${obraId}/compras/${compraId}`);
 
   const { data: itens } = await supabase
     .from("compra_itens")
     .select("*")
     .eq("compra_id", compraId)
     .order("ordem");
+
+  const voltarPara = `/obras/${obraId}/compras/${compraId}`;
+  const ehLancamento = compra.eh_lancamento;
+
+  const { data: parcelas } = ehLancamento
+    ? { data: null }
+    : await supabase
+        .from("compra_parcelas")
+        .select("valor, data_vencimento, status, data_pagamento, comprovante_pagamento_path, pagamento_enviado_em")
+        .eq("compra_id", compraId)
+        .order("numero_parcela");
+
+  // O mesmo critério da ação `atualizarCompra`: o que trava o valor é
+  // pagamento já movimentado, não a aprovação do cliente.
+  const valorCongelado = (parcelas ?? []).some(
+    (p) =>
+      p.status === "paga" ||
+      !!p.data_pagamento ||
+      !!p.comprovante_pagamento_path ||
+      !!p.pagamento_enviado_em
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -61,53 +84,94 @@ export default async function EditarLancamentoPage({
           size="sm"
           className="-ml-2"
           render={
-            <Link href={`/obras/${obraId}/compras/${compraId}`}>
+            <Link href={voltarPara}>
               <ChevronLeft className="size-4" />
-              Voltar ao lançamento
+              {ehLancamento ? "Voltar ao lançamento" : "Voltar à ordem de compra"}
             </Link>
           }
         />
       </div>
 
-      <Card className="max-w-4xl">
+      <Card className={ehLancamento ? "max-w-4xl" : "max-w-5xl"}>
         <CardHeader>
-          <CardTitle>Editar lançamento</CardTitle>
+          <CardTitle>{ehLancamento ? "Editar lançamento" : "Editar ordem de compra"}</CardTitle>
           <CardDescription>
-            Os arquivos anexados são geridos na tela do lançamento, onde também dá para removê-los.
+            Os arquivos anexados são geridos na tela{" "}
+            {ehLancamento ? "do lançamento" : "da ordem"}, onde também dá para removê-los.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <LancamentoForm
-            obraId={obraId}
-            fornecedores={fornecedores ?? []}
-            categorias={categorias ?? []}
-            etapasOrcamento={etapasOrcamento}
-            voltarPara={`/obras/${obraId}/compras/${compraId}`}
-            inicial={{
-              id: compra.id,
-              fornecedorId: compra.fornecedor_id,
-              categoriaId: compra.categoria_id ?? "",
-              descricao: compra.descricao,
-              tipoItem: compra.tipo_item ?? "",
-              orcamentoEtapa: compra.orcamento_etapa ?? "",
-              formaPagamento: compra.forma_pagamento,
-              valor: compra.valor_total,
-              dataPagamento: soData(compra.data_cotacao),
-              notaNumero: compra.nota_fiscal_numero ?? "",
-              notaEmissao: soData(compra.nota_fiscal_emissao),
-              entregaPrevista: soData(compra.data_entrega_prevista),
-              entregaReal: soData(compra.data_entrega_real),
-              itens: (itens ?? []).map((item) => ({
-                orcamento_item_id: item.orcamento_item_id ?? undefined,
-                descricao: item.descricao,
-                unidade: item.unidade,
-                quantidade: item.quantidade,
-                preco_unitario: item.preco_unitario,
-                desconto_tipo: item.desconto_tipo ?? undefined,
-                desconto_valor: item.desconto_valor ?? undefined,
-              })),
-            }}
-          />
+          {ehLancamento ? (
+            <LancamentoForm
+              obraId={obraId}
+              fornecedores={fornecedores ?? []}
+              categorias={categorias ?? []}
+              etapasOrcamento={etapasOrcamento}
+              voltarPara={voltarPara}
+              inicial={{
+                id: compra.id,
+                fornecedorId: compra.fornecedor_id,
+                categoriaId: compra.categoria_id ?? "",
+                descricao: compra.descricao,
+                tipoItem: compra.tipo_item ?? "",
+                orcamentoEtapa: compra.orcamento_etapa ?? "",
+                formaPagamento: compra.forma_pagamento,
+                valor: compra.valor_total,
+                dataPagamento: soData(compra.data_cotacao),
+                notaNumero: compra.nota_fiscal_numero ?? "",
+                notaEmissao: soData(compra.nota_fiscal_emissao),
+                entregaPrevista: soData(compra.data_entrega_prevista),
+                entregaReal: soData(compra.data_entrega_real),
+                itens: (itens ?? []).map((item) => ({
+                  orcamento_item_id: item.orcamento_item_id ?? undefined,
+                  descricao: item.descricao,
+                  unidade: item.unidade,
+                  quantidade: item.quantidade,
+                  preco_unitario: item.preco_unitario,
+                  desconto_tipo: item.desconto_tipo ?? undefined,
+                  desconto_valor: item.desconto_valor ?? undefined,
+                })),
+              }}
+            />
+          ) : (
+            <OrdemCompraForm
+              obraId={obraId}
+              fornecedores={fornecedores ?? []}
+              categorias={categorias ?? []}
+              etapasOrcamento={etapasOrcamento}
+              valorCongelado={valorCongelado}
+              inicial={{
+                id: compra.id,
+                fornecedorId: compra.fornecedor_id,
+                categoriaId: compra.categoria_id ?? "",
+                descricao: compra.descricao,
+                tipoItem: compra.tipo_item ?? "",
+                orcamentoEtapa: compra.orcamento_etapa ?? "",
+                formaPagamento: compra.forma_pagamento,
+                dataCotacao: soData(compra.data_cotacao),
+                entregaPrevista: soData(compra.data_entrega_prevista),
+                notaNumero: compra.nota_fiscal_numero ?? "",
+                notaEmissao: soData(compra.nota_fiscal_emissao),
+                requerAprovacaoCliente: compra.requer_aprovacao_cliente,
+                pagamentoAposRecebimento: compra.pagamento_apos_recebimento,
+                descontoTipo: compra.desconto_tipo ?? "",
+                descontoValor: compra.desconto_valor ? String(compra.desconto_valor) : "",
+                itens: (itens ?? []).map((item) => ({
+                  orcamento_item_id: item.orcamento_item_id ?? undefined,
+                  descricao: item.descricao,
+                  unidade: item.unidade,
+                  quantidade: item.quantidade,
+                  preco_unitario: item.preco_unitario,
+                  desconto_tipo: item.desconto_tipo ?? undefined,
+                  desconto_valor: item.desconto_valor ?? undefined,
+                })),
+                parcelas: (parcelas ?? []).map((p) => ({
+                  valor: p.valor.toFixed(2),
+                  vencimento: soData(p.data_vencimento),
+                })),
+              }}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

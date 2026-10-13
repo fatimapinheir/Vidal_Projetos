@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Lock, LockOpen, Trash2, Upload, UserCheck } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import {
   fecharDia,
   reabrirDia,
@@ -17,6 +18,9 @@ import {
   registrarFotos,
   salvarLegendaFoto,
   removerFoto,
+  removerDiario,
+  salvarExtraDoDia,
+  type CampoExtraDiario,
 } from "@/app/actions/diario";
 import type { PresencaStatus } from "@/lib/types/database.types";
 import { enviarArquivoParaStorage, removerArquivosDoStorage } from "@/lib/storage/upload-direto";
@@ -383,6 +387,118 @@ export function RemoverFotoButton({
       aria-label="Remover foto"
     >
       <Trash2 className="size-4" />
+    </Button>
+  );
+}
+
+/**
+ * Campo de texto livre dentro de uma seção da folha.
+ *
+ * Salva ao sair do campo, sem botão — é o mesmo arranjo da legenda de foto, e
+ * pela mesma razão: um botão por campo numa folha com quatro seções é mais
+ * ruído que ajuda. Em branco, o campo simplesmente não tem conteúdo e a seção
+ * volta a mostrar apenas o que veio das outras telas.
+ */
+export function CampoExtra({
+  obraId,
+  data,
+  campo,
+  valor,
+  rotulo,
+  exemplo,
+}: {
+  obraId: string;
+  data: string;
+  campo: CampoExtraDiario;
+  valor: string | null;
+  rotulo: string;
+  exemplo: string;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [salvo, setSalvo] = useState(false);
+  const router = useRouter();
+
+  function handleBlur(event: React.FocusEvent<HTMLTextAreaElement>) {
+    const texto = event.target.value;
+    if (texto.trim() === (valor ?? "").trim()) return;
+
+    startTransition(async () => {
+      const resultado = await salvarExtraDoDia(obraId, data, campo, texto);
+      if (resultado.error) return alert(resultado.error);
+      setSalvo(true);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-1 border-t pt-2">
+      <label
+        htmlFor={`${campo}-${data}`}
+        className="text-xs font-medium text-muted-foreground"
+      >
+        {rotulo}
+      </label>
+      <Textarea
+        id={`${campo}-${data}`}
+        defaultValue={valor ?? ""}
+        onBlur={handleBlur}
+        onChange={() => setSalvo(false)}
+        disabled={pending}
+        rows={2}
+        placeholder={pending ? "Salvando..." : exemplo}
+        className={salvo ? "bg-sucesso/10" : undefined}
+      />
+      <p className="text-xs text-muted-foreground">Um por linha. Salva ao sair do campo.</p>
+    </div>
+  );
+}
+
+/**
+ * Apaga a folha do dia inteira.
+ *
+ * Existe porque dia aberto por engano — data errada no calendário, duplicado
+ * de um toque a mais no celular — não tinha como sair da lista, e ficava lá
+ * como registro vazio de um dia em que ninguém esteve na obra.
+ *
+ * A confirmação diz o que vai embora com a folha, inclusive as fotos, e diz
+ * quando a folha está FECHADA: nesse caso ela já é documento e o cliente já a
+ * viu no portal dele.
+ */
+export function ExcluirDiarioButton({
+  obraId,
+  data,
+  fechado,
+}: {
+  obraId: string;
+  data: string;
+  fechado: boolean;
+}) {
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  function handleClick() {
+    const dataBR = new Date(`${data}T00:00:00`).toLocaleDateString("pt-BR");
+    const aviso = fechado
+      ? `\n\nAtenção: essa folha está FECHADA — é documento, e o cliente já a enxerga no portal dele.`
+      : "";
+    if (
+      !confirm(
+        `Excluir o RDO de ${dataBR}? O registro do dia, as fotos anexadas e as presenças confirmadas na folha vão embora, e não dá para desfazer.${aviso}`
+      )
+    ) {
+      return;
+    }
+
+    startTransition(async () => {
+      await removerDiario(obraId, data);
+      router.push(`/obras/${obraId}/diario`);
+    });
+  }
+
+  return (
+    <Button onClick={handleClick} disabled={pending} variant="ghost" size="sm">
+      <Trash2 className="size-4" />
+      {pending ? "Excluindo..." : "Excluir RDO"}
     </Button>
   );
 }

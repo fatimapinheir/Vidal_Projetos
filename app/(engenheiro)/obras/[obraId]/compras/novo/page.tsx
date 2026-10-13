@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { NovaCompraForm } from "./nova-compra-form";
+import { OrdemCompraForm } from "@/components/compras/ordem-compra-form";
 
 export default async function NovaCompraPage({
   params,
@@ -50,7 +50,7 @@ export default async function NovaCompraPage({
         <CardTitle>Nova ordem de compra</CardTitle>
       </CardHeader>
       <CardContent>
-        <NovaCompraForm
+        <OrdemCompraForm
           obraId={obraId}
           fornecedores={fornecedores ?? []}
           categorias={categorias ?? []}

@@ -17,6 +17,8 @@ import { DevolverButton, RemoverLocacaoButton } from "./locacoes-actions";
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+
+const SUFIXO: Record<string, string> = { dia: "/dia", hora: "/hora", mes: "/mês" };
 import { Paginacao } from "@/components/ui/paginacao";
 import { faixaDaPagina, lerPagina, POR_PAGINA_PADRAO } from "@/lib/paginacao";
 
@@ -79,11 +81,12 @@ export default async function LocacoesObraPage({
         <div>
           <h1 className="font-heading text-lg font-semibold">Locação de equipamentos</h1>
           <p className="text-sm text-muted-foreground">
-            Equipamentos alugados para a obra. O valor de cada locação{" "}
+            Equipamentos alugados para a obra. Por dia e por hora o valor{" "}
             <strong>continua correndo</strong> enquanto o equipamento estiver aqui: por dia, o
             sistema conta sozinho os dias desde a data inicial; por hora, o valor sai das horas que
             você informar. Marcar como <strong>devolvido</strong> encerra a contagem e congela o
-            valor na data da devolução.
+            valor na data da devolução. Na cobrança <strong>por mês</strong> é diferente: o sistema
+            gera uma ordem de compra com uma parcela por mês, e a mensalidade vira conta a pagar.
           </p>
         </div>
         <LocacaoDialog obraId={obraId} fornecedores={fornecedores ?? []} />
@@ -151,9 +154,7 @@ export default async function LocacoesObraPage({
                 <TableCell>{locacao.quantidade}</TableCell>
                 <TableCell className="whitespace-nowrap">
                   {formatCurrency(locacao.valor_unitario)}
-                  <span className="text-muted-foreground">
-                    {locacao.unidade === "dia" ? "/dia" : "/hora"}
-                  </span>
+                  <span className="text-muted-foreground">{SUFIXO[locacao.unidade]}</span>
                 </TableCell>
                 <TableCell>{formatDateBR(locacao.data_inicio)}</TableCell>
                 <TableCell>
@@ -164,12 +165,32 @@ export default async function LocacoesObraPage({
                   )}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-xs">
-                  {locacao.unidade === "dia"
-                    ? `${custo.dias} ${custo.dias === 1 ? "dia" : "dias"}`
-                    : `${custo.unidadesCobradas}h em ${custo.dias} ${custo.dias === 1 ? "dia" : "dias"}`}
+                  {locacao.unidade === "mes"
+                    ? `${locacao.meses_contratados ?? 1} ${(locacao.meses_contratados ?? 1) === 1 ? "mês" : "meses"}`
+                    : locacao.unidade === "dia"
+                      ? `${custo.dias} ${custo.dias === 1 ? "dia" : "dias"}`
+                      : `${custo.unidadesCobradas}h em ${custo.dias} ${custo.dias === 1 ? "dia" : "dias"}`}
                 </TableCell>
+                {/*
+                  Na cobrança mensal o total não vem da fórmula de dias: vem
+                  da ordem de compra que o sistema gerou, e é lá que se paga.
+                  Repetir o número aqui daria a impressão de dois gastos.
+                */}
                 <TableCell className={custo.emUso ? "font-medium" : ""}>
-                  {formatCurrency(custo.valor)}
+                  {locacao.unidade === "mes" ? (
+                    <span className="whitespace-nowrap">
+                      {formatCurrency(
+                        locacao.quantidade *
+                          locacao.valor_unitario *
+                          (locacao.meses_contratados ?? 1)
+                      )}
+                      <span className="block text-xs font-normal text-muted-foreground">
+                        em contas a pagar
+                      </span>
+                    </span>
+                  ) : (
+                    formatCurrency(custo.valor)
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">

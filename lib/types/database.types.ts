@@ -33,7 +33,7 @@ export type CompraStatus = "cotada" | "aprovada" | "recusada" | "paga";
 export type ParcelaStatus = "pendente" | "paga" | "vencida";
 export type DescontoTipo = "valor" | "percentual";
 export type OrcamentoVersaoStatus = "rascunho" | "ativa" | "substituida";
-export type LocacaoUnidade = "dia" | "hora";
+export type LocacaoUnidade = "dia" | "hora" | "mes";
 /** Condição do tempo, como aparece no RDO. */
 export type DiarioCondicao = "ensolarado" | "nublado" | "chuvoso" | "chuva_forte";
 export type DependenciaTipo =
@@ -573,8 +573,15 @@ export interface Database {
           ocorrencias: string | null;
           visitas: string | null;
           temperatura: number | null;
+          /** DESCONTINUADA (0052): só registros antigos. Nenhuma tela lê ou escreve. */
           umidade: number | null;
+          /** Equipamentos em obra que não vêm de uma locação cadastrada. */
+          equipamentos_extras: string | null;
+          /** Entregas recebidas que não vêm de uma ordem de compra. */
+          entregas_extras: string | null;
           efetivo_snapshot: Json | null;
+          /** Nomes dos responsáveis das equipes, congelados no fechamento (0055). */
+          responsaveis_snapshot: Json | null;
           equipamentos_snapshot: Json | null;
           tarefas_snapshot: Json | null;
           entregas_snapshot: Json | null;
@@ -595,7 +602,10 @@ export interface Database {
           visitas?: string | null;
           temperatura?: number | null;
           umidade?: number | null;
+          equipamentos_extras?: string | null;
+          entregas_extras?: string | null;
           efetivo_snapshot?: Json | null;
+          responsaveis_snapshot?: Json | null;
           equipamentos_snapshot?: Json | null;
           tarefas_snapshot?: Json | null;
           entregas_snapshot?: Json | null;
@@ -643,6 +653,10 @@ export interface Database {
           data_inicio: string;
           horas_utilizadas: number;
           data_devolucao: string | null;
+          /** Só na cobrança mensal: vencimento da primeira mensalidade. */
+          data_primeiro_vencimento: string | null;
+          /** Só na cobrança mensal: quantas mensalidades o contrato prevê. */
+          meses_contratados: number | null;
           observacoes: string | null;
           criado_por: string;
           created_at: string;
@@ -659,6 +673,8 @@ export interface Database {
           data_inicio: string;
           horas_utilizadas?: number;
           data_devolucao?: string | null;
+          data_primeiro_vencimento?: string | null;
+          meses_contratados?: number | null;
           observacoes?: string | null;
           criado_por: string;
           created_at?: string;
@@ -720,6 +736,11 @@ export interface Database {
           recebimento_confirmado_em: string | null;
           /** Despesa já paga, sem cotação, aprovação, entrega nem parcelamento. */
           eh_lancamento: boolean;
+          /**
+           * Preenchida quando a ordem foi gerada por uma locação mensal (0053).
+           * Essas ordens contam como Equipamentos, não como compras.
+           */
+          locacao_id: string | null;
           /** Número da NF. Nulo quando a compra não tem nota. */
           nota_fiscal_numero: string | null;
           nota_fiscal_emissao: string | null;
@@ -752,6 +773,7 @@ export interface Database {
           recebimento_confirmado_por?: string | null;
           recebimento_confirmado_em?: string | null;
           eh_lancamento?: boolean;
+          locacao_id?: string | null;
           nota_fiscal_numero?: string | null;
           nota_fiscal_emissao?: string | null;
           criado_por: string;
@@ -1088,6 +1110,11 @@ export interface Database {
       is_engenheiro: {
         Args: Record<string, never>;
         Returns: boolean;
+      };
+      /** Null quando deu tudo certo; a mensagem para o usuário quando não (0054). */
+      sincronizar_mensalidades_locacao: {
+        Args: { p_locacao_id: string };
+        Returns: string | null;
       };
       cliente_tem_acesso_obra: {
         Args: { p_obra_id: string };
