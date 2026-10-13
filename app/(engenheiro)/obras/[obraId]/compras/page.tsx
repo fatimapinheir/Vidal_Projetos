@@ -1,14 +1,9 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table";
+import { TableBody, TableRow, TableCell } from "@/components/ui/table";
+import { TabelaAjustavel, type ColunaAjustavel } from "@/components/ui/tabela-ajustavel";
+import { FiltrosCompras, type TipoFiltro } from "@/components/compras/filtros-compras";
 import { CompraStatusBadge } from "@/components/compras/status-badges";
 import { ExcluirCompraDialog } from "@/components/compras/excluir-compra-dialog";
 import {
@@ -29,35 +24,104 @@ import {
   type ParcelaSituacao,
 } from "@/lib/compras/situacao";
 
+/*
+ * As larguras de partida, em pixels.
+ *
+ * Somam 915, que cabe na área útil de uma tela de 1366 com o menu aberto — e é
+ * esse número que tira a necessidade de baixar o zoom do navegador para 75%
+ * só para ver a coluna de ações. Descrição e fornecedor ficam curtas de
+ * propósito: são os dois textos longos, e eram eles que empurravam o resto
+ * para fora. Quem precisar do texto inteiro arrasta a alça do cabeçalho, e a
+ * escolha fica guardada.
+ */
+const COLUNAS: ColunaAjustavel[] = [
+  { chave: "descricao", titulo: "Descrição", largura: 200, minima: 110 },
+  { chave: "fornecedor", titulo: "Fornecedor", largura: 150, minima: 100 },
+  { chave: "valor", titulo: "Valor", largura: 105, minima: 90, direita: true },
+  { chave: "aprovacao", titulo: "Aprovação", largura: 100, minima: 90 },
+  // Mais larga que as vizinhas: "Aguardando recebimento" é o rótulo mais
+  // comprido do sistema, e ele mora aqui.
+  { chave: "financeiro", titulo: "Financeiro", largura: 150, minima: 110 },
+  { chave: "entrega", titulo: "Entrega", largura: 110, minima: 90 },
+  // A de ações tem a largura dos dois botões dentro dela; espremê-la só
+  // quebraria a linha.
+  { chave: "acoes", titulo: "", largura: 100, direita: true, fixa: true },
+];
+
 export default async function ComprasObraPage({
   params,
   searchParams,
 }: {
   params: Promise<{ obraId: string }>;
-  searchParams: Promise<{ pagina?: string }>;
+  searchParams: Promise<{ pagina?: string; busca?: string; tipo?: string }>;
 }) {
   const { obraId } = await params;
-  const { pagina: paginaParam } = await searchParams;
+  const { pagina: paginaParam, busca: buscaParam, tipo: tipoParam } = await searchParams;
   const supabase = await createClient();
+
+  // O que vier de fora da lista conhecida é tratado como "sem filtro": a URL é
+  // digitável, e tipo inventado não pode virar consulta.
+  const tipo: TipoFiltro =
+    (["material", "servico", "mao_de_obra"] as const).find((t) => t === tipoParam) ?? "todos";
+  const busca = (buscaParam ?? "").trim();
+
+  /*
+   * A busca cobre descrição E fornecedor, e o fornecedor custa uma consulta
+   * extra.
+   *
+   * `compras` guarda só `fornecedor_id`; o nome está na outra tabela. O
+   * PostgREST não deixa pôr uma tabela embutida dentro de um `or`, então o
+   * caminho é descobrir antes quais fornecedores casam com o termo e procurar
+   * pelos ids deles. São poucas dezenas de fornecedores — a lista de ids cabe
+   * folgada na requisição.
+   */
+  const termoSeguro = busca.replace(/[,()*]/g, " ").trim();
+  const { data: fornecedoresCasando } = termoSeguro
+    ? await supabase.from("fornecedores").select("id").ilike("nome", `%${termoSeguro}%`)
+    : { data: null };
+
+  const condicaoBusca = termoSeguro
+    ? [
+        `descricao.ilike.%${termoSeguro}%`,
+        ...((fornecedoresCasando ?? []).length
+          ? [`fornecedor_id.in.(${(fornecedoresCasando ?? []).map((f) => f.id).join(",")})`]
+          : []),
+      ].join(",")
+    : null;
 
   /*
    * A contagem vem antes das linhas porque é ela que define a fatia.
    *
    * `head: true` não traz dado nenhum — só o total no cabeçalho —, então é uma
    * consulta barata mesmo com a obra cheia.
+   *
+   * Os filtros são repetidos aqui e na consulta das linhas, à mão. Tentei
+   * extrair num ajudante genérico e o tipo do construtor de consultas do
+   * Supabase não atravessa a generalização sem virar `any` — e `any` aqui
+   * apagaria justamente a checagem de nome de coluna. Duas linhas repetidas
+   * custam menos que isso; o que não pode é divergirem, senão a paginação
+   * conta um conjunto e mostra outro.
    */
-  const { count } = await supabase
+  let consultaContagem = supabase
     .from("compras")
     .select("id", { count: "exact", head: true })
     .eq("obra_id", obraId);
+  if (tipo !== "todos") consultaContagem = consultaContagem.eq("tipo_item", tipo);
+  if (condicaoBusca) consultaContagem = consultaContagem.or(condicaoBusca);
+
+  const { count } = await consultaContagem;
 
   const total = count ?? 0;
   const { pagina, de, ate } = faixaDaPagina(lerPagina(paginaParam), total);
 
-  const { data: compras } = await supabase
+  let consultaLinhas = supabase
     .from("compras")
     .select("*, fornecedores(nome)")
-    .eq("obra_id", obraId)
+    .eq("obra_id", obraId);
+  if (tipo !== "todos") consultaLinhas = consultaLinhas.eq("tipo_item", tipo);
+  if (condicaoBusca) consultaLinhas = consultaLinhas.or(condicaoBusca);
+
+  const { data: compras } = await consultaLinhas
     .order("created_at", { ascending: false })
     .range(de, ate);
 
@@ -147,78 +211,89 @@ export default async function ComprasObraPage({
 
       <LancamentosSemEtapa lancamentos={lancamentosSemEtapa} etapas={etapasOrcamento} />
 
-      <div className="overflow-x-auto rounded-xl border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Descrição</TableHead>
-              <TableHead>Fornecedor</TableHead>
-              <TableHead>Valor</TableHead>
-              <TableHead>Aprovação</TableHead>
-              <TableHead>Financeiro</TableHead>
-              <TableHead>Entrega</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {compras?.map((c) => {
-              const fornecedor = c.fornecedores as unknown as { nome: string } | null;
-              const suasParcelas = parcelasPorCompra.get(c.id) ?? [];
-              const { total, pagas } = contagemPagas(suasParcelas);
-              return (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.descricao}</TableCell>
-                  <TableCell>{fornecedor?.nome}</TableCell>
-                  <TableCell>
-                    {c.valor_total.toLocaleString("pt-BR", {
-                      style: "currency",
-                      currency: "BRL",
-                    })}
-                  </TableCell>
-                  <TableCell>
-                    <CompraStatusBadge status={c.status} />
-                  </TableCell>
-                  <TableCell>
-                    <SituacaoFinanceiraBadge
-                      situacao={situacaoFinanceiraCompra(suasParcelas)}
-                      complemento={
-                        total > 1 && pagas > 0 && pagas < total
-                          ? `${pagas} de ${total} pagas`
-                          : undefined
-                      }
+      <FiltrosCompras
+        base={`/obras/${obraId}/compras`}
+        busca={busca}
+        tipo={tipo}
+        resultados={total}
+      />
+
+      <TabelaAjustavel id="ordens-de-compra" colunas={COLUNAS}>
+        <TableBody>
+          {compras?.map((c) => {
+            const fornecedor = c.fornecedores as unknown as { nome: string } | null;
+            const suasParcelas = parcelasPorCompra.get(c.id) ?? [];
+            const { total, pagas } = contagemPagas(suasParcelas);
+            return (
+              <TableRow key={c.id}>
+                {/*
+                  `truncate` e `title` andam juntos: a coluna tem largura
+                  fixa, e o que não couber precisa continuar legível de
+                  alguma forma — pelo repouso do ponteiro, ou alargando a
+                  coluna pela alça do cabeçalho.
+                */}
+                <TableCell className="truncate font-medium" title={c.descricao}>
+                  {c.descricao}
+                </TableCell>
+                <TableCell className="truncate" title={fornecedor?.nome ?? undefined}>
+                  {fornecedor?.nome}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {c.valor_total.toLocaleString("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  })}
+                </TableCell>
+                {/*
+                  `overflow-hidden` nos selos: a coluna tem largura fixa, e
+                  sem isto um rótulo longo — "Aguardando recebimento" — vaza
+                  por cima da coluna vizinha em vez de ser cortado.
+                */}
+                <TableCell className="overflow-hidden">
+                  <CompraStatusBadge status={c.status} />
+                </TableCell>
+                <TableCell className="overflow-hidden">
+                  <SituacaoFinanceiraBadge
+                    situacao={situacaoFinanceiraCompra(suasParcelas)}
+                    complemento={
+                      total > 1 && pagas > 0 && pagas < total
+                        ? `${pagas} de ${total} pagas`
+                        : undefined
+                    }
+                  />
+                </TableCell>
+                <TableCell className="overflow-hidden">
+                  <SituacaoEntregaBadge situacao={situacaoEntregaCompra(suasParcelas)} />
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      nativeButton={false}
+                      render={<Link href={`/obras/${obraId}/compras/${c.id}`}>Abrir</Link>}
                     />
-                  </TableCell>
-                  <TableCell>
-                    <SituacaoEntregaBadge situacao={situacaoEntregaCompra(suasParcelas)} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        nativeButton={false}
-                        render={<Link href={`/obras/${obraId}/compras/${c.id}`}>Abrir</Link>}
-                      />
-                      <ExcluirCompraDialog
-                        compraId={c.id}
-                        descricao={c.descricao}
-                        ehLancamento={c.eh_lancamento}
-                      />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-            {!compras?.length && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  Nenhuma ordem de compra registrada ainda.
+                    <ExcluirCompraDialog
+                      compraId={c.id}
+                      descricao={c.descricao}
+                      ehLancamento={c.eh_lancamento}
+                    />
+                  </div>
                 </TableCell>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+            );
+          })}
+          {!compras?.length && (
+            <TableRow>
+              <TableCell colSpan={COLUNAS.length} className="text-center text-muted-foreground">
+                {busca || tipo !== "todos"
+                  ? "Nenhuma ordem de compra encontrada com esse filtro."
+                  : "Nenhuma ordem de compra registrada ainda."}
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </TabelaAjustavel>
 
       <Paginacao
         pagina={pagina}
