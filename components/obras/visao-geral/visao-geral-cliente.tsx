@@ -888,11 +888,36 @@ export function VisaoGeralCliente({
  * — aqui ele nem entra, pela mesma regra do resto da área do cliente:
  * cobrança de fornecedor não é assunto dele.
  */
+/** A janela que o título do painel promete. */
+const DIAS_CONTAS = 30;
+
 function PainelContas({ dados, base }: { dados: DadosVisaoGeral; base: string }) {
-  const contas = dados.parcelasPrioridade
-    .filter((p) => p.data_vencimento >= dados.hoje)
-    .sort((a, b) => a.data_vencimento.localeCompare(b.data_vencimento))
-    .slice(0, 4);
+  /*
+   * A janela tem FIM, e não tinha.
+   *
+   * O filtro era só "vence de hoje em diante", e o corte em quatro linhas
+   * escondia o problema: numa obra com poucas parcelas, as quatro primeiras
+   * podiam estar espalhadas por quatro meses, e o painel listava 25/10, 25/11,
+   * 25/12 e 25/01 sob o título "próximos 30 dias". O título prometia uma coisa
+   * e a lista entregava outra.
+   *
+   * Em UTC, como todo cálculo de data do projeto: somar dias em hora local
+   * erra na virada do horário de verão.
+   */
+  const limite = new Date(
+    new Date(`${dados.hoje}T00:00:00Z`).getTime() + DIAS_CONTAS * 86_400_000
+  )
+    .toISOString()
+    .slice(0, 10);
+
+  const naJanela = dados.parcelasPrioridade
+    .filter((p) => p.data_vencimento >= dados.hoje && p.data_vencimento <= limite)
+    .sort((a, b) => a.data_vencimento.localeCompare(b.data_vencimento));
+
+  // O selo conta a janela inteira; a lista mostra as quatro primeiras. Contar
+  // a lista cortada diria "4 em aberto" havendo doze, e o número viraria
+  // enfeite do próprio limite de exibição.
+  const contas = naJanela.slice(0, 4);
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border p-4">
@@ -901,10 +926,10 @@ function PainelContas({ dados, base }: { dados: DadosVisaoGeral; base: string })
           <CalendarDays className="size-4 text-primary-texto" aria-hidden />
           Contas a pagar
           <span className="text-xs font-normal tracking-normal text-muted-foreground normal-case">
-            (próximos 30 dias)
+            (próximos {DIAS_CONTAS} dias)
           </span>
         </p>
-        {!!contas.length && <Badge variant="outline">{contas.length} em aberto</Badge>}
+        {!!naJanela.length && <Badge variant="outline">{naJanela.length} em aberto</Badge>}
       </div>
 
       {contas.length ? (
@@ -932,7 +957,7 @@ function PainelContas({ dados, base }: { dados: DadosVisaoGeral; base: string })
         </ul>
       ) : (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          Nenhuma conta prevista para os próximos 30 dias.
+          Nenhuma conta prevista para os próximos {DIAS_CONTAS} dias.
         </p>
       )}
 
