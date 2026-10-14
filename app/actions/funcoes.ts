@@ -129,8 +129,30 @@ export async function salvarEfetivoDaFuncao(
     if (error) return { error: "Não foi possível salvar o efetivo." };
   }
 
-  revalidatePath(`/obras/${obraId}/diario/${data}`);
-  revalidatePath(`/obras/${obraId}/diario`);
+  /*
+   * `revalidatePath` SÓ quando a folha nasceu agora.
+   *
+   * Ele não é de graça: numa Server Action, revalidar faz o Next re-renderizar
+   * a rota no servidor e mandar a árvore nova junto da resposta. Medido no
+   * registro do servidor, um clique ficava assim:
+   *
+   *   POST .../diario/2026-10-13   1303ms  (application-code 1199ms)
+   *     └─ salvarEfetivoDaFuncao    318ms
+   *
+   * Os 880ms de diferença eram a re-renderização. Tirar o `router.refresh()`
+   * do navegador não adiantou porque o trabalho tinha mudado de lado, não
+   * desaparecido.
+   *
+   * Quem mantém a tabela em dia é o estado do componente, que já sabe o que
+   * mudou. A rota é dinâmica (renderizada a cada visita), então voltar a ela
+   * busca do servidor de novo de qualquer forma — não há cache velho para
+   * limpar. O que de fato muda a tela além da tabela é a criação da folha, e
+   * aí sim vale pagar o preço.
+   */
+  if (criouDiario) {
+    revalidatePath(`/obras/${obraId}/diario/${data}`);
+    revalidatePath(`/obras/${obraId}/diario`);
+  }
   return { error: null, criouDiario };
 }
 
