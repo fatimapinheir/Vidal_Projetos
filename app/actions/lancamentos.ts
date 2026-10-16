@@ -58,7 +58,19 @@ const schema = z.object({
   valor: z.number().positive("O valor precisa ser maior que zero."),
   // O primeiro arquivo anexado. Continua obrigatório e continua indo para a
   // parcela — ver o insert da parcela, mais abaixo.
-  comprovante_path: z.string().min(1, "Anexe o comprovante do pagamento."),
+  /*
+   * `null` vira string vazia antes da checagem.
+   *
+   * O caminho é `formData.set("comprovante_path", ...)` no navegador, e ele só
+   * acontece havendo arquivo — sem anexo o campo nem existe no envio, e
+   * `formData.get()` devolve `null`. `z.string()` recusaria o `null` com a
+   * mensagem crua do Zod, em inglês, no lugar da frase que está escrita aqui
+   * justamente para explicar o que fazer.
+   */
+  comprovante_path: z.preprocess(
+    (v) => v ?? "",
+    z.string().min(1, "Anexe o comprovante do pagamento.")
+  ),
 });
 
 export type LancamentoState = { error: string | null; sucesso?: boolean };

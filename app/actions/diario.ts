@@ -15,8 +15,17 @@ const climaOpcional = z.preprocess(
   z.enum(climaValues).optional()
 );
 
+/**
+ * Texto que pode vir vazio — ou não vir.
+ *
+ * `null` entra na conta junto do vazio, e isso não é zelo: `formData.get()`
+ * devolve `null` para campo que não existe no formulário, e `.optional()`
+ * aceita `undefined` mas RECUSA `null`. Sem esta linha, um campo esquecido no
+ * formulário vira "Invalid input: expected string, received null" — mensagem
+ * crua do Zod, em inglês, que não diz nada a quem está em obra.
+ */
 const textoOpcional = z.preprocess(
-  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  (v) => (v == null || (typeof v === "string" && v.trim() === "") ? undefined : v),
   z.string().optional()
 );
 
@@ -31,14 +40,26 @@ const diarioSchema = z.object({
    */
   temperatura: z.preprocess(
     (v) => (v === "" || v == null ? undefined : v),
-    z.coerce.number().min(-20).max(60).optional()
+    z.coerce
+      .number({ message: "A temperatura precisa ser um número." })
+      // Mensagens escritas, e não as do Zod: sem elas, digitar 90 respondia
+      // "Too big: expected number to be <=60" a quem está em obra.
+      .min(-20, "Temperatura abaixo de -20 °C não é de obra — confira o número.")
+      .max(60, "Temperatura acima de 60 °C não é de obra — confira o número.")
+      .optional()
   ),
   atividades: textoOpcional,
   ocorrencias: textoOpcional,
   visitas: textoOpcional,
-  // Texto livre para o que não veio de outra tela — ver a migração 0052.
-  equipamentos_extras: textoOpcional,
-  entregas_extras: textoOpcional,
+  /*
+   * Os dois campos de texto livre NÃO estão aqui.
+   *
+   * Eles chegaram a estar, e foi um erro: quando saíram do formulário para
+   * dentro das seções de equipamentos e entregas — onde salvam sozinhos, por
+   * `salvarExtraDoDia` —, ficaram no esquema sem existir no formulário. Toda
+   * tentativa de salvar o diário recusava com "Invalid input", porque
+   * `formData.get()` devolve `null` para campo que não existe.
+   */
 });
 
 /** Uma folha fechada é documento — só volta a aceitar escrita depois de reaberta. */
@@ -71,8 +92,6 @@ export async function salvarDiario(
     atividades: formData.get("atividades"),
     ocorrencias: formData.get("ocorrencias"),
     visitas: formData.get("visitas"),
-    equipamentos_extras: formData.get("equipamentos_extras"),
-    entregas_extras: formData.get("entregas_extras"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
 
@@ -88,8 +107,6 @@ export async function salvarDiario(
     atividades: parsed.data.atividades ?? null,
     ocorrencias: parsed.data.ocorrencias ?? null,
     visitas: parsed.data.visitas ?? null,
-    equipamentos_extras: parsed.data.equipamentos_extras ?? null,
-    entregas_extras: parsed.data.entregas_extras ?? null,
   };
 
   const { error } = existente
