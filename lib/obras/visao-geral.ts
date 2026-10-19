@@ -194,41 +194,58 @@ export async function carregarVisaoGeral(supabase: Cliente, obraId: string) {
   const custoLocacoesPorDiaria = custosLocacao.reduce((s, c) => s + c.valor, 0);
 
   /*
-   * --- Custo da obra, repartido pelo TIPO que o engenheiro classificou ---
+   * --- Custo da obra: o que SAIU DO CAIXA ---
    *
-   * Era repartido pela ORIGEM: tudo que vinha de compra caía em "materiais",
-   * e "mão de obra" contava só a folha de pagamento. O resultado é que um
-   * lançamento classificado como mão de obra — um pedreiro pago por fora,
-   * uma empreitada — aparecia como material, e a barra de mão de obra ficava
-   * em zero numa obra que já pagou mão de obra. O rótulo dizia tipo e o
-   * número respondia origem.
+   * "Já gasto" conta parcela PAGA, e só. Nem ordem aprovada, nem mensalidade
+   * de locação a vencer, nem fechamento de folha em aberto.
    *
-   * O total não muda: as mesmas compras continuam somando o mesmo. O que muda
-   * é em qual balde cada uma cai.
+   * Contava `aprovada + paga` da ORDEM, e o erro ficou invisível enquanto
+   * ordem aprovada virava paga em poucos dias. A locação mensal escancarou:
+   * uma betoneira contratada por seis meses criava a ordem inteira de uma vez,
+   * e os seis meses entravam em "já gasto" no mesmo instante — R$ 16.210 de
+   * equipamento alugado que ninguém tinha pagado. Na CASA VIDAL ALPHA o número
+   * estava R$ 29.583,52 acima do caixa real, 31% a mais.
+   *
+   * A régua agora é `situacaoFinanceiraParcela`, a MESMA que desenha o selo da
+   * parcela na listagem. Se a linha diz "Pago", ela soma; se diz qualquer
+   * outra coisa, não soma. Dois lugares não podem discordar sobre o que é
+   * pago.
+   *
+   * O que foi comprometido e ainda não saiu continua visível — em "a vencer",
+   * "vencido" e no painel de ordens de compra. Some do GASTO, não da tela.
    */
-  const comprometidas = todasCompras.filter(
-    (c) => c.status === "aprovada" || c.status === "paga"
+  const comprasPorId = new Map(todasCompras.map((c) => [c.id, c]));
+  const parcelasPagas = parcelas.filter(
+    (p) => situacaoFinanceiraParcela(p).chave === "pago"
   );
 
   /*
-   * As ordens geradas por locação mensal saem do balde de compras.
+   * As parcelas de locação mensal saem do balde de compras.
    *
-   * Elas são ordens de compra de verdade — têm parcelas, vencem, aceitam
-   * comprovante —, mas o que compram é equipamento alugado, e o gráfico já tem
-   * uma faixa para isso. Deixadas entre as compras, apareceriam como material
-   * ou como "Outros" e o engenheiro veria o aluguel do andaime somando na
-   * mesma barra do cimento. Ver `sincronizar_mensalidades_locacao` (0054).
+   * Elas são ordens de compra de verdade — vencem, aceitam comprovante —, mas
+   * o que compram é equipamento alugado, e o gráfico já tem uma faixa para
+   * isso. Deixadas entre as compras, o aluguel do andaime somaria na mesma
+   * barra do cimento. Ver `sincronizar_mensalidades_locacao` (0054).
    */
-  const ordensDeLocacao = comprometidas.filter((c) => !!c.locacao_id);
-  const comprasComuns = comprometidas.filter((c) => !c.locacao_id);
-  const mensalidadesDeLocacao = ordensDeLocacao.reduce((s, c) => s + c.valor_total, 0);
+  const ehDeLocacao = (compraId: string) => !!comprasPorId.get(compraId)?.locacao_id;
+  const pagasDeLocacao = parcelasPagas.filter((p) => ehDeLocacao(p.compra_id));
+  const pagasDeCompra = parcelasPagas.filter((p) => !ehDeLocacao(p.compra_id));
 
+  const mensalidadesDeLocacao = pagasDeLocacao.reduce((s, p) => s + p.valor, 0);
+
+  /*
+   * O TIPO vem da ordem, o VALOR vem da parcela.
+   *
+   * Repartir por tipo continua certo — um pedreiro pago por fora é mão de
+   * obra, não material —, mas quem traz o dinheiro agora é a parcela. Numa
+   * ordem de seis parcelas com duas pagas, entram as duas.
+   */
   const somarTipo = (tipo: TipoItemOrcamento | null) =>
-    comprasComuns
-      .filter((c) => (c.tipo_item ?? null) === tipo)
-      .reduce((s, c) => s + c.valor_total, 0);
+    pagasDeCompra
+      .filter((p) => (comprasPorId.get(p.compra_id)?.tipo_item ?? null) === tipo)
+      .reduce((s, p) => s + p.valor, 0);
 
-  const gastoCompras = comprasComuns.reduce((s, c) => s + c.valor_total, 0);
+  const gastoCompras = pagasDeCompra.reduce((s, p) => s + p.valor, 0);
   const materiais = somarTipo("material");
   const servicos = somarTipo("servico");
   const maoDeObraEmCompras = somarTipo("mao_de_obra");
@@ -241,8 +258,15 @@ export async function carregarVisaoGeral(supabase: Cliente, obraId: string) {
 
   const custoLocacoes = custoLocacoesPorDiaria + mensalidadesDeLocacao;
 
-  const custoFolha = maoDeObra?.total ?? 0;
-  /** Folha mais o que foi lançado como mão de obra nas compras. */
+  /*
+   * Da folha entra só a parte PAGA.
+   *
+   * `vw_custo_mao_de_obra` sempre separou `pago` de `aberto`, e o cálculo
+   * usava o total — fechamento ainda em aberto contava como gasto pela mesma
+   * razão que a ordem aprovada contava. Mesma regra, mesma correção.
+   */
+  const custoFolha = maoDeObra?.pago ?? 0;
+  /** Folha paga mais o que foi pago como mão de obra nas compras. */
   const custoMaoDeObra = custoFolha + maoDeObraEmCompras;
   const custoTotal = gastoCompras + custoFolha + custoLocacoes;
   const orcado = progresso?.valor_orcado_total ?? 0;
