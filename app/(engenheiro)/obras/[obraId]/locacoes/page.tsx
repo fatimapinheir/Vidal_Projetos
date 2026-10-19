@@ -42,7 +42,7 @@ export default async function LocacoesObraPage({
   const total = count ?? 0;
   const { pagina, de, ate } = faixaDaPagina(lerPagina(paginaParam), total);
 
-  const [{ data: locacoes }, { data: fornecedores }] = await Promise.all([
+  const [{ data: locacoes }, { data: fornecedores }, { data: resumo }] = await Promise.all([
     supabase
       .from("locacoes_equipamento")
       .select("*, fornecedores(nome)")
@@ -50,7 +50,22 @@ export default async function LocacoesObraPage({
       .order("data_inicio", { ascending: false })
       .range(de, ate),
     supabase.from("fornecedores").select("id, nome").eq("ativo", true).order("nome"),
+    /*
+     * Pago e contratado vêm das PARCELAS, somados no banco (0063).
+     *
+     * A tela mostrava o acumulado — mensalidades dos meses já começados — e
+     * isso virou mentira quando a regra do sistema passou a ser "gasto é o que
+     * saiu do caixa": a betoneira aparecia como R$ 300 sem ninguém ter pago
+     * nada. Mês vencido e não pago vale zero, como em todo o resto.
+     *
+     * A obra inteira, não só a página: os cartões de cima somam tudo.
+     */
+    supabase.from("vw_locacoes_resumo").select("*").eq("obra_id", obraId),
   ]);
+
+  const resumoPorLocacao = new Map((resumo ?? []).map((r) => [r.locacao_id, r]));
+  const totalPago = (resumo ?? []).reduce((s, r) => s + r.total_pago, 0);
+  const totalContratado = (resumo ?? []).reduce((s, r) => s + r.total_contratado, 0);
 
   // Uma única referência de "hoje" para a tela inteira, senão duas linhas
   // podem ser calculadas em dias diferentes se a virada acontecer no meio.
@@ -75,24 +90,15 @@ export default async function LocacoesObraPage({
   });
 
   /*
-   * Os três cartões falam de ACUMULADO — o que já correu até hoje.
+   * Os quatro cartões respondem quatro perguntas diferentes, sem se repetir:
+   * quantos equipamentos, quanto somam os contratos, quanto já saiu do caixa e
+   * quanto ainda vai sair.
    *
-   * Na locação mensal isso são as mensalidades dos meses que já começaram, e
-   * não o contrato inteiro: um contrato de seis meses assinado ontem acumulou
-   * uma. O mês corrente entra inteiro assim que vira o mês, antes do boleto
-   * vencer, porque é assim que o locador cobra — o equipamento esteve lá.
-   *
-   * Os meses que ainda não começaram aparecem à parte, em "A começar no
-   * contrato": são compromisso assumido, não gasto realizado, e é essa linha
-   * que explica a diferença entre o cartão e o total contratado.
+   * Nenhum deles fala de "acumulado" — isso saiu junto com a regra nova. O que
+   * conta como gasto, aqui e em todo o resto do sistema, é parcela PAGA.
    */
-  const totalEmUso = linhas.filter((l) => l.custo.emUso).reduce((s, l) => s + l.custo.valor, 0);
-  const totalDevolvido = linhas.filter((l) => !l.custo.emUso).reduce((s, l) => s + l.custo.valor, 0);
   const quantidadeEmUso = linhas.filter((l) => l.custo.emUso).length;
-  const aComecarNoContrato = linhas.reduce(
-    (s, l) => s + Math.max(0, l.custo.valorContratado - l.custo.valor),
-    0
-  );
+  const previsao = Math.max(0, totalContratado - totalPago);
 
   return (
     <div className="flex flex-col gap-4">
@@ -110,10 +116,12 @@ export default async function LocacoesObraPage({
               </p>
               <p>
                 Na cobrança <strong>por mês</strong> é diferente: o sistema gera uma ordem de
-                compra com uma parcela por mês, e a mensalidade vira conta a pagar. Aqui o valor
-                conta as mensalidades dos meses que <strong>já começaram</strong>, mesmo que o
-                boleto só vença mais adiante — entrado o mês com o equipamento em obra, a
-                mensalidade dele já é devida.
+                compra com uma parcela por mês, e a mensalidade vira conta a pagar.
+              </p>
+              <p>
+                A coluna <strong>Total pago</strong> conta só o que já foi{" "}
+                <strong>marcado como pago</strong> na ordem de compra. Mensalidade vencida e não
+                paga vale zero aqui — é a mesma regra do gasto da obra.
               </p>
             </AjudaDaPagina>
           </h1>
@@ -125,38 +133,41 @@ export default async function LocacoesObraPage({
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardContent className="flex items-center justify-between py-4">
-              <p className="text-sm text-muted-foreground">Em uso</p>
+              <p className="text-sm text-muted-foreground">Equipamentos em uso</p>
               <p className="font-heading text-xl font-semibold">{quantidadeEmUso}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="flex items-center justify-between py-4">
-              <p className="text-sm text-muted-foreground">Acumulado em uso do mês</p>
-              <p className="font-heading text-xl font-semibold">{formatCurrency(totalEmUso)}</p>
+              <p className="text-sm text-muted-foreground">
+                Total em locações
+                <span className="block text-xs">soma dos contratos</span>
+              </p>
+              <p className="font-heading text-xl font-semibold">
+                {formatCurrency(totalContratado)}
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="flex items-center justify-between py-4">
-              <p className="text-sm text-muted-foreground">Já devolvido</p>
-              <p className="font-heading text-xl font-semibold">{formatCurrency(totalDevolvido)}</p>
+              <p className="text-sm text-muted-foreground">
+                Total já pago
+                <span className="block text-xs">mensalidades com pagamento lançado</span>
+              </p>
+              <p className="font-heading text-xl font-semibold text-sucesso">
+                {formatCurrency(totalPago)}
+              </p>
             </CardContent>
           </Card>
-          {/* Só aparece havendo contrato mensal: num quadro só de diárias
-              não existe nada combinado para vencer, e o cartão marcaria
-              R$ 0,00 para sempre. */}
-          {aComecarNoContrato > 0 && (
-            <Card>
-              <CardContent className="flex items-center justify-between py-4">
-                <p className="text-sm text-muted-foreground">
-                  A começar no contrato
-                  <span className="block text-xs">meses que ainda não entraram</span>
-                </p>
-                <p className="font-heading text-xl font-semibold">
-                  {formatCurrency(aComecarNoContrato)}
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardContent className="flex items-center justify-between py-4">
+              <p className="text-sm text-muted-foreground">
+                Previsão orçamentária
+                <span className="block text-xs">ainda a pagar nos contratos</span>
+              </p>
+              <p className="font-heading text-xl font-semibold">{formatCurrency(previsao)}</p>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -170,13 +181,23 @@ export default async function LocacoesObraPage({
               <TableHead>Valor</TableHead>
               <TableHead>Início</TableHead>
               <TableHead>Devolução</TableHead>
-              <TableHead>Cobrado</TableHead>
-              <TableHead>Total</TableHead>
+              <TableHead>Total pago</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {linhas.map(({ locacao, custo, locadorNome }) => (
+            {linhas.map(({ locacao, custo, locadorNome }) => {
+              const r = resumoPorLocacao.get(locacao.id);
+              const pago = r?.total_pago ?? 0;
+              // Dia e hora não têm ordem de compra, então não têm parcela: o
+              // contratado delas é o acumulado da fórmula de diárias. A regra
+              // de negócio desse caso ainda vai ser definida.
+              const contratado = r?.total_contratado || custo.valorContratado;
+              const parcelas =
+                r && r.parcelas_total > 0
+                  ? `${r.parcelas_pagas} de ${r.parcelas_total} ${r.parcelas_total === 1 ? "mensalidade paga" : "mensalidades pagas"}`
+                  : null;
+              return (
               <TableRow key={locacao.id}>
                 <TableCell className="font-medium">
                   {locacao.equipamento}
@@ -209,32 +230,25 @@ export default async function LocacoesObraPage({
                     <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-xs">
-                  {locacao.unidade === "mes"
-                    ? // Zero significa contrato que ainda não entrou no primeiro
-                      // mês — "0º de 6 meses" não quer dizer nada.
-                      custo.unidadesCobradas === 0
-                      ? `a começar · ${locacao.meses_contratados ?? 1} meses`
-                      : `${custo.unidadesCobradas}º de ${locacao.meses_contratados ?? 1} ${(locacao.meses_contratados ?? 1) === 1 ? "mês" : "meses"}`
-                    : locacao.unidade === "dia"
-                      ? `${custo.dias} ${custo.dias === 1 ? "dia" : "dias"}`
-                      : `${custo.unidadesCobradas}h em ${custo.dias} ${custo.dias === 1 ? "dia" : "dias"}`}
-                </TableCell>
                 {/*
-                  Uma coluna, um significado: o que JÁ CORREU. Na mensal, as
-                  mensalidades vencidas — as demais ainda não são gasto, são
-                  compromisso, e aparecem na linha de baixo em cinza.
+                  Uma coluna, um significado: o que JÁ SAIU DO CAIXA.
                   
-                  Mostrar aqui o contrato inteiro foi a primeira tentativa, e
-                  dava R$ 1.800,00 na linha ao lado de "Acumulado em uso:
-                  R$ 0,00" no cartão. Duas réguas diferentes na mesma tela.
+                  Mostrava o acumulado — as mensalidades dos meses já
+                  começados —, e isso dava R$ 300 numa betoneira que ninguém
+                  pagou. Mês vencido e não pago vale ZERO aqui, como em todo o
+                  resto do sistema: só soma quando a parcela é marcada como
+                  paga na ordem de compra.
+                  
+                  O contratado fica em cinza embaixo, como referência: é ele
+                  que explica por que o pago é só uma fração.
                 */}
                 <TableCell className={custo.emUso ? "font-medium" : ""}>
                   <span className="whitespace-nowrap">
-                    {formatCurrency(custo.valor)}
-                    {locacao.unidade === "mes" && (
+                    {formatCurrency(pago)}
+                    {contratado > 0 && (
                       <span className="block text-xs font-normal text-muted-foreground">
-                        de {formatCurrency(custo.valorContratado)} contratados
+                        de {formatCurrency(contratado)} contratados
+                        {parcelas && <> · {parcelas}</>}
                       </span>
                     )}
                   </span>
@@ -254,11 +268,12 @@ export default async function LocacoesObraPage({
                     <RemoverLocacaoButton obraId={obraId} locacaoId={locacao.id} />
                   </div>
                 </TableCell>
-              </TableRow>
-            ))}
+                </TableRow>
+              );
+            })}
             {!linhas.length && (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground">
+                <TableCell colSpan={8} className="text-center text-muted-foreground">
                   Nenhuma locação registrada nessa obra ainda.
                 </TableCell>
               </TableRow>

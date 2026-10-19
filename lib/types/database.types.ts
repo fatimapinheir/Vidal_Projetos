@@ -1111,6 +1111,20 @@ export interface Database {
        * somar — o PostgREST corta em 1000 sem avisar, e a partir de umas quinze
        * obras o número ficaria errado em silêncio.
        */
+      /** Quanto já foi pago de cada locação, e quanto ela soma por contrato (0063). */
+      vw_locacoes_resumo: {
+        Row: {
+          locacao_id: string;
+          obra_id: string;
+          total_pago: number;
+          total_contratado: number;
+          parcelas_pagas: number;
+          parcelas_total: number;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       vw_resumo_obras: {
         Row: {
           obra_id: string;

@@ -28,6 +28,7 @@ import {
   Users,
   Wallet,
   Wrench,
+  TriangleAlert,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -740,6 +741,8 @@ export function VisaoGeralCliente({
         </div>
       </div>
 
+      <AvisosImportantes dados={d} base={base} />
+
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <CartaoRdo extra={extra} base={base} fotoUrl={obra.rdoUrl} />
@@ -896,6 +899,88 @@ export function VisaoGeralCliente({
  */
 /** A janela que o título do painel promete. */
 const DIAS_CONTAS = 30;
+
+/**
+ * O que não pode passar despercebido, logo abaixo da saudação.
+ *
+ * É uma mudança de rumo deliberada. A tela do cliente foi desenhada para não
+ * falar de atraso — "apontar-lhe um atraso que ele não pode resolver só gera
+ * preocupação" — e isso continua valendo para o CRONOGRAMA, onde o atraso é
+ * trabalho do engenheiro. Conta vencida é o contrário: é dinheiro, é do
+ * cliente, e esconder uma delas no meio de "contas a pagar dos próximos 30
+ * dias" fez com que passassem batido.
+ *
+ * Vermelho e no topo, porque é o único lugar da tela que pede ação imediata.
+ * Aparece só quando existe — um quadro de avisos permanentemente vazio ensina
+ * a ignorá-lo.
+ */
+function AvisosImportantes({ dados, base }: { dados: DadosVisaoGeral; base: string }) {
+  /*
+   * `status_efetivo` e não a data: a view já resolve o caso da ordem que só
+   * vence depois do recebimento da mercadoria. Comparar `data_vencimento` com
+   * hoje acusaria atraso de uma conta que ainda nem pode ser paga.
+   */
+  const vencidas = dados.parcelasPrioridade
+    .filter((p) => p.status_efetivo === "vencida")
+    .sort((a, b) => a.data_vencimento.localeCompare(b.data_vencimento));
+
+  if (!vencidas.length) return null;
+
+  const total = vencidas.reduce((s, p) => s + p.valor, 0);
+  const diasDe = (iso: string) =>
+    Math.max(
+      0,
+      Math.round(
+        (new Date(`${dados.hoje}T00:00:00Z`).getTime() - new Date(`${iso}T00:00:00Z`).getTime()) /
+          86_400_000
+      )
+    );
+
+  return (
+    <section
+      // `role="alert"` faz o leitor de tela anunciar sem o usuário procurar.
+      role="alert"
+      className="flex flex-col gap-3 rounded-xl border-2 border-destructive/40 bg-destructive/[0.06] p-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-2 font-heading text-base font-bold text-destructive">
+          <TriangleAlert className="size-5 shrink-0" aria-hidden />
+          {vencidas.length === 1 ? "Você tem 1 conta vencida" : `Você tem ${vencidas.length} contas vencidas`}
+        </p>
+        <p className="font-heading text-lg font-bold text-destructive tabular-nums">
+          {moeda(total)}
+        </p>
+      </div>
+
+      <ul className="flex flex-col">
+        {vencidas.map((parcela) => {
+          const compra = parcela.compras as unknown as { descricao: string } | null;
+          const dias = diasDe(parcela.data_vencimento);
+          return (
+            <li key={parcela.id}>
+              <Link
+                href={`${base}/compras/${parcela.compra_id}`}
+                className="flex items-center gap-3 border-b border-destructive/20 py-2.5 text-sm transition-colors last:border-b-0 hover:bg-destructive/[0.06]"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold">{compra?.descricao}</span>
+                  <span className="block text-xs text-destructive">
+                    Venceu em {formatDateBR(parcela.data_vencimento)}
+                    {dias > 0 && <> · há {dias === 1 ? "1 dia" : `${dias} dias`}</>}
+                  </span>
+                </span>
+                <span className="shrink-0 font-bold text-destructive tabular-nums">
+                  {moeda(parcela.valor)}
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-destructive" aria-hidden />
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
 
 function PainelContas({ dados, base }: { dados: DadosVisaoGeral; base: string }) {
   /*
