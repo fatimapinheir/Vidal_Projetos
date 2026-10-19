@@ -1104,6 +1104,26 @@ export interface Database {
        * financeira derivada das parcelas, que é o que permite ordenar por
        * "vencida primeiro" sobre a lista inteira e não só sobre a página.
        */
+      /**
+       * Uma linha por obra, somada no banco, para o painel inicial (0062).
+       *
+       * Existe para o painel não varrer todas as parcelas do sistema só para
+       * somar — o PostgREST corta em 1000 sem avisar, e a partir de umas quinze
+       * obras o número ficaria errado em silêncio.
+       */
+      vw_resumo_obras: {
+        Row: {
+          obra_id: string;
+          /** Só parcela paga. A mesma régua da visão da obra. */
+          gasto_pago: number;
+          parcelas_vencidas: number;
+          proxima_parcela: string | null;
+          proxima_vencida: boolean;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       vw_compras_lista: {
         Row: Database["public"]["Tables"]["compras"]["Row"] & {
           fornecedor_nome: string | null;

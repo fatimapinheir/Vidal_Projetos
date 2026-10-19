@@ -29,42 +29,36 @@ export default async function EngenheiroDashboardPage() {
     { data: obras },
     { count: obrasAtivas },
     { count: comprasPendentes },
-    { data: parcelasVencidas },
-    { data: comprasPorObra },
-    { data: parcelasEmAberto },
+    { data: resumoPorObra },
     lembretes,
   ] = await Promise.all([
     supabase.from("obras").select("*").order("created_at", { ascending: false }),
     supabase.from("obras").select("*", { count: "exact", head: true }).eq("status", "em_andamento"),
     supabase.from("compras").select("*", { count: "exact", head: true }).eq("status", "cotada"),
-    supabase
-      .from("vw_compra_parcelas")
-      .select("id")
-      .eq("status_efetivo", "vencida")
-      .eq("liberada_para_pagamento", true),
-    supabase.from("compras").select("obra_id, valor_total, status").in("status", ["aprovada", "paga"]),
-    supabase
-      .from("vw_compra_parcelas")
-      .select("data_vencimento, status_efetivo, compras!inner(obra_id)")
-      .in("status_efetivo", ["pendente", "vencida"])
-      .order("data_vencimento", { ascending: true }),
+    /*
+     * Uma linha por obra, somada no banco — ver `vw_resumo_obras` (0062).
+     *
+     * Eram três consultas trazendo linha por linha de TODAS as obras, sem
+     * limite: as parcelas vencidas, as compras e as parcelas em aberto. O
+     * PostgREST corta em 1000 sem avisar, então a partir de umas quinze obras
+     * o painel não ficaria lento — ficaria errado, com gasto e contas vencidas
+     * a menos e nada na tela indicando isso.
+     */
+    supabase.from("vw_resumo_obras").select("*"),
     buscarLembretes(supabase),
   ]);
 
-  const gastoPorObra = new Map<string, number>();
-  for (const c of comprasPorObra ?? []) {
-    gastoPorObra.set(c.obra_id, (gastoPorObra.get(c.obra_id) ?? 0) + c.valor_total);
-  }
-
-  const proximaParcelaPorObra = new Map<string, { data_vencimento: string; vencida: boolean }>();
-  for (const p of parcelasEmAberto ?? []) {
-    const compra = p.compras as unknown as { obra_id: string } | null;
-    if (!compra || proximaParcelaPorObra.has(compra.obra_id)) continue;
-    proximaParcelaPorObra.set(compra.obra_id, {
-      data_vencimento: p.data_vencimento,
-      vencida: p.status_efetivo === "vencida",
-    });
-  }
+  const resumo = resumoPorObra ?? [];
+  const gastoPorObra = new Map(resumo.map((r) => [r.obra_id, r.gasto_pago]));
+  const proximaParcelaPorObra = new Map(
+    resumo
+      .filter((r) => !!r.proxima_parcela)
+      .map((r) => [
+        r.obra_id,
+        { data_vencimento: r.proxima_parcela!, vencida: r.proxima_vencida },
+      ])
+  );
+  const parcelasVencidas = resumo.reduce((s, r) => s + r.parcelas_vencidas, 0);
 
   const gastoTotal = [...gastoPorObra.values()].reduce((sum, v) => sum + v, 0);
 
@@ -89,9 +83,9 @@ export default async function EngenheiroDashboardPage() {
         />
         <CardEstatistica
           rotulo="Parcelas vencidas"
-          valor={parcelasVencidas?.length ?? 0}
+          valor={parcelasVencidas}
           Icone={AlertTriangle}
-          tom={parcelasVencidas?.length ? "alerta" : "neutro"}
+          tom={parcelasVencidas ? "alerta" : "neutro"}
         />
         <CardEstatistica
           rotulo="Gasto aprovado"
