@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { CardNumero } from "@/components/ui/card-numero";
 import {
   Table,
   TableHeader,
@@ -131,43 +131,59 @@ export default async function LocacoesObraPage({
 
       {!!linhas.length && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardContent className="flex items-center justify-between py-4">
-              <p className="text-sm text-muted-foreground">Equipamentos em uso</p>
-              <p className="font-heading text-xl font-semibold">{quantidadeEmUso}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center justify-between py-4">
-              <p className="text-sm text-muted-foreground">
-                Total em locações
-                <span className="block text-xs">soma dos contratos</span>
+          <CardNumero
+            rotulo="Equipamentos em uso"
+            valor={quantidadeEmUso}
+            descricao={`de ${linhas.length} ${linhas.length === 1 ? "locação" : "locações"} nesta obra`}
+            ajuda={
+              <p>
+                Quantos equipamentos ainda não foram devolvidos. Marcar a devolução encerra a
+                contagem e congela o valor na data informada.
               </p>
-              <p className="font-heading text-xl font-semibold">
-                {formatCurrency(totalContratado)}
+            }
+          />
+          <CardNumero
+            rotulo="Total em locações"
+            valor={formatCurrency(totalContratado)}
+            descricao="soma de todos os contratos"
+            ajuda={
+              <>
+                <p>
+                  O que as locações desta obra somam por inteiro — todas as mensalidades
+                  contratadas, pagas ou não.
+                </p>
+                <p>Não é gasto: é o compromisso assumido com os locadores.</p>
+              </>
+            }
+          />
+          <CardNumero
+            rotulo="Total já pago"
+            valor={formatCurrency(totalPago)}
+            tom="sucesso"
+            descricao="mensalidades com pagamento lançado"
+            ajuda={
+              <>
+                <p>
+                  Só o que já saiu do caixa: a mensalidade entra aqui quando a parcela é marcada
+                  como <strong>paga</strong> na ordem de compra.
+                </p>
+                <p>
+                  Mensalidade vencida e não paga vale zero — é a mesma regra do gasto da obra.
+                </p>
+              </>
+            }
+          />
+          <CardNumero
+            rotulo="Previsão orçamentária"
+            valor={formatCurrency(previsao)}
+            descricao="ainda a pagar nos contratos"
+            ajuda={
+              <p>
+                O que falta pagar: o total dos contratos menos o que já foi pago. É esse valor que
+                ainda vai aparecer em contas a pagar ao longo dos próximos meses.
               </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center justify-between py-4">
-              <p className="text-sm text-muted-foreground">
-                Total já pago
-                <span className="block text-xs">mensalidades com pagamento lançado</span>
-              </p>
-              <p className="font-heading text-xl font-semibold text-sucesso">
-                {formatCurrency(totalPago)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center justify-between py-4">
-              <p className="text-sm text-muted-foreground">
-                Previsão orçamentária
-                <span className="block text-xs">ainda a pagar nos contratos</span>
-              </p>
-              <p className="font-heading text-xl font-semibold">{formatCurrency(previsao)}</p>
-            </CardContent>
-          </Card>
+            }
+          />
         </div>
       )}
 
