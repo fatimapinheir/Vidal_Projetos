@@ -5,7 +5,8 @@ import { TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { TabelaAjustavel, type ColunaAjustavel } from "@/components/ui/tabela-ajustavel";
 import { FiltrosDaLista } from "@/components/ui/filtros-da-lista";
 import { CompraStatusBadge } from "@/components/compras/status-badges";
-import { ExcluirCompraDialog } from "@/components/compras/excluir-compra-dialog";
+import { BotaoExcluir } from "@/components/ui/botao-excluir";
+import { excluirCompra } from "@/app/actions/compras";
 import {
   LancamentosSemEtapa,
   type LancamentoSemEtapa,
@@ -373,10 +374,22 @@ export default async function ComprasObraPage({
                       nativeButton={false}
                       render={<Link href={`/obras/${obraId}/compras/${c.id}`}>Abrir</Link>}
                     />
-                    <ExcluirCompraDialog
-                      compraId={c.id}
-                      descricao={c.descricao}
-                      ehLancamento={c.eh_lancamento}
+                    {/*
+                      `BotaoExcluir`, e não um diálogo por linha.
+                      
+                      O diálogo montava um `Dialog` inteiro — raiz, gatilho,
+                      portal, cabeçalho, descrição e rodapé — para CADA uma das
+                      25 linhas da página. Duzentas instâncias de componente só
+                      para desenhar vinte e cinco lixeiras que quase nunca são
+                      clicadas.
+                      
+                      A confirmação continua, com o mesmo texto: o valor sai do
+                      custo da obra na hora e não há desfazer.
+                    */}
+                    <BotaoExcluir
+                      rotulo={`Excluir ${c.eh_lancamento ? "lançamento" : "ordem de compra"}`}
+                      confirmacao={`Excluir "${c.descricao}"?\n\nEla sai do custo da obra junto com os itens, ${c.eh_lancamento ? "o pagamento" : "as parcelas"} e os arquivos anexados. Não há como desfazer.`}
+                      acao={excluirCompra.bind(null, c.id)}
                     />
                   </div>
                 </TableCell>
