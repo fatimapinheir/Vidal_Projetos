@@ -42,7 +42,8 @@ export default async function LocacoesObraPage({
   const total = count ?? 0;
   const { pagina, de, ate } = faixaDaPagina(lerPagina(paginaParam), total);
 
-  const [{ data: locacoes }, { data: fornecedores }, { data: resumo }] = await Promise.all([
+  const [{ data: locacoes }, { data: fornecedores }, { data: resumo }, { data: mensais }] =
+    await Promise.all([
     supabase
       .from("locacoes_equipamento")
       .select("*, fornecedores(nome)")
@@ -61,6 +62,19 @@ export default async function LocacoesObraPage({
      * A obra inteira, não só a página: os cartões de cima somam tudo.
      */
     supabase.from("vw_locacoes_resumo").select("*").eq("obra_id", obraId),
+    /*
+     * As locações MENSAIS em uso, da obra inteira.
+     *
+     * A consulta de cima é paginada, e somar a mensalidade a partir dela
+     * responderia "quanto custam por mês as locações desta página" — outra
+     * pergunta. São poucas linhas por obra, e só os três campos da conta.
+     */
+    supabase
+      .from("locacoes_equipamento")
+      .select("quantidade, valor_unitario")
+      .eq("obra_id", obraId)
+      .eq("unidade", "mes")
+      .is("data_devolucao", null),
   ]);
 
   const resumoPorLocacao = new Map((resumo ?? []).map((r) => [r.locacao_id, r]));
@@ -99,6 +113,22 @@ export default async function LocacoesObraPage({
    */
   const quantidadeEmUso = linhas.filter((l) => l.custo.emUso).length;
   const previsao = Math.max(0, totalContratado - totalPago);
+
+  /*
+   * O custo MENSAL dos contratos ativos: quanto a obra paga de aluguel por mês.
+   *
+   * Sai da locação e não das parcelas de propósito. Pelas parcelas, um mês sem
+   * vencimento marcado mostraria R$ 0,00 ao lado de seis equipamentos em uso —
+   * e a pergunta "quanto me custa por mês ter isso aqui" tem resposta mesmo
+   * nos meses em que nada vence.
+   *
+   * Equipamento devolvido sai da conta, e dia/hora não entram: eles não têm
+   * mensalidade.
+   */
+  const mensalidadeDoMes = (mensais ?? []).reduce(
+    (soma, l) => soma + l.quantidade * l.valor_unitario,
+    0
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -143,16 +173,19 @@ export default async function LocacoesObraPage({
             }
           />
           <CardNumero
-            rotulo="Total em locações"
-            valor={formatCurrency(totalContratado)}
-            descricao="soma de todos os contratos"
+            rotulo="Total em locações no mês"
+            valor={formatCurrency(mensalidadeDoMes)}
+            descricao="custo mensal dos contratos ativos"
             ajuda={
               <>
                 <p>
-                  O que as locações desta obra somam por inteiro — todas as mensalidades
-                  contratadas, pagas ou não.
+                  Quanto as locações em uso custam por mês somadas — a conta de aluguel que a obra
+                  paga enquanto os equipamentos estiverem aqui.
                 </p>
-                <p>Não é gasto: é o compromisso assumido com os locadores.</p>
+                <p>
+                  Equipamento devolvido sai da conta. Não é gasto realizado: o que já saiu do caixa
+                  está em <strong>Total já pago</strong>.
+                </p>
               </>
             }
           />
@@ -203,16 +236,7 @@ export default async function LocacoesObraPage({
           </TableHeader>
           <TableBody>
             {linhas.map(({ locacao, custo, locadorNome }) => {
-              const r = resumoPorLocacao.get(locacao.id);
-              const pago = r?.total_pago ?? 0;
-              // Dia e hora não têm ordem de compra, então não têm parcela: o
-              // contratado delas é o acumulado da fórmula de diárias. A regra
-              // de negócio desse caso ainda vai ser definida.
-              const contratado = r?.total_contratado || custo.valorContratado;
-              const parcelas =
-                r && r.parcelas_total > 0
-                  ? `${r.parcelas_pagas} de ${r.parcelas_total} ${r.parcelas_total === 1 ? "mensalidade paga" : "mensalidades pagas"}`
-                  : null;
+              const pago = resumoPorLocacao.get(locacao.id)?.total_pago ?? 0;
               return (
               <TableRow key={locacao.id}>
                 <TableCell className="font-medium">
@@ -258,16 +282,17 @@ export default async function LocacoesObraPage({
                   O contratado fica em cinza embaixo, como referência: é ele
                   que explica por que o pago é só uma fração.
                 */}
+                {/*
+                  Só o valor pago, sem linha de apoio.
+                  
+                  Trazia "de R$ X contratados · 0 de 3 mensalidades pagas"
+                  embaixo, e com seis linhas na tela isso virava mais texto que
+                  número — a coluna tem uma pergunta só, e a resposta é um
+                  valor. O contratado continua na conta: é ele menos o pago que
+                  dá a previsão orçamentária, no cartão de cima.
+                */}
                 <TableCell className={custo.emUso ? "font-medium" : ""}>
-                  <span className="whitespace-nowrap">
-                    {formatCurrency(pago)}
-                    {contratado > 0 && (
-                      <span className="block text-xs font-normal text-muted-foreground">
-                        de {formatCurrency(contratado)} contratados
-                        {parcelas && <> · {parcelas}</>}
-                      </span>
-                    )}
-                  </span>
+                  <span className="whitespace-nowrap">{formatCurrency(pago)}</span>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
