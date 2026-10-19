@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { TabelaAjustavel, type ColunaAjustavel } from "@/components/ui/tabela-ajustavel";
-import { FiltrosCompras, type TipoFiltro } from "@/components/compras/filtros-compras";
+import { FiltrosDaLista } from "@/components/ui/filtros-da-lista";
 import { CompraStatusBadge } from "@/components/compras/status-badges";
 import { ExcluirCompraDialog } from "@/components/compras/excluir-compra-dialog";
 import {
@@ -48,33 +48,78 @@ const COLUNAS: ColunaAjustavel[] = [
   { chave: "acoes", titulo: "", largura: 100, direita: true, fixa: true },
 ];
 
+/*
+ * As ordenações oferecidas, e o que cada uma faz no banco.
+ *
+ * Todas ordenam a LISTA INTEIRA, não a página: com 25 linhas por vez, ordenar
+ * no navegador responderia "o maior valor desta página", que é outra pergunta.
+ *
+ * "Vencidas primeiro" usa `ordem_situacao` da view (0060), que repete em SQL a
+ * mesma gravidade de `lib/compras/situacao.ts`. O vencimento mais próximo
+ * desempata dentro de cada situação — entre duas vencidas, a mais antiga dói
+ * mais.
+ */
+const ORDENS = [
+  {
+    valor: "recentes",
+    rotulo: "Mais recentes",
+    criterios: [{ coluna: "data_cotacao", ascendente: false }],
+  },
+  {
+    valor: "antigas",
+    rotulo: "Mais antigas",
+    criterios: [{ coluna: "data_cotacao", ascendente: true }],
+  },
+  {
+    valor: "az",
+    rotulo: "Descrição (A–Z)",
+    criterios: [{ coluna: "descricao", ascendente: true }],
+  },
+  {
+    valor: "za",
+    rotulo: "Descrição (Z–A)",
+    criterios: [{ coluna: "descricao", ascendente: false }],
+  },
+  {
+    valor: "maior",
+    rotulo: "Maior valor",
+    criterios: [{ coluna: "valor_total", ascendente: false }],
+  },
+  {
+    valor: "menor",
+    rotulo: "Menor valor",
+    criterios: [{ coluna: "valor_total", ascendente: true }],
+  },
+  {
+    valor: "situacao",
+    rotulo: "Vencidas primeiro",
+    criterios: [
+      { coluna: "ordem_situacao", ascendente: true },
+      { coluna: "proximo_vencimento", ascendente: true },
+    ],
+  },
+] as const;
+
 export default async function ComprasObraPage({
   params,
   searchParams,
 }: {
   params: Promise<{ obraId: string }>;
-  searchParams: Promise<{ pagina?: string; busca?: string; tipo?: string }>;
+  searchParams: Promise<{
+    pagina?: string;
+    busca?: string;
+    ordem?: string;
+    de?: string;
+    ate?: string;
+    min?: string;
+    max?: string;
+  }>;
 }) {
   const { obraId } = await params;
-  const { pagina: paginaParam, busca: buscaParam, tipo: tipoParam } = await searchParams;
+  const f = await searchParams;
   const supabase = await createClient();
 
-  // O que vier de fora da lista conhecida é tratado como "sem filtro": a URL é
-  // digitável, e tipo inventado não pode virar consulta.
-  const tipo: TipoFiltro =
-    (["material", "servico", "mao_de_obra"] as const).find((t) => t === tipoParam) ?? "todos";
-  const busca = (buscaParam ?? "").trim();
-
-  /*
-   * A busca cobre descrição E fornecedor, e o fornecedor custa uma consulta
-   * extra.
-   *
-   * `compras` guarda só `fornecedor_id`; o nome está na outra tabela. O
-   * PostgREST não deixa pôr uma tabela embutida dentro de um `or`, então o
-   * caminho é descobrir antes quais fornecedores casam com o termo e procurar
-   * pelos ids deles. São poucas dezenas de fornecedores — a lista de ids cabe
-   * folgada na requisição.
-   */
+  const busca = (f.busca ?? "").trim();
   /*
    * O termo perde os caracteres de significado especial.
    *
@@ -84,39 +129,58 @@ export default async function ComprasObraPage({
    * encontrar o mesmo conjunto — senão a tela diz "8 resultados" e soma um
    * nono. Remover é a única regra que os dois lados expressam igual.
    */
-  const termoSeguro = busca.replace(/[,()*%_\\]/g, " ").replace(/\s+/g, " ").trim();
-  const { data: fornecedoresCasando } = termoSeguro
-    ? await supabase.from("fornecedores").select("id").ilike("nome", `%${termoSeguro}%`)
-    : { data: null };
+  const termo = busca.replace(/[,()*%_\\]/g, " ").replace(/\s+/g, " ").trim();
 
-  const condicaoBusca = termoSeguro
-    ? [
-        `descricao.ilike.%${termoSeguro}%`,
-        ...((fornecedoresCasando ?? []).length
-          ? [`fornecedor_id.in.(${(fornecedoresCasando ?? []).map((f) => f.id).join(",")})`]
-          : []),
-      ].join(",")
-    : null;
+  // O que vier de fora da lista conhecida vale como "sem filtro": a URL é
+  // digitável, e ordenação inventada não pode virar consulta.
+  const ordem = ORDENS.find((o) => o.valor === f.ordem) ?? ORDENS[0];
+  const soData = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+  const soNumero = (v?: string) => {
+    const n = Number(v);
+    return v && Number.isFinite(n) && n >= 0 ? n : undefined;
+  };
+  const de = soData(f.de);
+  const ate = soData(f.ate);
+  const min = soNumero(f.min);
+  const max = soNumero(f.max);
 
   /*
-   * A contagem vem antes das linhas porque é ela que define a fatia.
+   * Os filtros são repetidos na contagem e nas linhas, à mão.
    *
-   * `head: true` não traz dado nenhum — só o total no cabeçalho —, então é uma
-   * consulta barata mesmo com a obra cheia.
-   *
-   * Os filtros são repetidos aqui e na consulta das linhas, à mão. Tentei
-   * extrair num ajudante genérico e o tipo do construtor de consultas do
-   * Supabase não atravessa a generalização sem virar `any` — e `any` aqui
-   * apagaria justamente a checagem de nome de coluna. Duas linhas repetidas
-   * custam menos que isso; o que não pode é divergirem, senão a paginação
-   * conta um conjunto e mostra outro.
+   * Tentei extrair num ajudante genérico e o tipo do construtor de consultas
+   * do Supabase não atravessa a generalização sem virar `any` — e `any` aqui
+   * apagaria justamente a checagem de nome de coluna. O que não pode é
+   * divergirem: a paginação contaria um conjunto e mostraria outro.
    */
-  let consultaContagem = supabase
-    .from("compras")
+  let contagem = supabase
+    .from("vw_compras_lista")
     .select("id", { count: "exact", head: true })
     .eq("obra_id", obraId);
-  if (tipo !== "todos") consultaContagem = consultaContagem.eq("tipo_item", tipo);
-  if (condicaoBusca) consultaContagem = consultaContagem.or(condicaoBusca);
+  let linhas = supabase.from("vw_compras_lista").select("*").eq("obra_id", obraId);
+
+  if (de) {
+    contagem = contagem.gte("data_cotacao", de);
+    linhas = linhas.gte("data_cotacao", de);
+  }
+  if (ate) {
+    contagem = contagem.lte("data_cotacao", ate);
+    linhas = linhas.lte("data_cotacao", ate);
+  }
+  if (min !== undefined) {
+    contagem = contagem.gte("valor_total", min);
+    linhas = linhas.gte("valor_total", min);
+  }
+  if (max !== undefined) {
+    contagem = contagem.lte("valor_total", max);
+    linhas = linhas.lte("valor_total", max);
+  }
+  if (termo) {
+    // Uma consulta só: o nome do fornecedor vem na view (0060). Antes era
+    // preciso descobrir os fornecedores que casavam e procurar pelos ids.
+    const condicao = `descricao.ilike.%${termo}%,fornecedor_nome.ilike.%${termo}%`;
+    contagem = contagem.or(condicao);
+    linhas = linhas.or(condicao);
+  }
 
   /*
    * Soma e contagem vão juntas — e a soma vem do BANCO, não das linhas.
@@ -126,27 +190,28 @@ export default async function ComprasObraPage({
    * esbarraria no teto de 1000 do PostgREST, que corta em silêncio.
    */
   const [{ count }, { data: somaFiltrada }] = await Promise.all([
-    consultaContagem,
+    contagem,
     supabase.rpc("somar_compras_da_obra", {
       p_obra_id: obraId,
-      p_tipo: tipo === "todos" ? null : tipo,
-      p_busca: termoSeguro || null,
+      p_busca: termo || null,
+      p_data_de: de ?? null,
+      p_data_ate: ate ?? null,
+      p_valor_de: min ?? null,
+      p_valor_ate: max ?? null,
     }),
   ]);
 
   const total = count ?? 0;
-  const { pagina, de, ate } = faixaDaPagina(lerPagina(paginaParam), total);
+  const { pagina, de: fatiaDe, ate: fatiaAte } = faixaDaPagina(lerPagina(f.pagina), total);
 
-  let consultaLinhas = supabase
-    .from("compras")
-    .select("*, fornecedores(nome)")
-    .eq("obra_id", obraId);
-  if (tipo !== "todos") consultaLinhas = consultaLinhas.eq("tipo_item", tipo);
-  if (condicaoBusca) consultaLinhas = consultaLinhas.or(condicaoBusca);
+  for (const criterio of ordem.criterios) {
+    linhas = linhas.order(criterio.coluna, {
+      ascending: criterio.ascendente,
+      nullsFirst: false,
+    });
+  }
 
-  const { data: compras } = await consultaLinhas
-    .order("created_at", { ascending: false })
-    .range(de, ate);
+  const { data: compras } = await linhas.range(fatiaDe, fatiaAte);
 
   const idsNaPagina = (compras ?? []).map((c) => c.id);
 
@@ -198,7 +263,7 @@ export default async function ComprasObraPage({
       id: c.id,
       descricao: c.descricao,
       valor: c.valor_total,
-      fornecedor: (c.fornecedores as unknown as { nome: string } | null)?.nome ?? null,
+      fornecedor: c.fornecedor_nome,
       registradoPor: clientePorId.get(c.criado_por!) ?? "cliente",
     }));
 
@@ -234,18 +299,29 @@ export default async function ComprasObraPage({
 
       <LancamentosSemEtapa lancamentos={lancamentosSemEtapa} etapas={etapasOrcamento} />
 
-      <FiltrosCompras
+      <FiltrosDaLista
         base={`/obras/${obraId}/compras`}
         busca={busca}
-        tipo={tipo}
+        placeholder="Buscar por descrição ou fornecedor..."
+        ordem={ordem.valor}
+        ordens={ORDENS.map((o) => ({ valor: o.valor, rotulo: o.rotulo }))}
+        campos={[
+          { chave: "de", rotulo: "Lançadas de", tipo: "data" },
+          { chave: "ate", rotulo: "até", tipo: "data" },
+          { chave: "min", rotulo: "Valor de (R$)", tipo: "numero", dica: "0,00" },
+          { chave: "max", rotulo: "até (R$)", tipo: "numero", dica: "0,00" },
+        ]}
+        valores={{ de: de ?? "", ate: ate ?? "", min: f.min ?? "", max: f.max ?? "" }}
         resultados={total}
-        soma={Number(somaFiltrada ?? 0)}
+        soma={Number(somaFiltrada ?? 0).toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        })}
       />
 
       <TabelaAjustavel id="ordens-de-compra" colunas={COLUNAS}>
         <TableBody>
           {compras?.map((c) => {
-            const fornecedor = c.fornecedores as unknown as { nome: string } | null;
             const suasParcelas = parcelasPorCompra.get(c.id) ?? [];
             const { total, pagas } = contagemPagas(suasParcelas);
             return (
@@ -259,8 +335,8 @@ export default async function ComprasObraPage({
                 <TableCell className="truncate font-medium" title={c.descricao}>
                   {c.descricao}
                 </TableCell>
-                <TableCell className="truncate" title={fornecedor?.nome ?? undefined}>
-                  {fornecedor?.nome}
+                <TableCell className="truncate" title={c.fornecedor_nome ?? undefined}>
+                  {c.fornecedor_nome}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {c.valor_total.toLocaleString("pt-BR", {
@@ -310,7 +386,7 @@ export default async function ComprasObraPage({
           {!compras?.length && (
             <TableRow>
               <TableCell colSpan={COLUNAS.length} className="text-center text-muted-foreground">
-                {busca || tipo !== "todos"
+                {busca || de || ate || min !== undefined || max !== undefined
                   ? "Nenhuma ordem de compra encontrada com esse filtro."
                   : "Nenhuma ordem de compra registrada ainda."}
               </TableCell>
@@ -319,11 +395,21 @@ export default async function ComprasObraPage({
         </TableBody>
       </TabelaAjustavel>
 
+      {/* Os filtros viajam junto: sem isto, ir para a página 2 abandonava a
+          busca e a ordenação e mostrava a lista inteira de novo. */}
       <Paginacao
         pagina={pagina}
         total={total}
         porPagina={POR_PAGINA_PADRAO}
         caminho={`/obras/${obraId}/compras`}
+        parametros={{
+          busca: busca || undefined,
+          ordem: ordem.valor === ORDENS[0].valor ? undefined : ordem.valor,
+          de,
+          ate,
+          min: f.min,
+          max: f.max,
+        }}
         rotulo="registros"
       />
     </div>

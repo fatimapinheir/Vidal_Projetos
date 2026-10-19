@@ -1065,6 +1065,26 @@ export interface Database {
       };
     };
     Views: {
+      /**
+       * A listagem de ordens de compra, pronta para filtrar e ordenar (0060).
+       *
+       * Traz o nome do fornecedor (uma consulta em vez de duas) e a situação
+       * financeira derivada das parcelas, que é o que permite ordenar por
+       * "vencida primeiro" sobre a lista inteira e não só sobre a página.
+       */
+      vw_compras_lista: {
+        Row: Database["public"]["Tables"]["compras"]["Row"] & {
+          fornecedor_nome: string | null;
+          /** 1 vencido · 2 em dia · 3 pagamento enviado · 4 aguardando · 5 pago · 99 sem parcela. */
+          ordem_situacao: number;
+          proximo_vencimento: string | null;
+          parcelas_total: number;
+          parcelas_pagas: number;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       vw_compra_parcelas: {
         Row: Database["public"]["Tables"]["compra_parcelas"]["Row"] & {
           status_efetivo: ParcelaStatus;
@@ -1145,9 +1165,16 @@ export interface Database {
         Args: Record<string, never>;
         Returns: boolean;
       };
-      /** Soma de `valor_total` das compras que casam com o filtro da listagem (0056). */
+      /** Soma de `valor_total` das compras que casam com o filtro da listagem (0060). */
       somar_compras_da_obra: {
-        Args: { p_obra_id: string; p_tipo?: string | null; p_busca?: string | null };
+        Args: {
+          p_obra_id: string;
+          p_busca?: string | null;
+          p_data_de?: string | null;
+          p_data_ate?: string | null;
+          p_valor_de?: number | null;
+          p_valor_ate?: number | null;
+        };
         Returns: number;
       };
       /** Null quando deu tudo certo; a mensagem para o usuário quando não (0054). */
