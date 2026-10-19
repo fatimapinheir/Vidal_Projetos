@@ -14,10 +14,9 @@ import { cn } from "@/lib/utils";
  *    aqui o rótulo é a pergunta que o número responde, e sem ele o número não
  *    significa nada. Lê-se de cima para baixo: pergunta, depois resposta.
  *
- * 2. O TRAÇO ÂMBAR entre os dois. É o único elemento decorativo, e ele existe
+ * 2. O TRAÇO AZUL entre os dois. É o único elemento decorativo, e ele existe
  *    para separar a pergunta da resposta sem gastar uma linha de régua
- *    cinzenta. Âmbar porque é a cor de acento da Ankora — o azul já está
- *    ocupado por estado (em andamento) e o verde por sucesso.
+ *    cinzenta. Azul da marca — é a cor que a Ankora assina.
  *
  * 3. O "R$" MENOR que os dígitos. O símbolo é contexto, o número é o dado;
  *    com o mesmo corpo, os dois disputam o olho e a leitura trava num
@@ -72,7 +71,7 @@ export function CardNumero({
 
       {/* O traço fica preso à esquerda e não acompanha a largura do rótulo:
           alinhado ao número, ele vira a base de onde a resposta sai. */}
-      <span aria-hidden className="block h-[3px] w-10 rounded-full bg-marca-ambar" />
+      <span aria-hidden className="block h-[3px] w-10 rounded-full bg-marca-azul" />
 
       <p className={cn("font-heading leading-none font-bold tabular-nums", corDoValor)}>
         <Moeda valor={valor} />
@@ -115,7 +114,13 @@ function BalaoDeAjuda({ rotulo, children }: { rotulo: string; children: ReactNod
     <Popover.Root>
       <Popover.Trigger
         aria-label={`O que é: ${rotulo}`}
-        className="-mt-0.5 -mr-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full text-marca-ambar transition-colors hover:bg-marca-ambar/15 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        /*
+          O ícone usa `primary-texto`, um passo mais escuro que o azul do
+          traço. É a mesma razão pela qual o token existe: azul de marca tem
+          contraste de superfície, não de texto, e um ícone de 20px nele fica
+          no limite da leitura sobre branco.
+        */
+        className="-mt-0.5 -mr-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full text-primary-texto transition-colors hover:bg-primary/12 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
       >
         <Info className="size-5" aria-hidden />
       </Popover.Trigger>
