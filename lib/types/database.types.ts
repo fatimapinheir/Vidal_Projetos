@@ -205,7 +205,10 @@ export interface Database {
       fornecedores: {
         Row: {
           id: string;
+          /** Nome fantasia — o que aparece nas telas. */
           nome: string;
+          /** Razão social, para nota fiscal e pagamento (0061). */
+          razao_social: string | null;
           cnpj_cpf: string | null;
           telefone: string | null;
           email: string | null;
@@ -216,6 +219,7 @@ export interface Database {
         Insert: {
           id?: string;
           nome: string;
+          razao_social?: string | null;
           cnpj_cpf?: string | null;
           telefone?: string | null;
           email?: string | null;
@@ -224,6 +228,34 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["fornecedores"]["Insert"]>;
+        Relationships: [];
+      };
+      /** O ramo do fornecedor: o que ele vende ou presta (0061). */
+      categorias_fornecedor: {
+        Row: {
+          id: string;
+          nome: string;
+          tipo: "material" | "servico";
+          ativo: boolean;
+          ordem: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          nome: string;
+          tipo: "material" | "servico";
+          ativo?: boolean;
+          ordem?: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["categorias_fornecedor"]["Insert"]>;
+        Relationships: [];
+      };
+      /** Muitos para muitos: a mesma loja vende ferragem e material hidráulico. */
+      fornecedor_categorias: {
+        Row: { fornecedor_id: string; categoria_id: string };
+        Insert: { fornecedor_id: string; categoria_id: string };
+        Update: Partial<Database["public"]["Tables"]["fornecedor_categorias"]["Insert"]>;
         Relationships: [];
       };
       fornecedor_contatos: {

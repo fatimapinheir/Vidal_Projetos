@@ -9,6 +9,7 @@ import {
   FieldSeparator,
 } from "@/components/ui/field";
 import type { CondicaoPagamento, FormaPagamento } from "@/lib/types/database.types";
+import { CampoCategorias, type CategoriaFornecedor } from "./campo-categorias";
 
 export const classeSelect =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm";
@@ -32,6 +33,7 @@ const rotuloDados: Partial<Record<FormaPagamento, string>> = {
 
 export type FornecedorCampos = {
   nome: string;
+  razao_social: string | null;
   cnpj_cpf: string | null;
   telefone: string | null;
   email: string | null;
@@ -51,7 +53,15 @@ export type FornecedorCampos = {
  * controles diferentes para o mesmo dado, e juntá-los aqui só criaria um
  * componente cheio de "se for edição".
  */
-export function FornecedorFormCampos({ fornecedor }: { fornecedor?: Partial<FornecedorCampos> }) {
+export function FornecedorFormCampos({
+  fornecedor,
+  categorias,
+  categoriasMarcadas,
+}: {
+  fornecedor?: Partial<FornecedorCampos>;
+  categorias: CategoriaFornecedor[];
+  categoriasMarcadas?: string[];
+}) {
   const [forma, setForma] = useState<FormaPagamento | "">(fornecedor?.forma_pagamento ?? "");
   const [condicao, setCondicao] = useState<CondicaoPagamento | "">(
     fornecedor?.condicao_pagamento ?? ""
@@ -62,7 +72,7 @@ export function FornecedorFormCampos({ fornecedor }: { fornecedor?: Partial<Forn
   return (
     <>
       <Field>
-        <FieldLabel htmlFor="nome">Nome do fornecedor</FieldLabel>
+        <FieldLabel htmlFor="nome">Nome fantasia</FieldLabel>
         <Input
           id="nome"
           name="nome"
@@ -70,6 +80,20 @@ export function FornecedorFormCampos({ fornecedor }: { fornecedor?: Partial<Forn
           placeholder="Depósito Central"
           defaultValue={fornecedor?.nome ?? ""}
         />
+        {/* É este que aparece em ordem de compra, locação e RDO — por isso ele
+            é o obrigatório, e não a razão social. */}
+        <FieldDescription>O nome que aparece em todas as telas do sistema.</FieldDescription>
+      </Field>
+
+      <Field>
+        <FieldLabel htmlFor="razao_social">Razão social</FieldLabel>
+        <Input
+          id="razao_social"
+          name="razao_social"
+          placeholder="Depósito Central Comércio de Materiais Ltda"
+          defaultValue={fornecedor?.razao_social ?? ""}
+        />
+        <FieldDescription>Para a nota fiscal e o pagamento. Opcional.</FieldDescription>
       </Field>
 
       <Field orientation="responsive">
@@ -87,6 +111,10 @@ export function FornecedorFormCampos({ fornecedor }: { fornecedor?: Partial<Forn
         <FieldLabel htmlFor="email">E-mail</FieldLabel>
         <Input id="email" name="email" type="email" defaultValue={fornecedor?.email ?? ""} />
       </Field>
+
+      <FieldSeparator />
+
+      <CampoCategorias categorias={categorias} marcadas={categoriasMarcadas} />
 
       <FieldSeparator />
 

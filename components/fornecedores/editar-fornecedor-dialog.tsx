@@ -30,6 +30,7 @@ import {
   FornecedorFormCampos,
   type FornecedorCampos,
 } from "./fornecedor-form-campos";
+import type { CategoriaFornecedor } from "./campo-categorias";
 
 export type ContatoFornecedor = {
   id: string;
@@ -51,10 +52,14 @@ export function EditarFornecedorDialog({
   fornecedorId,
   fornecedor,
   contatos,
+  categorias,
+  categoriasMarcadas,
 }: {
   fornecedorId: string;
   fornecedor: Partial<FornecedorCampos>;
   contatos: ContatoFornecedor[];
+  categorias: CategoriaFornecedor[];
+  categoriasMarcadas: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -127,7 +132,11 @@ export function EditarFornecedorDialog({
 
         <form action={salvar}>
           <FieldGroup>
-            <FornecedorFormCampos fornecedor={fornecedor} />
+            <FornecedorFormCampos
+              fornecedor={fornecedor}
+              categorias={categorias}
+              categoriasMarcadas={categoriasMarcadas}
+            />
             {erro && <FieldError>{erro}</FieldError>}
             <Button type="submit" disabled={enviando}>
               {enviando ? "Salvando..." : "Salvar fornecedor"}

@@ -22,10 +22,15 @@ import {
 import { Plus, Trash2 } from "lucide-react";
 import { createFornecedor } from "@/app/actions/fornecedores";
 import { FornecedorFormCampos } from "@/components/fornecedores/fornecedor-form-campos";
+import type { CategoriaFornecedor } from "@/components/fornecedores/campo-categorias";
 
 let proximoId = 0;
 
-export function NovoFornecedorDialog() {
+export function NovoFornecedorDialog({
+  categorias,
+}: {
+  categorias: CategoriaFornecedor[];
+}) {
   const [open, setOpen] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -71,7 +76,7 @@ export function NovoFornecedorDialog() {
         </DialogHeader>
         <form action={enviar}>
           <FieldGroup>
-            <FornecedorFormCampos />
+            <FornecedorFormCampos categorias={categorias} />
 
             <FieldSeparator />
 

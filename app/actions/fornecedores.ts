@@ -24,6 +24,9 @@ const formaPagamentoSchema = z.preprocess(
 const fornecedorSchema = z
   .object({
     nome: z.string().min(1, "Informe o nome do fornecedor."),
+    // `nome` é o nome fantasia — o que o sistema mostra. A razão social entra
+    // ao lado, para nota fiscal e pagamento. Ver 0061.
+    razao_social: z.string().optional(),
     cnpj_cpf: z.string().optional(),
     telefone: z.string().optional(),
     email: z.email("Email inválido.").optional().or(z.literal("")),
@@ -99,6 +102,42 @@ function lerFornecedor(formData: FormData) {
   });
 }
 
+/**
+ * As categorias marcadas no formulário.
+ *
+ * Caixas de seleção: o navegador só envia as MARCADAS, e manda uma entrada
+ * repetida por caixa — daí `getAll`. Nenhuma marcada devolve lista vazia, que
+ * é um estado legítimo (fornecedor cadastrado às pressas, categoria depois).
+ */
+function lerCategorias(formData: FormData): string[] {
+  return formData
+    .getAll("categoria_id")
+    .map(String)
+    .filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+}
+
+/**
+ * Troca as categorias do fornecedor pelas marcadas agora.
+ *
+ * Apaga e reinsere em vez de casar uma a uma: o vínculo não tem dado próprio —
+ * é só o par — então não há nada para preservar, e comparar duas listas para
+ * descobrir o que entrou e o que saiu seria código a mais para o mesmo fim.
+ */
+async function salvarCategorias(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fornecedorId: string,
+  categorias: string[]
+): Promise<string | null> {
+  await supabase.from("fornecedor_categorias").delete().eq("fornecedor_id", fornecedorId);
+  if (!categorias.length) return null;
+
+  const { error } = await supabase
+    .from("fornecedor_categorias")
+    .insert(categorias.map((categoria_id) => ({ fornecedor_id: fornecedorId, categoria_id })));
+
+  return error ? "Fornecedor salvo, mas não foi possível gravar as categorias." : null;
+}
+
 export async function createFornecedor(
   _prevState: FornecedorFormState,
   formData: FormData
@@ -118,6 +157,7 @@ export async function createFornecedor(
     .from("fornecedores")
     .insert({
       nome: parsed.data.nome,
+      razao_social: parsed.data.razao_social || null,
       cnpj_cpf: parsed.data.cnpj_cpf ?? null,
       telefone: parsed.data.telefone ?? null,
       email: parsed.data.email || null,
@@ -127,6 +167,16 @@ export async function createFornecedor(
     .single();
 
   if (error || !fornecedor) return { error: "Não foi possível criar o fornecedor." };
+
+  const erroCategorias = await salvarCategorias(
+    supabase,
+    fornecedor.id,
+    lerCategorias(formData)
+  );
+  if (erroCategorias) {
+    revalidatePath("/fornecedores");
+    return { error: erroCategorias };
+  }
 
   const temPagamento =
     parsed.data.forma_pagamento || parsed.data.condicao_pagamento || parsed.data.dados_pagamento;
@@ -234,6 +284,7 @@ export async function atualizarFornecedor(
     .from("fornecedores")
     .update({
       nome: parsed.data.nome,
+      razao_social: parsed.data.razao_social || null,
       cnpj_cpf: parsed.data.cnpj_cpf ?? null,
       telefone: parsed.data.telefone ?? null,
       email: parsed.data.email || null,
@@ -242,6 +293,12 @@ export async function atualizarFornecedor(
     .eq("id", fornecedorId);
 
   if (error) return { error: "Não foi possível salvar o fornecedor." };
+
+  const erroCategorias = await salvarCategorias(supabase, fornecedorId, lerCategorias(formData));
+  if (erroCategorias) {
+    revalidatePath("/fornecedores");
+    return { error: erroCategorias };
+  }
 
   const temPagamento =
     parsed.data.forma_pagamento || parsed.data.condicao_pagamento || parsed.data.dados_pagamento;
@@ -314,4 +371,46 @@ export async function criarFornecedorRapido(
 
   revalidatePath("/fornecedores");
   return { error: null, criadoId: data.id };
+}
+
+export type CategoriaFornecedorState = { error: string | null; categoriaId?: string };
+
+/**
+ * Cadastra uma categoria de fornecedor, ou devolve a existente com esse nome.
+ *
+ * Devolver a existente em vez de recusar é deliberado — mesma decisão de
+ * `criarFuncao`: quem digita "hidráulica" quer uma categoria chamada
+ * hidráulica, e já existe uma. Recusar obrigaria a fechar o diálogo e procurar
+ * na lista o que a pessoa acabou de escrever.
+ */
+export async function criarCategoriaFornecedor(
+  nome: string,
+  tipo: "material" | "servico"
+): Promise<CategoriaFornecedorState> {
+  await requireRole("engenheiro");
+
+  const limpo = nome.trim();
+  if (limpo.length < 2) return { error: "O nome da categoria precisa de pelo menos duas letras." };
+  if (limpo.length > 60) return { error: "Sessenta caracteres é o limite." };
+
+  const supabase = await createClient();
+
+  const { data: existente } = await supabase
+    .from("categorias_fornecedor")
+    .select("id")
+    .ilike("nome", limpo)
+    .maybeSingle();
+
+  if (existente) return { error: null, categoriaId: existente.id };
+
+  const { data: criada, error } = await supabase
+    .from("categorias_fornecedor")
+    .insert({ nome: limpo, tipo })
+    .select("id")
+    .single();
+
+  if (error || !criada) return { error: "Não foi possível cadastrar a categoria." };
+
+  revalidatePath("/fornecedores");
+  return { error: null, categoriaId: criada.id };
 }
