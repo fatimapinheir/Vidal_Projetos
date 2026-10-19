@@ -154,7 +154,7 @@ export function LocacaoDialog({
                     ? "Valor por dia (R$)"
                     : unidade === "hora"
                       ? "Valor por hora (R$)"
-                      : "Valor por mês (R$)"}
+                      : "Aluguel por mês (R$)"}
                 </FieldLabel>
                 <Input
                   id="valor_unitario"
@@ -241,6 +241,18 @@ export function LocacaoDialog({
                     />
                   </div>
                 </Field>
+                <FieldDescription>
+                  {/*
+                    Este aviso existe por causa de um erro que aconteceu: eu li
+                    "valor por mês" como preço unitário e multipliquei pela
+                    quantidade, inflando os contratos em R$ 6.660. O rótulo do
+                    campo passou a dizer "aluguel", e a frase abaixo fecha a
+                    dúvida para quem cadastrar daqui em diante.
+                  */}
+                  O <strong>aluguel por mês é do conjunto</strong>, não de cada peça: dez andaimes
+                  por R$ 144 significa R$ 144 por mês pelos dez. A quantidade descreve o que está
+                  em obra.
+                </FieldDescription>
                 <FieldDescription>
                   O sistema gera uma ordem de compra com uma parcela por mês, vencendo sempre no
                   mesmo dia, e ela entra em contas a pagar. Quando o contrato se estender, aumente

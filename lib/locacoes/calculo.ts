@@ -111,7 +111,8 @@ function diasCorridos(inicioIso: string, fimIso: string): number {
  * Por hora: quantidade × valor × horas informadas pelo engenheiro. Os dias
  *           continuam sendo calculados, mas só como informação de quanto tempo
  *           o equipamento ficou na obra — não entram no valor.
- * Por mês:  quantidade × valor × mensalidades JÁ CORRIDAS — as dos meses que
+ * Por mês:  valor × mensalidades JÁ CORRIDAS (a quantidade não multiplica,
+ *           ver abaixo) — as dos meses que
  *           já começaram, ver `mensalidadesCorridas` —, e `valorContratado`
  *           traz o contrato inteiro. A primeira versão devolvia zero aqui,
  *           porque o dinheiro do mensal entra no custo da obra pela ordem de
@@ -133,7 +134,19 @@ export function calcularCustoLocacao(
 
   if (locacao.unidade === "mes") {
     const corridas = mensalidadesCorridas(locacao, fim);
-    const porMes = locacao.quantidade * locacao.valorUnitario;
+    /*
+     * A quantidade NÃO multiplica no mensal.
+     *
+     * O formulário tem "Quantidade" e "Valor por mês" lado a lado, e isso me
+     * levou a ler o segundo como preço unitário. Não é como a obra contrata: o
+     * locador cobra um aluguel pelo CONJUNTO — dez andaimes a R$ 144 custam
+     * R$ 144 por mês, não R$ 1.440. A quantidade descreve o que está em obra.
+     *
+     * Por dia e por hora a multiplicação continua, a pedido: a regra desse
+     * caso ainda vai ser definida com a construtora, e a mesma dúvida se
+     * aplica a ela.
+     */
+    const porMes = locacao.valorUnitario;
     return {
       dias,
       unidadesCobradas: corridas,

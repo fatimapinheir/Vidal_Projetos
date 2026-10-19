@@ -71,7 +71,7 @@ export default async function LocacoesObraPage({
      */
     supabase
       .from("locacoes_equipamento")
-      .select("quantidade, valor_unitario")
+      .select("valor_unitario")
       .eq("obra_id", obraId)
       .eq("unidade", "mes")
       .is("data_devolucao", null),
@@ -125,10 +125,10 @@ export default async function LocacoesObraPage({
    * Equipamento devolvido sai da conta, e dia/hora não entram: eles não têm
    * mensalidade.
    */
-  const mensalidadeDoMes = (mensais ?? []).reduce(
-    (soma, l) => soma + l.quantidade * l.valor_unitario,
-    0
-  );
+  // Sem multiplicar pela quantidade: o valor informado já é o aluguel do
+  // CONJUNTO. Dez andaimes a R$ 144 custam R$ 144 por mês, não R$ 1.440 — ver
+  // a migração 0064.
+  const mensalidadeDoMes = (mensais ?? []).reduce((soma, l) => soma + l.valor_unitario, 0);
 
   return (
     <div className="flex flex-col gap-4">
