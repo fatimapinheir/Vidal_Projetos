@@ -39,6 +39,7 @@
   --color-grafico-a-vencer: var(--grafico-a-vencer);
   --color-grafico-vencido: var(--grafico-vencido);
   --color-grafico-enviado: var(--grafico-enviado);
+  --color-grafico-agendado: var(--grafico-agendado);
   --color-grafico-trilho: var(--grafico-trilho);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -202,6 +203,20 @@
    * que já existia antes desta cor. Verificado por simulação, não a olho.
    */
   --grafico-enviado: oklch(0.6 0.14 290);
+  /*
+   * Agendado — o que está comprometido e ainda não saiu do caixa.
+   *
+   * Azul pastel de propósito, e não uma sexta cor saturada: croma baixo (0,06)
+   * diz ao olho que isto não é uma série como "pago" ou "vencido", é um estado
+   * intermediário entre gasto e disponível. É também o que o mantém fora do
+   * problema de confusão de matiz que a paleta acima combate — em croma baixo
+   * as quatro visões veem praticamente o mesmo cinza-azulado.
+   *
+   * Separado do trilho por luminosidade (0,78 contra 0,90) e por croma (0,06
+   * contra 0,008): os dois convivem na mesma barra e precisam se distinguir.
+   */
+  --grafico-agendado: oklch(0.78 0.06 262);
+
   /* Trilho/restante — cinza de propósito: não é série, não carrega significado.
    * (Reprova no piso de croma do validador exatamente por isso.) */
   --grafico-trilho: oklch(0.9 0.008 267);
@@ -304,6 +319,10 @@
   --grafico-a-vencer: oklch(0.655 0.14 75);
   --grafico-vencido: oklch(0.58 0.19 24);
   --grafico-enviado: oklch(0.74 0.129 290);
+  /* Mais CLARO que o trilho escuro (0,48 contra 0,33), pelo mesmo motivo que
+     no tema claro ele é mais escuro: o segmento tem de se destacar do fundo da
+     barra, e no escuro o fundo é que é o tom baixo. */
+  --grafico-agendado: oklch(0.48 0.07 262);
   --grafico-trilho: oklch(0.33 0.012 267);
 
   /* A mesma lateral do tema claro — ver a nota lá. No escuro ela deixa de ser

@@ -914,6 +914,17 @@ const DIAS_CONTAS = 30;
  * Aparece só quando existe — um quadro de avisos permanentemente vazio ensina
  * a ignorá-lo.
  */
+/** Um quadradinho de cor, o nome da faixa e o valor dela. */
+function LegendaCor({ cor, rotulo, valor }: { cor: string; rotulo: string; valor: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span aria-hidden className={cn("size-2.5 shrink-0 rounded-sm", cor)} />
+      {rotulo}
+      <span className="font-medium text-foreground tabular-nums">{valor}</span>
+    </span>
+  );
+}
+
 function AvisosImportantes({ dados, base }: { dados: DadosVisaoGeral; base: string }) {
   /*
    * `status_efetivo` e não a data: a view já resolve o caso da ordem que só
@@ -1066,6 +1077,21 @@ function PainelContas({ dados, base }: { dados: DadosVisaoGeral; base: string })
 function PainelOrcamento({ dados }: { dados: DadosVisaoGeral }) {
   const temOrcamento = dados.orcado > 0;
 
+  /*
+   * Agendado = tudo que está parcelado e ainda não foi pago.
+   *
+   * Inclui o que espera mercadoria, e não só o que tem vencimento marcado:
+   * deixar de fora faria a barra perder um pedaço do compromisso sem dizer a
+   * ninguém que ele existe. É o complemento exato do pago dentro do parcelado.
+   */
+  const agendado = Math.max(0, dados.totalParcelado - dados.pagoParcelas);
+
+  // As duas faixas somadas nunca passam de 100% da barra: estourado o
+  // orçamento, a barra fica cheia e o número embaixo conta a verdade.
+  const pctGasto = dados.orcado > 0 ? Math.min(100, (dados.custoTotal / dados.orcado) * 100) : 0;
+  const pctAgendado =
+    dados.orcado > 0 ? Math.min(100 - pctGasto, (agendado / dados.orcado) * 100) : 0;
+
   return (
     <div className="flex flex-col gap-3 rounded-xl border p-4">
       <p className={cn("flex items-center gap-2 text-sm", TITULO)}>
@@ -1100,14 +1126,46 @@ function PainelOrcamento({ dados }: { dados: DadosVisaoGeral }) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-grafico-trilho">
-              {/* A barra é o gasto, então ela acompanha a cor do gasto. */}
+          {/*
+            A barra tem TRÊS faixas, e não uma.
+            
+            Mostrava só o gasto, e o que faltava era justamente a pergunta
+            seguinte: "quanto já está comprometido e ainda vai sair?". Esse
+            valor existia na tela — era o que, por engano, somava dentro do
+            gasto —, e tirá-lo de lá o deixou invisível. Aqui ele volta como
+            faixa própria, sem voltar a contar como gasto.
+            
+            O agendado é empilhado DEPOIS do gasto, não somado a ele: a leitura
+            é "isto já saiu, isto vai sair, isto sobra".
+          */}
+          <div className="flex flex-col gap-2">
+            <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-grafico-trilho">
               <div
-                className="h-full rounded-full bg-grafico-a-vencer"
-                style={{ width: `${Math.min(100, dados.percentualFinanceiro)}%` }}
+                className="h-full bg-grafico-a-vencer"
+                style={{ width: `${pctGasto}%` }}
+              />
+              <div
+                className="h-full bg-grafico-agendado"
+                style={{ width: `${pctAgendado}%` }}
               />
             </div>
+
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <LegendaCor cor="bg-grafico-a-vencer" rotulo="Já gasto" valor={moeda(dados.custoTotal)} />
+              {agendado > 0 && (
+                <LegendaCor
+                  cor="bg-grafico-agendado"
+                  rotulo="Agendado para pagar"
+                  valor={moeda(agendado)}
+                />
+              )}
+              <LegendaCor
+                cor="bg-grafico-trilho"
+                rotulo="Disponível"
+                valor={moeda(Math.max(0, dados.orcado - dados.custoTotal - agendado))}
+              />
+            </div>
+
             <p className="text-xs text-muted-foreground">
               {dados.percentualFinanceiro.toFixed(1).replace(".", ",")}% do orçamento utilizado
             </p>
@@ -1123,6 +1181,13 @@ function PainelOrcamento({ dados }: { dados: DadosVisaoGeral }) {
             {dados.custoTotal > 0 ? (
               <>
                 Você já utilizou {porcento(dados.percentualFinanceiro)} do orçamento da sua obra.
+                {agendado > 0 && (
+                  <>
+                    {" "}
+                    Há mais {moeda(agendado)} já agendado para pagar — compras aprovadas e
+                    mensalidades que ainda não foram quitadas.
+                  </>
+                )}{" "}
                 Continue acompanhando para manter o controle dos custos.
               </>
             ) : (
