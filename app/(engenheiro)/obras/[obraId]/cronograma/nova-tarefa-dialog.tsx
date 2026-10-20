@@ -49,6 +49,7 @@ export function NovaTarefaDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [temPredecessora, setTemPredecessora] = useState(false);
+  const [critica, setCritica] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -83,6 +84,7 @@ export function NovaTarefaDialog({
     setOpen(proximo);
     if (proximo) {
       setTemPredecessora(false);
+      setCritica(false);
       setErro(null);
     }
   }
@@ -176,6 +178,31 @@ export function NovaTarefaDialog({
                 De segunda a sexta; sábados, domingos e folgas cadastradas não contam. O fim é
                 calculado a partir daqui.
               </FieldDescription>
+            </Field>
+
+            {/*
+              Crítica é marcada, não calculada.
+              
+              O sistema derivava isso do CPM (`folga <= 0`), o que confundia
+              "não pode atrasar" com "já atrasou" e nada dizia em obra sem
+              rede de dependências. Quem sabe o que é crítico é o engenheiro,
+              por motivos que não estão no grafo: concretagem com caminhão
+              agendado, equipe de fora, material de prazo longo.
+            */}
+            <Field orientation="horizontal">
+              <Checkbox
+                id="critica"
+                name="critica"
+                checked={critica}
+                onCheckedChange={(marcado) => setCritica(marcado === true)}
+              />
+              <FieldContent>
+                <FieldLabel htmlFor="critica">Tarefa crítica</FieldLabel>
+                <FieldDescription>
+                  Atrasar essa tarefa atrasa a obra. Fica em vermelho no cronograma, no diário e no
+                  avanço.
+                </FieldDescription>
+              </FieldContent>
             </Field>
 
             {!!itensOrcamento.length && (

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +17,7 @@ import { formatDateBR } from "@/lib/format-date";
 import { NovaTarefaDialog } from "./nova-tarefa-dialog";
 import { EditarTarefaDialog } from "./editar-tarefa-dialog";
 import { RemoverEtapaButton, RemoverTarefaButton } from "./cronograma-actions";
-import { removerTarefas } from "@/app/actions/cronograma";
+import { marcarTarefasCriticas, removerTarefas } from "@/app/actions/cronograma";
 import type { DependenciaTipo, Tables } from "@/lib/types/database.types";
 
 type Tarefa = Tables<"cronograma_tarefas">;
@@ -61,6 +61,7 @@ export function CronogramaTabela({
    */
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
   const [removendo, iniciarRemocao] = useTransition();
+  const [marcando, iniciarMarcacao] = useTransition();
   const router = useRouter();
 
   function alternar(id: string) {
@@ -80,6 +81,29 @@ export function CronogramaTabela({
         else proxima.delete(id);
       }
       return proxima;
+    });
+  }
+
+  /*
+   * Marcar crítica em lote.
+   *
+   * A criticidade passou a ser declarada pelo engenheiro (ver a migração 0065),
+   * e o cronograma nasce com 130 tarefas do template ou 132 vindas de planilha.
+   * Dizer quais são as críticas abrindo o diálogo de cada uma não é trabalho que
+   * alguém faça — sem isto a marcação seria um campo que ninguém preenche.
+   *
+   * Reaproveita a seleção que já existia para a exclusão: quem está lendo o
+   * cronograma para decidir o que é crítico atravessa etapas do mesmo jeito.
+   */
+  function marcarSelecionadas(critica: boolean) {
+    const ids = [...selecionadas];
+    if (!ids.length) return;
+
+    iniciarMarcacao(async () => {
+      const resultado = await marcarTarefasCriticas(obraId, ids, critica);
+      if (resultado.error) alert(resultado.error);
+      setSelecionadas(new Set());
+      router.refresh();
     });
   }
 
@@ -131,7 +155,7 @@ export function CronogramaTabela({
   return (
     <div className="flex flex-col gap-4">
       {!!selecionadas.size && (
-        <div className="sticky top-2 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-card p-3 shadow-sm">
+        <div className="sticky top-2 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3 shadow-sm">
           <p className="text-sm">
             <span className="font-medium">{selecionadas.size}</span>{" "}
             {selecionadas.size === 1 ? "tarefa selecionada" : "tarefas selecionadas"}
@@ -142,16 +166,35 @@ export function CronogramaTabela({
               size="sm"
               variant="ghost"
               onClick={() => setSelecionadas(new Set())}
-              disabled={removendo}
+              disabled={removendo || marcando}
             >
               Limpar seleção
             </Button>
             <Button
               type="button"
               size="sm"
+              variant="outline"
+              onClick={() => marcarSelecionadas(true)}
+              disabled={removendo || marcando}
+            >
+              <AlertTriangle className="size-4" />
+              {marcando ? "Salvando..." : "Marcar crítica"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => marcarSelecionadas(false)}
+              disabled={removendo || marcando}
+            >
+              Tirar a marca
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               variant="destructive"
               onClick={removerSelecionadas}
-              disabled={removendo}
+              disabled={removendo || marcando}
             >
               <Trash2 className="size-4" />
               {removendo ? "Removendo..." : `Remover ${selecionadas.size}`}

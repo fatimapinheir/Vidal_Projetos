@@ -76,9 +76,10 @@ export default async function CronogramaObraPage({
               , pelo percentual de cada tarefa.
             </p>
             <p>
-              O sistema calcula o caminho crítico — tarefas em vermelho, sem folga, onde um atraso
-              atrasa a obra inteira. Os dias de folga (feriados, chuva) são cadastrados em{" "}
-              <strong>Folgas</strong>.
+              <strong>Você marca</strong> quais tarefas são críticas — as que, atrasando, atrasam a
+              obra. Elas aparecem em vermelho aqui, no diário e no avanço. Dá para marcar na própria
+              tarefa, ou selecionar várias na lista e marcar de uma vez. Os dias de folga (feriados,
+              chuva) são cadastrados em <strong>Folgas</strong>.
             </p>
             <p>
               Quando o cronograma estiver pronto, <strong>Fixar linha de base</strong> congela as

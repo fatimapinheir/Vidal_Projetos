@@ -188,7 +188,7 @@ async function copiarCronograma(
     supabase.from("cronograma_etapas").select("id, nome, ordem").eq("obra_id", origemId).order("ordem"),
     supabase
       .from("cronograma_tarefas")
-      .select("id, etapa_id, nome, duracao_dias, restricao_inicio_nao_antes_de, data_inicio_cedo, ordem")
+      .select("id, etapa_id, nome, duracao_dias, restricao_inicio_nao_antes_de, data_inicio_cedo, critica, ordem")
       .eq("obra_id", origemId)
       .order("ordem"),
   ]);
@@ -233,6 +233,10 @@ async function copiarCronograma(
         nome: t.nome,
         duracao_dias: t.duracao_dias,
         ordem: t.ordem,
+        // A criticidade vem junto: desde a migração 0065 ela é decisão de
+        // planejamento tomada à mão, igual à duração. Como o CPM não a
+        // recalcula mais, sem copiar aqui a obra nova nasceria sem nenhuma.
+        critica: t.critica,
         restricao_inicio_nao_antes_de: t.restricao_inicio_nao_antes_de
           ? somarDias(t.restricao_inicio_nao_antes_de, deslocamento)
           : null,

@@ -9,7 +9,15 @@ import { acharTemplate } from "@/lib/cronograma/templates";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
-/** Recarrega todas as tarefas/dependências da obra, roda o CPM e grava os campos calculados. */
+/**
+ * Recarrega todas as tarefas/dependências da obra, roda o CPM e grava os campos
+ * calculados: datas cedo, datas tarde e folga.
+ *
+ * `critica` NÃO entra mais aqui. Era escrita a cada recálculo como
+ * `folga_dias <= 0`, e por isso qualquer mexida no cronograma sobrescrevia em
+ * silêncio o que o engenheiro tivesse dito. Agora é marcação dele — ver a
+ * migração 0065 — e o recálculo passa ao lado da coluna.
+ */
 async function recalcularCronograma(supabase: SupabaseClient, obraId: string) {
   const { data: tarefas } = await supabase
     .from("cronograma_tarefas")
@@ -68,7 +76,6 @@ async function recalcularCronograma(supabase: SupabaseClient, obraId: string) {
           data_inicio_tarde: r.dataInicioTarde,
           data_fim_tarde: r.dataFimTarde,
           folga_dias: r.folgaDias,
-          critica: r.critica,
         })
         .eq("id", r.id);
     })
@@ -120,6 +127,14 @@ export async function removerEtapa(obraId: string, etapaId: string) {
  */
 
 
+/*
+ * `critica` não passa pelo Zod de propósito.
+ *
+ * Checkbox não enviado é `null` em `formData.get`, e `.optional()` do Zod
+ * aceita `undefined` mas RECUSA `null` — foi exatamente o que derrubou o
+ * salvamento do diário. Booleano de caixa se lê com `!!`, como
+ * `tem_predecessora` logo abaixo.
+ */
 const tarefaSchema = z.object({
   nome: z.string().min(1, "Informe o nome da tarefa."),
   duracao_dias: z.coerce.number().int().positive("Duração deve ser um número de dias maior que zero."),
@@ -300,6 +315,7 @@ export async function criarTarefa(
   const predecessoraId = temPredecessora
     ? ((formData.get("predecessora_id") as string | null) || "").trim()
     : "";
+  const critica = !!formData.get("critica");
 
   const parsed = tarefaSchema.safeParse({
     nome: formData.get("nome"),
@@ -353,6 +369,7 @@ export async function criarTarefa(
       duracao_dias: parsed.data.duracao_dias,
       restricao_inicio_nao_antes_de: vaiEncadear ? null : parsed.data.restricao_inicio_nao_antes_de || null,
       orcamento_item_id: parsed.data.orcamento_item_id || null,
+      critica,
       ordem: (count ?? 0) + 1,
     })
     .select("id")
@@ -504,6 +521,44 @@ export async function removerTarefas(
   return { error: null, removidas: daObra.length };
 }
 
+/**
+ * Marca (ou desmarca) várias tarefas como críticas de uma vez.
+ *
+ * Existe porque o cronograma já nasce grande: o template entrega 130 tarefas e
+ * a importação da planilha trouxe 132. Dizer quais são as críticas abrindo o
+ * diálogo de cada uma, uma a uma, não é trabalho que alguém faça — e sem isso
+ * a marcação manual seria um campo que ninguém preenche.
+ *
+ * Usa a MESMA seleção que já serve à exclusão em lote na tabela, e não recalcula
+ * nada: criticidade não entra no CPM, então marcar não move data nenhuma.
+ */
+export async function marcarTarefasCriticas(
+  obraId: string,
+  tarefaIds: string[],
+  critica: boolean
+): Promise<{ error: string | null; marcadas?: number }> {
+  await requireRole("engenheiro");
+  if (!tarefaIds.length) return { error: null, marcadas: 0 };
+
+  const supabase = await createClient();
+
+  // `obra_id` no update, não só no `in`: os ids vêm do navegador, e sem o
+  // filtro de obra um id de outra obra seria aceito.
+  const { data, error } = await supabase
+    .from("cronograma_tarefas")
+    .update({ critica })
+    .eq("obra_id", obraId)
+    .in("id", tarefaIds)
+    .select("id");
+
+  if (error) return { error: "Não foi possível alterar a marcação das tarefas." };
+  if (!data?.length) return { error: "Nenhuma das tarefas pertence a esta obra." };
+
+  revalidatePath(`/obras/${obraId}/cronograma`);
+  revalidatePath(`/obras/${obraId}/avanco`);
+  return { error: null, marcadas: data.length };
+}
+
 export async function removerTarefa(
   obraId: string,
   tarefaId: string
@@ -552,6 +607,7 @@ export async function atualizarTarefa(
   const predecessoraIds = temPredecessora
     ? formData.getAll("predecessora_id").map((v) => String(v).trim()).filter(Boolean)
     : [];
+  const critica = !!formData.get("critica");
 
   const parsed = atualizarTarefaSchema.safeParse({
     duracao_dias: formData.get("duracao_dias"),
@@ -616,6 +672,9 @@ export async function atualizarTarefa(
       duracao_dias: parsed.data.duracao_dias,
       restricao_inicio_nao_antes_de: parsed.data.restricao_inicio_nao_antes_de || null,
       data_inicio_real: parsed.data.data_inicio_real || null,
+      // Crítica é declaração do engenheiro, e sobrevive ao recálculo que vem
+      // logo abaixo porque o CPM não escreve mais nessa coluna.
+      critica,
       // `data_fim_real` não entra: ela é escrita pela tela de Avanço, quando o
       // percentual da tarefa chega a 100%. Dois caminhos para a mesma
       // conclusão faziam cronograma e avanço se contradizerem.

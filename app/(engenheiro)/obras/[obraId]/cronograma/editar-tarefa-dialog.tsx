@@ -37,6 +37,8 @@ type Tarefa = {
   restricao_inicio_nao_antes_de: string | null;
   data_inicio_real: string | null;
   data_fim_real: string | null;
+  /** Marcada pelo engenheiro — não sai mais do CPM. Ver a migração 0065. */
+  critica: boolean;
 };
 
 /**
@@ -68,6 +70,7 @@ export function EditarTarefaDialog({
   const [temPredecessora, setTemPredecessora] = useState(!!predecessorasAtuais.length);
   const [predecessoras, setPredecessoras] = useState<string[]>(predecessorasAtuais);
   const [duracao, setDuracao] = useState(String(tarefa.duracao_dias));
+  const [critica, setCritica] = useState(tarefa.critica);
   /*
    * Início como estado, semeado com a data que a tarefa JÁ TEM.
    *
@@ -124,6 +127,7 @@ export function EditarTarefaDialog({
       setTemPredecessora(!!predecessorasAtuais.length);
       setPredecessoras(predecessorasAtuais);
       setDuracao(String(tarefa.duracao_dias));
+      setCritica(tarefa.critica);
       setInicio(tarefa.restricao_inicio_nao_antes_de ?? tarefa.data_inicio_cedo ?? "");
       setErro(null);
     }
@@ -249,6 +253,32 @@ export function EditarTarefaDialog({
                   </>
                 )}
               </FieldDescription>
+            </Field>
+
+            {/*
+              Crítica é marcada aqui, e a marca sobrevive ao recálculo.
+              
+              Antes era o CPM que escrevia essa coluna a cada salvamento
+              (`folga <= 0`): dizer "esta é crítica" não existia, e o vermelho
+              aparecia e desaparecia sozinho conforme as durações mudavam.
+            */}
+            <Field orientation="horizontal">
+              <Checkbox
+                id="critica"
+                name="critica"
+                checked={critica}
+                onCheckedChange={(marcado) => {
+                  setCritica(marcado === true);
+                  setErro(null);
+                }}
+              />
+              <FieldContent>
+                <FieldLabel htmlFor="critica">Tarefa crítica</FieldLabel>
+                <FieldDescription>
+                  Atrasar essa tarefa atrasa a obra. Fica em vermelho no cronograma, no diário e no
+                  avanço.
+                </FieldDescription>
+              </FieldContent>
             </Field>
 
             <FieldDescription>

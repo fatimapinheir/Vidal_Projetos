@@ -29,7 +29,6 @@ export type TarefaCalculada = {
   dataInicioTarde: string;
   dataFimTarde: string;
   folgaDias: number;
-  critica: boolean;
 };
 
 const MS_POR_DIA = 86_400_000;
@@ -216,6 +215,12 @@ function ordenarTopologicamente(
 
 /**
  * Calcula o CPM (Critical Path Method) para as tarefas de uma obra.
+ *
+ * Devolve datas e folga; NÃO devolve criticidade. A marca de tarefa crítica
+ * saiu daqui: era `folga <= 0`, e isso misturava "não pode atrasar" (folga
+ * zero) com "já atrasou" (folga negativa), além de não dizer nada em obra
+ * sem rede de dependências. Quem marca agora é o engenheiro — ver a migração
+ * 0065. A folga continua calculada, porque é leitura de planejamento.
  * Tarefas sem predecessora precisam de `restricaoInicioNaoAntesDe` (âncora).
  * Quando uma tarefa já tem data real (início e/ou fim), essa data é usada no
  * lugar da calculada para propagar atraso real às sucessoras.
@@ -343,7 +348,6 @@ export function calcularCPM(
       dataInicioTarde: paraIso(paraDiaCalendario(inicioTarde.get(t.id)!)),
       dataFimTarde: paraIso(paraDiaCalendario(fimTarde.get(t.id)!)),
       folgaDias: folga,
-      critica: folga <= 0,
     };
   });
 }
