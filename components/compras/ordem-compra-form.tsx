@@ -23,7 +23,11 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { createCompra, atualizarCompra, type CompraFormState } from "@/app/actions/compras";
-import { ItemCompraPicker, type ItemCompraLocal } from "@/components/compras/item-compra-picker";
+import {
+  ItemCompraPicker,
+  type ItemCompraLocal,
+  type InsumoOpcao,
+} from "@/components/compras/item-compra-picker";
 import { CampoFornecedor } from "@/components/compras/campo-fornecedor";
 import { CampoCategoria, type Categoria } from "@/components/compras/campo-categoria";
 import { CamposNotaFiscal } from "@/components/compras/campos-nota-fiscal";
@@ -104,6 +108,7 @@ export function OrdemCompraForm({
   fornecedores,
   etapasOrcamento,
   categorias,
+  insumos,
   inicial,
   valorCongelado = false,
 }: {
@@ -112,6 +117,8 @@ export function OrdemCompraForm({
   /** Etapas do orçamento ativo. Vazio quando a obra ainda não tem orçamento. */
   etapasOrcamento: string[];
   categorias: Categoria[];
+  /** O catálogo de insumos ativos, para a busca do item. */
+  insumos: InsumoOpcao[];
   /** Ausente = ordem nova. Presente = edição da ordem existente. */
   inicial?: OrdemCompraInicial;
   /**
@@ -525,8 +532,11 @@ export function OrdemCompraForm({
             </div>
           )}
 
+          {/* Cadastrar insumo é liberado aqui: ordem de compra é tela do
+              engenheiro. No portal do cliente o seletor vem sem essa opção. */}
           <ItemCompraPicker
-            obraId={obraId}
+            insumos={insumos}
+            podeCadastrar
             onAdd={(item) => setItens((prev) => [...prev, { ...item, localId: nextItemId++ }])}
           />
 

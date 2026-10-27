@@ -33,6 +33,7 @@ const navItems: NavEntry[] = [
       { href: "/clientes", label: "Clientes", icone: "clientes" },
       { href: "/trabalhadores", label: "Colaboradores e equipes", icone: "equipes" },
       { href: "/fornecedores", label: "Fornecedores", icone: "fornecedores" },
+      { href: "/insumos", label: "Insumos", icone: "insumos" },
       { href: "/sinapi", label: "Tabela SINAPI", icone: "tabela" },
     ],
   },

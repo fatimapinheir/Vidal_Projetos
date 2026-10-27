@@ -4,19 +4,60 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth, requireRole } from "@/lib/auth/require-role";
-import { parseNumeroBR } from "@/lib/parse-numero-br";
 import { lerAnexosDoForm, salvarAnexosDaCompra } from "@/lib/compras/anexos";
 import { etapaOrcamentoValida } from "@/lib/compras/etapa-orcamento";
 
 const itemSchema = z.object({
   orcamento_item_id: z.uuid().optional(),
+  /** Insumo do catálogo (0067). Ausente no item avulso. */
+  insumo_id: z.uuid().optional(),
+  /*
+   * Cópia do catálogo, não referência — renomear ou apagar o insumo não
+   * reescreve o que foi lançado. Ver a 0067.
+   */
   descricao: z.string().min(1),
   unidade: z.string().min(1),
+  categoria_custo: z.enum(["material", "servico", "mao_de_obra"]).optional(),
   quantidade: z.number().positive(),
   preco_unitario: z.number().nonnegative(),
   desconto_tipo: z.enum(["valor", "percentual"]).optional(),
   desconto_valor: z.number().nonnegative().optional(),
 });
+
+/** Total líquido do item, com o desconto individual aplicado. Mesma fórmula do gatilho. */
+function totalLiquidoDoItem(item: z.infer<typeof itemSchema>) {
+  const bruto = item.quantidade * item.preco_unitario;
+  if (item.desconto_tipo === "percentual") {
+    return Math.max(bruto * (1 - (item.desconto_valor ?? 0) / 100), 0);
+  }
+  if (item.desconto_tipo === "valor") return Math.max(bruto - (item.desconto_valor ?? 0), 0);
+  return bruto;
+}
+
+/**
+ * Lê os itens do formulário. Ao menos um, sempre.
+ *
+ * Eram opcionais, e o custo disso está nos dados: 64 dos 70 lançamentos
+ * ficaram sem item nenhum, com o insumo escrito na descrição em prosa —
+ * "3 telhas de 4 metros a 30 o metro / 30 parafusos a 4 reais". Texto assim
+ * não soma, não filtra e não vira relatório.
+ */
+function lerItens(
+  formData: FormData
+): { error: string; itens?: undefined } | { error?: undefined; itens: z.infer<typeof itemSchema>[] } {
+  const bruto = formData.get("itens");
+  if (!bruto) return { error: "Adicione ao menos um item ao lançamento." };
+
+  let itens: z.infer<typeof itemSchema>[];
+  try {
+    itens = z.array(itemSchema).parse(JSON.parse(String(bruto)));
+  } catch {
+    return { error: "Não foi possível ler os itens do lançamento." };
+  }
+
+  if (!itens.length) return { error: "Adicione ao menos um item ao lançamento." };
+  return { itens };
+}
 
 const schema = z.object({
   fornecedor_id: z.uuid("Selecione um fornecedor."),
@@ -55,7 +96,14 @@ const schema = z.object({
    */
   data_entrega_real: z.string().min(1).optional(),
   orcamento_etapa: z.string().min(1).optional(),
-  valor: z.number().positive("O valor precisa ser maior que zero."),
+  /*
+   * `valor` saiu do formulário.
+   *
+   * Era um campo digitado ao lado dos itens, e criava duas verdades sobre o
+   * mesmo pagamento: o número escrito e a soma dos itens. Agora o total é
+   * sempre a soma — calculada aqui para o insert e confirmada pelo gatilho
+   * `trg_compra_itens_recalcula`, que é quem manda em `compras.valor_total`.
+   */
   // O primeiro arquivo anexado. Continua obrigatório e continua indo para a
   // parcela — ver o insert da parcela, mais abaixo.
   /*
@@ -109,7 +157,6 @@ export async function criarLancamento(
     data_entrega_prevista: formData.get("data_entrega_prevista") || undefined,
     data_entrega_real: formData.get("data_entrega_real") || undefined,
     orcamento_etapa: formData.get("orcamento_etapa") || undefined,
-    valor: parseNumeroBR(String(formData.get("valor") ?? "")),
     comprovante_path: formData.get("comprovante_path"),
   });
 
@@ -124,23 +171,20 @@ export async function criarLancamento(
   const etapa = await etapaOrcamentoValida(supabase, obraId, parsed.data.orcamento_etapa);
   if (etapa.error) return { error: etapa.error };
 
+  const lidos = lerItens(formData);
+  if (lidos.error !== undefined) return { error: lidos.error };
+  const { itens } = lidos;
+
   /*
-   * Itens, opcionais.
+   * O total nasce da soma e é confirmado pelo gatilho.
    *
-   * Quando existem, é o gatilho `trg_compra_itens_recalcula` que define
-   * `compras.valor_total` a partir deles — por isso o valor digitado entra
-   * como ponto de partida e é relido depois do insert. Sem itens (um IPTU,
-   * uma taxa), o valor digitado é o que vale e nenhum gatilho dispara.
+   * O valor entra no insert porque `valor_total` é NOT NULL e o gatilho só
+   * dispara depois, com os itens. Calculado com a mesma fórmula dele, o número
+   * já nasce certo; ainda assim o valor da parcela é relido do banco mais
+   * abaixo, e não deste cálculo — quem manda é o gatilho.
    */
-  let itens: z.infer<typeof itemSchema>[] = [];
-  const itensRaw = formData.get("itens");
-  if (itensRaw) {
-    try {
-      itens = z.array(itemSchema).parse(JSON.parse(String(itensRaw)));
-    } catch {
-      return { error: "Não foi possível ler os itens do lançamento." };
-    }
-  }
+  const totalDosItens = itens.reduce((soma, item) => soma + totalLiquidoDoItem(item), 0);
+  if (totalDosItens <= 0) return { error: "O valor do lançamento precisa ser maior que zero." };
 
   const { data: compra, error } = await supabase
     .from("compras")
@@ -148,7 +192,7 @@ export async function criarLancamento(
       obra_id: obraId,
       fornecedor_id: parsed.data.fornecedor_id,
       descricao: parsed.data.descricao,
-      valor_total: parsed.data.valor,
+      valor_total: totalDosItens,
       forma_pagamento: parsed.data.forma_pagamento,
       categoria_id: parsed.data.categoria_id ?? null,
       tipo_item: parsed.data.tipo_item ?? null,
@@ -185,34 +229,32 @@ export async function criarLancamento(
   );
   if (erroAnexos) return { error: erroAnexos };
 
-  let valorFinal = parsed.data.valor;
+  const { error: erroItens } = await supabase.from("compra_itens").insert(
+    itens.map((item, i) => ({
+      compra_id: compra.id,
+      orcamento_item_id: item.orcamento_item_id ?? null,
+      insumo_id: item.insumo_id ?? null,
+      descricao: item.descricao,
+      unidade: item.unidade,
+      categoria_custo: item.categoria_custo ?? null,
+      quantidade: item.quantidade,
+      preco_unitario: item.preco_unitario,
+      desconto_tipo: item.desconto_tipo ?? null,
+      desconto_valor: item.desconto_valor ?? null,
+      ordem: i + 1,
+    }))
+  );
+  if (erroItens) return { error: "Não foi possível salvar os itens do lançamento." };
 
-  if (itens.length) {
-    const { error: erroItens } = await supabase.from("compra_itens").insert(
-      itens.map((item, i) => ({
-        compra_id: compra.id,
-        orcamento_item_id: item.orcamento_item_id ?? null,
-        descricao: item.descricao,
-        unidade: item.unidade,
-        quantidade: item.quantidade,
-        preco_unitario: item.preco_unitario,
-        desconto_tipo: item.desconto_tipo ?? null,
-        desconto_valor: item.desconto_valor ?? null,
-        ordem: i + 1,
-      }))
-    );
-    if (erroItens) return { error: "Não foi possível salvar os itens do lançamento." };
-
-    // Relê o total já recalculado pelo gatilho: é ele, e não o valor
-    // digitado, que a parcela precisa espelhar — senão o pagamento diria um
-    // número e a soma dos itens diria outro.
-    const { data: atualizada } = await supabase
-      .from("compras")
-      .select("valor_total")
-      .eq("id", compra.id)
-      .single();
-    if (atualizada) valorFinal = atualizada.valor_total;
-  }
+  // Relê o total já recalculado pelo gatilho: é ele que a parcela precisa
+  // espelhar — senão o pagamento diria um número e a soma dos itens diria
+  // outro.
+  const { data: atualizada } = await supabase
+    .from("compras")
+    .select("valor_total")
+    .eq("id", compra.id)
+    .single();
+  const valorFinal = atualizada?.valor_total ?? totalDosItens;
 
   /*
    * Uma parcela, já paga.
@@ -288,7 +330,6 @@ export async function atualizarLancamento(
     nota_fiscal_emissao: formData.get("nota_fiscal_emissao") || undefined,
     forma_pagamento: formData.get("forma_pagamento"),
     data_pagamento: formData.get("data_pagamento"),
-    valor: parseNumeroBR(String(formData.get("valor") ?? "")),
     data_entrega_prevista: formData.get("data_entrega_prevista") || undefined,
     data_entrega_real: formData.get("data_entrega_real") || undefined,
     orcamento_etapa: formData.get("orcamento_etapa") || undefined,
@@ -314,15 +355,12 @@ export async function atualizarLancamento(
   const etapa = await etapaOrcamentoValida(supabase, compra.obra_id, parsed.data.orcamento_etapa);
   if (etapa.error) return { error: etapa.error };
 
-  let itens: z.infer<typeof itemSchema>[] = [];
-  const itensRaw = formData.get("itens");
-  if (itensRaw) {
-    try {
-      itens = z.array(itemSchema).parse(JSON.parse(String(itensRaw)));
-    } catch {
-      return { error: "Não foi possível ler os itens do lançamento." };
-    }
-  }
+  const lidos = lerItens(formData);
+  if (lidos.error !== undefined) return { error: lidos.error };
+  const { itens } = lidos;
+
+  const totalDosItens = itens.reduce((soma, item) => soma + totalLiquidoDoItem(item), 0);
+  if (totalDosItens <= 0) return { error: "O valor do lançamento precisa ser maior que zero." };
 
   const { error: erroCompra } = await supabase
     .from("compras")
@@ -355,47 +393,37 @@ export async function atualizarLancamento(
     .eq("compra_id", compraId);
   if (erroApagar) return { error: "Não foi possível atualizar os itens." };
 
-  let valorFinal = parsed.data.valor;
+  /*
+   * O ramo "sem itens" deixou de existir.
+   *
+   * Ele apagava o desconto da nota e regravava o valor digitado em duas etapas,
+   * porque um lançamento podia não ter item nenhum. Com item obrigatório, o
+   * total é sempre a soma e o gatilho sempre dispara — a acrobacia saiu junto
+   * com a possibilidade que a justificava.
+   */
+  const { error: erroItens } = await supabase.from("compra_itens").insert(
+    itens.map((item, i) => ({
+      compra_id: compraId,
+      orcamento_item_id: item.orcamento_item_id ?? null,
+      insumo_id: item.insumo_id ?? null,
+      descricao: item.descricao,
+      unidade: item.unidade,
+      categoria_custo: item.categoria_custo ?? null,
+      quantidade: item.quantidade,
+      preco_unitario: item.preco_unitario,
+      desconto_tipo: item.desconto_tipo ?? null,
+      desconto_valor: item.desconto_valor ?? null,
+      ordem: i + 1,
+    }))
+  );
+  if (erroItens) return { error: "Não foi possível salvar os itens do lançamento." };
 
-  if (itens.length) {
-    const { error: erroItens } = await supabase.from("compra_itens").insert(
-      itens.map((item, i) => ({
-        compra_id: compraId,
-        orcamento_item_id: item.orcamento_item_id ?? null,
-        descricao: item.descricao,
-        unidade: item.unidade,
-        quantidade: item.quantidade,
-        preco_unitario: item.preco_unitario,
-        desconto_tipo: item.desconto_tipo ?? null,
-        desconto_valor: item.desconto_valor ?? null,
-        ordem: i + 1,
-      }))
-    );
-    if (erroItens) return { error: "Não foi possível salvar os itens do lançamento." };
-
-    const { data: atualizada } = await supabase
-      .from("compras")
-      .select("valor_total")
-      .eq("id", compraId)
-      .single();
-    if (atualizada) valorFinal = atualizada.valor_total;
-  } else {
-    /*
-     * Sem itens, o gatilho acabou de zerar o total — ele soma o que existe, e
-     * não existe nada. O valor digitado volta a ser a verdade, como na criação.
-     *
-     * O desconto da nota sai junto, e em DUAS etapas, nesta ordem. Um desconto
-     * sem itens não desconta de nada: ficaria no registro dizendo que houve
-     * abatimento sobre uma soma que não existe. E limpá-lo dispara
-     * `trg_compras_desconto_recalcula`, que recalcula o total a partir dos
-     * itens (nenhum) e o zera — por isso o valor é gravado depois, não junto.
-     */
-    await supabase
-      .from("compras")
-      .update({ desconto_tipo: null, desconto_valor: 0 })
-      .eq("id", compraId);
-    await supabase.from("compras").update({ valor_total: valorFinal }).eq("id", compraId);
-  }
+  const { data: atualizada } = await supabase
+    .from("compras")
+    .select("valor_total")
+    .eq("id", compraId)
+    .single();
+  const valorFinal = atualizada?.valor_total ?? totalDosItens;
 
   // A parcela espelha o lançamento: valor e data têm de andar junto, senão a
   // lista de pagamentos mostra um número que a tela de detalhe desmente.

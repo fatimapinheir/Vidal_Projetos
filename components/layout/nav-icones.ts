@@ -9,6 +9,7 @@ import {
   HardHat,
   LayoutDashboard,
   NotebookPen,
+  Package,
   ShoppingCart,
   Table2,
   TrendingUp,
@@ -49,6 +50,7 @@ export const navIcones = {
   clientes: Users,
   equipes: HardHat,
   fornecedores: Truck,
+  insumos: Package,
   tabela: Table2,
 } satisfies Record<string, LucideIcon>;
 

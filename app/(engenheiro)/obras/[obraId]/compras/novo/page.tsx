@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { OrdemCompraForm } from "@/components/compras/ordem-compra-form";
+import { buscarInsumosAtivos } from "@/lib/compras/insumos-ativos";
 
 export default async function NovaCompraPage({
   params,
@@ -11,7 +12,8 @@ export default async function NovaCompraPage({
   const supabase = await createClient();
   // Só ativos: inativo não deve ser escolhível numa compra nova. As compras
   // já registradas seguem mostrando o fornecedor pelo vínculo, mesmo inativo.
-  const [{ data: fornecedores }, { data: versaoAtiva }, { data: categorias }] = await Promise.all([
+  const [{ data: fornecedores }, { data: versaoAtiva }, { data: categorias }, insumos] =
+    await Promise.all([
     supabase.from("fornecedores").select("id, nome").eq("ativo", true).order("nome"),
     supabase
       .from("orcamento_versoes")
@@ -24,6 +26,7 @@ export default async function NovaCompraPage({
       .select("id, nome, tipo_item")
       .eq("ativo", true)
       .order("nome"),
+    buscarInsumosAtivos(supabase),
   ]);
 
   // As etapas declaradas na versão, mais as que só existem em item (vindas de
@@ -54,6 +57,7 @@ export default async function NovaCompraPage({
           obraId={obraId}
           fornecedores={fornecedores ?? []}
           categorias={categorias ?? []}
+          insumos={insumos}
           etapasOrcamento={etapasOrcamento}
         />
       </CardContent>

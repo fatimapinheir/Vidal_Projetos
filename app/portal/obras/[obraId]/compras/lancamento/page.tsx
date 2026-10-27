@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { LancamentoForm } from "@/components/compras/lancamento-form";
+import { buscarInsumosAtivos } from "@/lib/compras/insumos-ativos";
 
 /**
  * O cliente registrando um pagamento da obra dele.
@@ -28,7 +29,8 @@ export default async function PortalNovoLancamentoPage({
   await requireRole("cliente");
   const supabase = await createClient();
 
-  const [{ data: obra }, { data: fornecedores }, { data: categorias }] = await Promise.all([
+  const [{ data: obra }, { data: fornecedores }, { data: categorias }, insumos] =
+    await Promise.all([
     supabase.from("obras").select("nome").eq("id", obraId).maybeSingle(),
     supabase.from("fornecedores").select("id, nome").eq("ativo", true).order("nome"),
     supabase
@@ -36,6 +38,7 @@ export default async function PortalNovoLancamentoPage({
       .select("id, nome, tipo_item")
       .eq("ativo", true)
       .order("nome"),
+    buscarInsumosAtivos(supabase),
   ]);
 
   if (!obra) notFound();
@@ -70,9 +73,18 @@ export default async function PortalNovoLancamentoPage({
             obraId={obraId}
             fornecedores={fornecedores ?? []}
             categorias={categorias ?? []}
+            insumos={insumos}
             voltarPara={`/portal/obras/${obraId}/compras`}
             // Criar fornecedor é ação de engenheiro — a ação recusaria.
             permiteCadastrarFornecedor={false}
+            /*
+              Nem insumo: foi a decisão tomada, e o motivo é que um catálogo
+              aberto voltaria a juntar "barrote", "Barrote" e "barote".
+              
+              O cliente não fica sem caminho — ele continua lançando pelo item
+              avulso, que descreve o gasto sem criar entrada no catálogo.
+            */
+            permiteCadastrarInsumo={false}
           />
         </CardContent>
       </Card>

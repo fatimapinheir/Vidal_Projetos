@@ -14,12 +14,15 @@ import {
   FieldLabel,
   FieldSeparator,
 } from "@/components/ui/field";
-import { CampoMoeda } from "@/components/orcamento/campos-item";
 import { CampoFornecedor } from "./campo-fornecedor";
 import { CampoCategoria, type Categoria } from "./campo-categoria";
 import { CamposNotaFiscal } from "./campos-nota-fiscal";
 import { CamposEntrega } from "./campos-entrega";
-import { ItemCompraPicker, type ItemCompraLocal } from "./item-compra-picker";
+import {
+  ItemCompraPicker,
+  type ItemCompraLocal,
+  type InsumoOpcao,
+} from "./item-compra-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trash2 } from "lucide-react";
 import { enviarArquivoParaStorage, removerArquivosDoStorage } from "@/lib/storage/upload-direto";
@@ -76,7 +79,6 @@ export type LancamentoInicial = {
   tipoItem: string;
   orcamentoEtapa: string;
   formaPagamento: string;
-  valor: number;
   dataPagamento: string;
   notaNumero: string;
   notaEmissao: string;
@@ -89,6 +91,8 @@ export function LancamentoForm({
   obraId,
   fornecedores,
   categorias,
+  insumos,
+  permiteCadastrarInsumo = true,
   voltarPara,
   etapasOrcamento = [],
   permiteCadastrarFornecedor = true,
@@ -97,6 +101,10 @@ export function LancamentoForm({
   obraId: string;
   fornecedores: { id: string; nome: string }[];
   categorias: Categoria[];
+  /** O catálogo de insumos ativos, para a busca do item. */
+  insumos: InsumoOpcao[];
+  /** Desligado no portal: cadastrar insumo é do engenheiro. */
+  permiteCadastrarInsumo?: boolean;
   /**
    * Etapas do orçamento ativo. Vazio esconde o campo — é o caso do portal:
    * classificar gasto por etapa é trabalho de engenharia, e na tela de
@@ -123,7 +131,6 @@ export function LancamentoForm({
   const [estado, enviar, pendente] = useActionState(acao, estadoInicial);
   const router = useRouter();
 
-  const [valor, setValor] = useState(inicial?.valor ?? 0);
   const [itens, setItens] = useState<(ItemCompraLocal & { localId: number })[]>(
     () => (inicial?.itens ?? []).map((item) => ({ ...item, localId: proximoItemId++ }))
   );
@@ -145,9 +152,20 @@ export function LancamentoForm({
   async function aoEnviar(formData: FormData) {
     setErroArquivo(null);
 
+    /*
+      Item é obrigatório, e a checagem vem antes de subir arquivo.
+      
+      Barrar aqui evita o caso em que o comprovante já foi para o Storage e a
+      ação recusa o lançamento: o arquivo ficaria órfão no bucket e a pessoa
+      veria o erro depois da espera do upload.
+    */
+    if (!itens.length) {
+      setErroArquivo("Adicione ao menos um item ao lançamento.");
+      return;
+    }
+
     if (editando) {
       formData.set("itens", JSON.stringify(itens));
-      if (itens.length) formData.set("valor", String(totalItens));
       enviar(formData);
       return;
     }
@@ -182,8 +200,6 @@ export function LancamentoForm({
     }
 
     formData.set("itens", JSON.stringify(itens));
-    // Com itens, o valor é a soma — o campo de moeda nem está montado.
-    if (itens.length) formData.set("valor", String(totalItens));
     enviar(formData);
   }
 
@@ -289,24 +305,15 @@ export function LancamentoForm({
             </select>
           </Field>
 
-          <Field>
-            <FieldLabel htmlFor="valor">Valor pago</FieldLabel>
-            {/*
-              Com itens, o valor é a soma deles e o campo vira leitura.
-              
-              Deixá-lo editável criaria duas verdades sobre o mesmo pagamento:
-              a soma dos itens e o número digitado. Quem manda é a soma — é ela
-              que o banco recalcula por gatilho.
-            */}
-            {itens.length ? (
-              <div className="flex h-8 items-center rounded-lg border border-input bg-muted/40 px-2.5 text-sm font-medium tabular-nums">
-                {moeda(totalItens)}
-              </div>
-            ) : (
-              <CampoMoeda id="valor" name="valor" value={valor} onValueChange={setValor} />
-            )}
-          </Field>
-
+          {/*
+            "Valor pago" saiu daqui.
+            
+            Era um campo digitado ao lado dos itens, e isso criava duas verdades
+            sobre o mesmo pagamento: o número escrito e a soma dos itens. Quem
+            manda é a soma — é ela que o gatilho `trg_compra_itens_recalcula`
+            grava em `compras.valor_total`. O total agora aparece no fim do
+            formulário, depois dos itens, onde ele é consequência e não palpite.
+          */}
           <Field>
             <FieldLabel htmlFor="data_pagamento">Data do pagamento</FieldLabel>
             <Input
@@ -339,14 +346,19 @@ export function LancamentoForm({
         </div>
 
         {/*
-          Itens são OPCIONAIS no lançamento.
+          Itens são OBRIGATÓRIOS, como na ordem de compra.
           
-          A ordem de compra exige ao menos um — ela descreve uma compra. O
-          lançamento descreve dinheiro que saiu, e metade dos casos (IPTU,
-          água, uma taxa) não tem o que itemizar. Quando houver, o total passa
-          a vir deles.
+          Eram opcionais, com o argumento de que IPTU e água não têm o que
+          itemizar. Os dados mostraram o custo disso: 64 dos 70 lançamentos
+          ficaram sem item nenhum, e o insumo foi escrito na descrição em prosa
+          — "3 telhas de 4 metros a 30 o metro / 30 parafusos a 4 reais". Esse
+          texto não soma, não filtra e não vira relatório.
+          
+          O que não é insumo de prateleira entra pelo catálogo como serviço ou
+          mão de obra ("Alvará de construção" já foi digitado duas vezes), ou
+          como item avulso quando for mesmo coisa de uma vez só.
         */}
-        <FieldSeparator>Itens (opcional)</FieldSeparator>
+        <FieldSeparator>Itens</FieldSeparator>
 
         <div className="flex flex-col gap-3">
 
@@ -394,11 +406,18 @@ export function LancamentoForm({
           )}
 
           <ItemCompraPicker
-            obraId={obraId}
+            insumos={insumos}
+            podeCadastrar={permiteCadastrarInsumo}
             onAdd={(item) =>
               setItens((atuais) => [...atuais, { ...item, localId: proximoItemId++ }])
             }
           />
+
+          {/* O total fecha a seção dos itens: é a soma do que está acima. */}
+          <div className="flex items-baseline justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+            <span className="text-sm font-medium">Valor total da compra</span>
+            <span className="text-base font-semibold tabular-nums">{moeda(totalItens)}</span>
+          </div>
         </div>
 
         {/*
@@ -436,7 +455,9 @@ export function LancamentoForm({
             pendente ||
             enviandoArquivo ||
             (!editando && !comprovantes.length) ||
-            (itens.length ? totalItens : valor) <= 0
+            // Sem item não há total, e sem total não há lançamento.
+            !itens.length ||
+            totalItens <= 0
           }
         >
           {pendente || enviandoArquivo

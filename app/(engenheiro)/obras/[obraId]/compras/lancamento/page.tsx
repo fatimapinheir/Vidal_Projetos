@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { LancamentoForm } from "@/components/compras/lancamento-form";
 import { etapasDoOrcamentoAtivo } from "@/lib/compras/etapa-orcamento";
+import { buscarInsumosAtivos } from "@/lib/compras/insumos-ativos";
 
 export default async function NovoLancamentoPage({
   params,
@@ -13,7 +14,8 @@ export default async function NovoLancamentoPage({
   await requireRole("engenheiro");
   const supabase = await createClient();
 
-  const [{ data: fornecedores }, { data: categorias }, etapasOrcamento] = await Promise.all([
+  const [{ data: fornecedores }, { data: categorias }, etapasOrcamento, insumos] =
+    await Promise.all([
     supabase.from("fornecedores").select("id, nome").eq("ativo", true).order("nome"),
     supabase
       .from("categorias_financeiras")
@@ -21,6 +23,7 @@ export default async function NovoLancamentoPage({
       .eq("ativo", true)
       .order("nome"),
     etapasDoOrcamentoAtivo(supabase, obraId),
+    buscarInsumosAtivos(supabase),
   ]);
 
   return (
@@ -37,6 +40,7 @@ export default async function NovoLancamentoPage({
           obraId={obraId}
           fornecedores={fornecedores ?? []}
           categorias={categorias ?? []}
+          insumos={insumos}
           voltarPara={`/obras/${obraId}/compras`}
           etapasOrcamento={etapasOrcamento}
         />

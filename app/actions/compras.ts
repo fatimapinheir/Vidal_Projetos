@@ -53,8 +53,18 @@ const compraSchema = z.object({
 const itemCompraSchema = z
   .object({
     orcamento_item_id: z.uuid().optional(),
+    /** Insumo do catálogo (0067). Ausente no item avulso. */
+    insumo_id: z.uuid().optional(),
+    /*
+     * `descricao` e `unidade` continuam vindo no item, mesmo com `insumo_id`.
+     *
+     * São CÓPIA do catálogo, não referência: renomear o insumo amanhã não pode
+     * reescrever a nota de ontem, e apagá-lo não pode deixar a compra sem
+     * dizer o que foi comprado.
+     */
     descricao: z.string().min(1, "Descreva o item."),
     unidade: z.string().min(1, "Informe a unidade."),
+    categoria_custo: z.enum(["material", "servico", "mao_de_obra"]).optional(),
     quantidade: z.coerce.number().positive("Quantidade deve ser maior que zero."),
     preco_unitario: z.coerce.number().min(0, "Preço unitário inválido."),
     desconto_tipo: z.enum(["valor", "percentual"]).optional(),
@@ -286,8 +296,10 @@ export async function createCompra(
     itens.map((item, i) => ({
       compra_id: compra.id,
       orcamento_item_id: item.orcamento_item_id ?? null,
+      insumo_id: item.insumo_id ?? null,
       descricao: item.descricao,
       unidade: item.unidade,
+      categoria_custo: item.categoria_custo ?? null,
       quantidade: item.quantidade,
       preco_unitario: item.preco_unitario,
       desconto_tipo: item.desconto_tipo ?? null,
@@ -499,8 +511,10 @@ export async function atualizarCompra(
     itens.map((item, i) => ({
       compra_id: compraId,
       orcamento_item_id: item.orcamento_item_id ?? null,
+      insumo_id: item.insumo_id ?? null,
       descricao: item.descricao,
       unidade: item.unidade,
+      categoria_custo: item.categoria_custo ?? null,
       quantidade: item.quantidade,
       preco_unitario: item.preco_unitario,
       desconto_tipo: item.desconto_tipo ?? null,
@@ -533,36 +547,6 @@ function revalidarCompra(obraId: string, compraId: string) {
   revalidatePath(`/portal/obras/${obraId}`);
 }
 
-const buscaItemSchema = z.object({ termo: z.string().min(2) });
-
-/** Busca itens do planejamento ATIVO da obra — usada ao montar uma ordem de compra. */
-export async function buscarItensPlanejamento(obraId: string, termo: string) {
-  await requireRole("engenheiro");
-  const parsed = buscaItemSchema.safeParse({ termo });
-  if (!parsed.success) return [];
-
-  const supabase = await createClient();
-  const { data: versaoAtiva } = await supabase
-    .from("orcamento_versoes")
-    .select("id")
-    .eq("obra_id", obraId)
-    .eq("status", "ativa")
-    .maybeSingle();
-
-  if (!versaoAtiva) return [];
-
-  // Remove caracteres com significado especial na mini-linguagem de filtro do PostgREST.
-  const termoSeguro = parsed.data.termo.replace(/[,()]/g, " ").trim();
-
-  const { data } = await supabase
-    .from("orcamento_itens")
-    .select("id, codigo_sinapi, descricao, unidade, preco_unitario")
-    .eq("orcamento_versao_id", versaoAtiva.id)
-    .or(`codigo_sinapi.ilike.%${termoSeguro}%,descricao.ilike.%${termoSeguro}%`)
-    .limit(20);
-
-  return data ?? [];
-}
 
 async function resolveObraIdForCompra(compraId: string) {
   const supabase = await createClient();

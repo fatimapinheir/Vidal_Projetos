@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { LancamentoForm } from "@/components/compras/lancamento-form";
 import { OrdemCompraForm } from "@/components/compras/ordem-compra-form";
 import { etapasDoOrcamentoAtivo } from "@/lib/compras/etapa-orcamento";
+import { buscarInsumosAtivos } from "@/lib/compras/insumos-ativos";
 
 /** `date` do Postgres chega como ISO completo; o input quer só o dia. */
 const soData = (valor: string | null) => valor?.slice(0, 10) ?? "";
@@ -34,7 +35,7 @@ export default async function EditarCompraPage({
   await requireRole("engenheiro");
   const supabase = await createClient();
 
-  const [{ data: compra }, { data: fornecedores }, { data: categorias }, etapasOrcamento] =
+  const [{ data: compra }, { data: fornecedores }, { data: categorias }, etapasOrcamento, insumos] =
     await Promise.all([
       supabase.from("compras").select("*").eq("id", compraId).eq("obra_id", obraId).maybeSingle(),
       supabase.from("fornecedores").select("id, nome").eq("ativo", true).order("nome"),
@@ -44,6 +45,7 @@ export default async function EditarCompraPage({
         .eq("ativo", true)
         .order("nome"),
       etapasDoOrcamentoAtivo(supabase, obraId),
+      buscarInsumosAtivos(supabase),
     ]);
 
   if (!compra) notFound();
@@ -106,6 +108,7 @@ export default async function EditarCompraPage({
               obraId={obraId}
               fornecedores={fornecedores ?? []}
               categorias={categorias ?? []}
+              insumos={insumos}
               etapasOrcamento={etapasOrcamento}
               voltarPara={voltarPara}
               inicial={{
@@ -116,7 +119,6 @@ export default async function EditarCompraPage({
                 tipoItem: compra.tipo_item ?? "",
                 orcamentoEtapa: compra.orcamento_etapa ?? "",
                 formaPagamento: compra.forma_pagamento,
-                valor: compra.valor_total,
                 dataPagamento: soData(compra.data_cotacao),
                 notaNumero: compra.nota_fiscal_numero ?? "",
                 notaEmissao: soData(compra.nota_fiscal_emissao),
@@ -124,8 +126,10 @@ export default async function EditarCompraPage({
                 entregaReal: soData(compra.data_entrega_real),
                 itens: (itens ?? []).map((item) => ({
                   orcamento_item_id: item.orcamento_item_id ?? undefined,
+                  insumo_id: item.insumo_id ?? undefined,
                   descricao: item.descricao,
                   unidade: item.unidade,
+                  categoria_custo: item.categoria_custo ?? undefined,
                   quantidade: item.quantidade,
                   preco_unitario: item.preco_unitario,
                   desconto_tipo: item.desconto_tipo ?? undefined,
@@ -138,6 +142,7 @@ export default async function EditarCompraPage({
               obraId={obraId}
               fornecedores={fornecedores ?? []}
               categorias={categorias ?? []}
+              insumos={insumos}
               etapasOrcamento={etapasOrcamento}
               valorCongelado={valorCongelado}
               inicial={{
@@ -158,8 +163,10 @@ export default async function EditarCompraPage({
                 descontoValor: compra.desconto_valor ? String(compra.desconto_valor) : "",
                 itens: (itens ?? []).map((item) => ({
                   orcamento_item_id: item.orcamento_item_id ?? undefined,
+                  insumo_id: item.insumo_id ?? undefined,
                   descricao: item.descricao,
                   unidade: item.unidade,
+                  categoria_custo: item.categoria_custo ?? undefined,
                   quantidade: item.quantidade,
                   preco_unitario: item.preco_unitario,
                   desconto_tipo: item.desconto_tipo ?? undefined,

@@ -594,6 +594,34 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["cronograma_dependencias"]["Insert"]>;
         Relationships: [];
       };
+      /**
+       * Catálogo de insumos: o que se compra, cadastrado uma vez (0067).
+       *
+       * Sem preço de propósito — preço é do dia da compra e do fornecedor
+       * daquele dia. O cadastro responde "o que é"; a compra responde "quanto
+       * e por quanto".
+       */
+      insumos: {
+        Row: {
+          id: string;
+          descricao: string;
+          categoria_custo: TipoItemOrcamento;
+          unidade: string;
+          /** `false` tira da busca do seletor e mantém na listagem. */
+          ativo: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          descricao: string;
+          categoria_custo: TipoItemOrcamento;
+          unidade: string;
+          ativo?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["insumos"]["Insert"]>;
+        Relationships: [];
+      };
       funcoes: {
         Row: { id: string; nome: string; ativo: boolean; ordem: number; created_at: string };
         Insert: {
@@ -876,8 +904,16 @@ export interface Database {
           id: string;
           compra_id: string;
           orcamento_item_id: string | null;
+          /** Insumo do catálogo, quando o item veio de lá (0067). */
+          insumo_id: string | null;
+          /**
+           * `descricao` e `unidade` são CÓPIA do insumo, não referência:
+           * renomear ou apagar o insumo não reescreve a compra de ontem.
+           */
           descricao: string;
           unidade: string;
+          /** Copiada do insumo no lançamento. Nula no que foi gravado antes (0068). */
+          categoria_custo: TipoItemOrcamento | null;
           quantidade: number;
           preco_unitario: number;
           desconto_tipo: DescontoTipo | null;
@@ -891,8 +927,10 @@ export interface Database {
           id?: string;
           compra_id: string;
           orcamento_item_id?: string | null;
+          insumo_id?: string | null;
           descricao: string;
           unidade: string;
+          categoria_custo?: TipoItemOrcamento | null;
           quantidade?: number;
           preco_unitario?: number;
           desconto_tipo?: DescontoTipo | null;
