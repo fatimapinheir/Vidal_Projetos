@@ -41,17 +41,43 @@ export function SeletorAnexos({
   const inputRef = useRef<HTMLInputElement>(null);
   const cheio = arquivos.length >= max;
 
+  /** Nome + tamanho + data de modificação: distingue dois arquivos sem ler o conteúdo. */
+  const chaveDe = (a: File) => `${a.name}|${a.size}|${a.lastModified}`;
+
   function aoEscolher(escolhidos: FileList | null) {
     setAviso(null);
     if (!escolhidos?.length) return;
 
+    /*
+     * O mesmo arquivo não entra duas vezes.
+     *
+     * Dava: escolher a foto, tocar em "Adicionar outro" e escolher a mesma de
+     * novo acrescentava uma segunda cópia, e as três que o formulário aceita
+     * podiam ser três vezes o mesmo comprovante. Está nos dados — a mesma
+     * IMG_0758.jpeg subiu em triplicata —, e em comprovante de pagamento isso
+     * não é só desperdício: a tela de detalhe mostra três anexos e quem confere
+     * fica procurando a diferença entre eles.
+     */
+    const existentes = new Set(arquivos.map(chaveDe));
+    const semRepetir = [...escolhidos].filter((a) => !existentes.has(chaveDe(a)));
+    const repetidos = escolhidos.length - semRepetir.length;
+
     const livres = max - arquivos.length;
-    const novos = [...escolhidos].slice(0, livres);
-    if (escolhidos.length > livres) {
+    const novos = semRepetir.slice(0, livres);
+
+    if (repetidos > 0) {
+      setAviso(
+        repetidos === 1
+          ? "Esse arquivo já está na lista."
+          : `${repetidos} arquivos já estavam na lista.`
+      );
+    } else if (semRepetir.length > livres) {
       setAviso(`Máximo de ${max} arquivos — os excedentes não foram incluídos.`);
     }
 
-    aoMudar([...arquivos, ...novos]);
+    if (novos.length) aoMudar([...arquivos, ...novos]);
+    // Limpo sempre: sem isso, escolher o MESMO arquivo depois de removê-lo não
+    // dispara `change` e o campo fica mudo.
     if (inputRef.current) inputRef.current.value = "";
   }
 

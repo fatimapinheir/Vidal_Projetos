@@ -152,6 +152,20 @@ export function OrdemCompraForm({
   async function handleSubmit(formData: FormData) {
     setErroAnexo(null);
 
+    /*
+      Valida antes de subir anexo, e com mensagem.
+      
+      O botão era desabilitado quando não havia item — sem dizer nada. No
+      celular isso é indistinguível de sistema quebrado: preenche, toca e não
+      acontece nada. A frase que explicava vivia na ação do servidor, que nunca
+      era chamada, porque o botão que a chamaria estava desabilitado exatamente
+      nesse caso.
+    */
+    if (!valorCongelado && !itens.length) {
+      setErroAnexo("Adicione ao menos um item à ordem de compra.");
+      return;
+    }
+
     if (anexos.length) {
       setEnviandoAnexo(true);
       const enviados: { path: string; nome: string }[] = [];
@@ -646,11 +660,14 @@ export function OrdemCompraForm({
           </>
         )}
 
+        {/* Acima do botão, e fora do bloco de anexos, para a mensagem valer
+            também quando o que falta não é arquivo. */}
+        {erroAnexo && <FieldError>{erroAnexo}</FieldError>}
         {state.error && <FieldError>{state.error}</FieldError>}
 
         <Button
           type="submit"
-          disabled={pending || enviandoAnexo || (!valorCongelado && !itens.length)}
+          disabled={pending || enviandoAnexo}
         >
           {pending || enviandoAnexo
             ? "Salvando..."

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -135,6 +135,22 @@ export function LancamentoForm({
     () => (inicial?.itens ?? []).map((item) => ({ ...item, localId: proximoItemId++ }))
   );
   const [comprovantes, setComprovantes] = useState<File[]>([]);
+  /*
+   * Arquivo já enviado não sobe de novo.
+   *
+   * Cada toque em "Registrar lançamento" re-enviava TODOS os comprovantes ao
+   * Storage, e só depois chamava a ação. Quando a ação recusava, a pessoa
+   * corrigia e tocava outra vez — e a foto subia outra vez. Está nos dados:
+   * a mesma IMG_0758.jpeg, de 5,34 MB, está no bucket OITO vezes, de 16/10,
+   * e no total há 13 arquivos órfãos somando 48 MB.
+   *
+   * No celular isso não é só desperdício: são 5 MB de dados móveis por toque,
+   * e a espera que vem com eles.
+   *
+   * A chave é nome + tamanho + data de modificação, que é o que distingue dois
+   * arquivos sem ler o conteúdo. Vive num ref porque não desenha nada.
+   */
+  const jaEnviados = useRef(new Map<string, string>());
   const [dataPagamento, setDataPagamento] = useState(inicial?.dataPagamento ?? hojeNoFuso());
   const [erroArquivo, setErroArquivo] = useState<string | null>(null);
   const totalItens = itens.reduce((soma, item) => soma + totalDoItem(item), 0);
@@ -164,6 +180,12 @@ export function LancamentoForm({
       return;
     }
 
+    // Era a outra razão silenciosa para o botão não responder.
+    if (totalItens <= 0) {
+      setErroArquivo("O valor do lançamento precisa ser maior que zero.");
+      return;
+    }
+
     if (editando) {
       formData.set("itens", JSON.stringify(itens));
       enviar(formData);
@@ -178,16 +200,33 @@ export function LancamentoForm({
     setEnviandoArquivo(true);
     const enviados: { path: string; nome: string }[] = [];
     for (const arquivo of comprovantes) {
+      const chave = `${arquivo.name}|${arquivo.size}|${arquivo.lastModified}`;
+      const anterior = jaEnviados.current.get(chave);
+      if (anterior) {
+        enviados.push({ path: anterior, nome: arquivo.name });
+        continue;
+      }
+
       const envio = await enviarArquivoParaStorage("comprovantes-pagamento", obraId, arquivo);
       if (envio.path === null) {
+        /*
+         * Limpa só o que subiu NESTA tentativa.
+         *
+         * O que veio do cache fica: ele continua válido para o próximo toque, e
+         * apagá-lo faria a tentativa seguinte subir tudo de novo — justamente o
+         * que este cache existe para evitar.
+         */
         await removerArquivosDoStorage(
           "comprovantes-pagamento",
-          enviados.map((e) => e.path)
+          enviados
+            .map((e) => e.path)
+            .filter((path) => ![...jaEnviados.current.values()].includes(path))
         );
         setEnviandoArquivo(false);
         setErroArquivo(envio.error);
         return;
       }
+      jaEnviados.current.set(chave, envio.path);
       enviados.push({ path: envio.path, nome: arquivo.name });
     }
     setEnviandoArquivo(false);
@@ -442,24 +481,39 @@ export function LancamentoForm({
                 Obrigatório: o lançamento entra no sistema como pagamento já feito. Até{" "}
                 {MAX_ANEXOS_COMPRA} arquivos — comprovante, nota, foto do recibo.
               </FieldDescription>
-              {erroArquivo && <FieldError>{erroArquivo}</FieldError>}
             </Field>
           </>
         )}
 
+        {/*
+          A mensagem do que falta fica FORA do bloco do comprovante.
+          
+          Estava dentro dele, que só existe na criação — então, na edição, um
+          "Adicione ao menos um item" não tinha onde aparecer: o toque no botão
+          não salvava e não dizia por quê. Aqui, logo acima do botão, ela vale
+          para os dois casos e está onde o olho já está.
+        */}
+        {erroArquivo && <FieldError>{erroArquivo}</FieldError>}
         {estado.error && <FieldError>{estado.error}</FieldError>}
 
-        <Button
-          type="submit"
-          disabled={
-            pendente ||
-            enviandoArquivo ||
-            (!editando && !comprovantes.length) ||
-            // Sem item não há total, e sem total não há lançamento.
-            !itens.length ||
-            totalItens <= 0
-          }
-        >
+        {/*
+          O botão fica HABILITADO mesmo faltando coisa.
+          
+          Era desabilitado quando faltava comprovante ou quando o valor era
+          zero — sem dizer nada. No celular isso é indistinguível de um sistema
+          quebrado: a pessoa preenche, toca em "Registrar lançamento" e não
+          acontece NADA. Nenhuma mensagem, nenhum campo em vermelho, nenhuma
+          rolagem para o que falta. Foi o que o Ardiles descreveu como "não
+          está salvando".
+          
+          Pior: a mensagem que explicava — "Anexe o comprovante do pagamento" —
+          estava dentro de `aoEnviar`, e `aoEnviar` nunca rodava, porque o botão
+          que o chamaria estava desabilitado exatamente nesse caso. Código morto
+          guardando a única explicação que o usuário precisava ler.
+          
+          Agora o toque sempre chama a validação, e ela diz o que falta.
+        */}
+        <Button type="submit" disabled={pendente || enviandoArquivo}>
           {pendente || enviandoArquivo
             ? "Salvando..."
             : editando
