@@ -53,7 +53,11 @@ const compraSchema = z.object({
 const itemCompraSchema = z
   .object({
     orcamento_item_id: z.uuid().optional(),
-    /** Insumo do catálogo (0067). Ausente no item avulso. */
+    /**
+     * Insumo do catálogo (0067). Nulo só no que foi gravado antes dele existir:
+     * os 64 itens do backfill da 0069 e os gerados pela locação mensal. Item
+     * novo sempre vem do catálogo — ver a 0070.
+     */
     insumo_id: z.uuid().optional(),
     /*
      * `descricao` e `unidade` continuam vindo no item, mesmo com `insumo_id`.

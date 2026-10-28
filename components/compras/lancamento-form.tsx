@@ -92,7 +92,6 @@ export function LancamentoForm({
   fornecedores,
   categorias,
   insumos,
-  permiteCadastrarInsumo = true,
   voltarPara,
   etapasOrcamento = [],
   permiteCadastrarFornecedor = true,
@@ -103,8 +102,6 @@ export function LancamentoForm({
   categorias: Categoria[];
   /** O catálogo de insumos ativos, para a busca do item. */
   insumos: InsumoOpcao[];
-  /** Desligado no portal: cadastrar insumo é do engenheiro. */
-  permiteCadastrarInsumo?: boolean;
   /**
    * Etapas do orçamento ativo. Vazio esconde o campo — é o caso do portal:
    * classificar gasto por etapa é trabalho de engenharia, e na tela de
@@ -394,8 +391,8 @@ export function LancamentoForm({
           texto não soma, não filtra e não vira relatório.
           
           O que não é insumo de prateleira entra pelo catálogo como serviço ou
-          mão de obra ("Alvará de construção" já foi digitado duas vezes), ou
-          como item avulso quando for mesmo coisa de uma vez só.
+          mão de obra — "Alvará de construção" já foi digitado duas vezes, e é
+          exatamente um cadastro que se repete.
         */}
         <FieldSeparator>Itens</FieldSeparator>
 
@@ -446,7 +443,6 @@ export function LancamentoForm({
 
           <ItemCompraPicker
             insumos={insumos}
-            podeCadastrar={permiteCadastrarInsumo}
             onAdd={(item) =>
               setItens((atuais) => [...atuais, { ...item, localId: proximoItemId++ }])
             }

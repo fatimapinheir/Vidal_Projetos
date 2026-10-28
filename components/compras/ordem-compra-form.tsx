@@ -546,11 +546,8 @@ export function OrdemCompraForm({
             </div>
           )}
 
-          {/* Cadastrar insumo é liberado aqui: ordem de compra é tela do
-              engenheiro. No portal do cliente o seletor vem sem essa opção. */}
           <ItemCompraPicker
             insumos={insumos}
-            podeCadastrar
             onAdd={(item) => setItens((prev) => [...prev, { ...item, localId: nextItemId++ }])}
           />
 

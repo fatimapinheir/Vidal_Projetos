@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth/require-role";
+import { requireAuth, requireRole } from "@/lib/auth/require-role";
 import { normalizarUnidade } from "@/lib/orcamento/unidades";
 
 const CATEGORIAS = ["material", "servico", "mao_de_obra"] as const;
@@ -55,18 +55,23 @@ function erroDeDescricaoRepetida(codigo?: string) {
  *
  * Serve a dois lugares: a tela do catálogo e o próprio formulário de compra —
  * o momento em que falta o insumo é o momento em que se está lançando, e
- * mandar o engenheiro para outra tela perderia a compra pela metade.
+ * mandar quem está lançando para outra tela perderia a compra pela metade.
  *
- * Só o engenheiro cadastra. O cliente registra despesa pelo portal e lê o
- * catálogo para escolher, mas não cria: foi a decisão tomada, e o motivo é que
- * um catálogo aberto voltaria a juntar "barrote", "Barrote" e "barote" — o
- * problema de origem, de novo.
+ * `requireAuth`, e não `requireRole("engenheiro")`. A ideia de "item avulso"
+ * acabou: todo item digitado vira cadastro, e o cliente também lança despesa
+ * da obra dele pelo portal, com item obrigatório. Barrar o cadastro aqui o
+ * deixaria sem caminho — não é mais uma restrição, seria um impedimento.
+ *
+ * O risco é o mesmo que o projeto já aceita em `criarCategoria`, também aberta
+ * ao cliente: é uma lista de rótulos, sem valor e sem vínculo com obra. E o
+ * índice único sobre `lower(btrim(descricao))` impede a pior consequência de
+ * abrir — "barrote" e "Barrote" lado a lado.
  */
 export async function criarInsumo(
   _prevState: InsumoState,
   formData: FormData
 ): Promise<InsumoState> {
-  await requireRole("engenheiro");
+  await requireAuth();
 
   const parsed = schema.safeParse({
     descricao: formData.get("descricao"),

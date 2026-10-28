@@ -78,13 +78,13 @@ export default async function PortalNovoLancamentoPage({
             // Criar fornecedor é ação de engenheiro — a ação recusaria.
             permiteCadastrarFornecedor={false}
             /*
-              Nem insumo: foi a decisão tomada, e o motivo é que um catálogo
-              aberto voltaria a juntar "barrote", "Barrote" e "barote".
+              Insumo, ao contrário, ele CADASTRA.
               
-              O cliente não fica sem caminho — ele continua lançando pelo item
-              avulso, que descreve o gasto sem criar entrada no catálogo.
+              Era para não cadastrar, mas a ideia de "item avulso" acabou — todo
+              item digitado vira cadastro — e o item é obrigatório no lançamento.
+              Sem poder cadastrar, o cliente não conseguiria registrar uma
+              despesa cujo insumo ainda não está no catálogo. Ver a 0070.
             */
-            permiteCadastrarInsumo={false}
           />
         </CardContent>
       </Card>
