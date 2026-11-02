@@ -69,6 +69,7 @@ export function EditarTarefaDialog({
   const [open, setOpen] = useState(false);
   const [temPredecessora, setTemPredecessora] = useState(!!predecessorasAtuais.length);
   const [predecessoras, setPredecessoras] = useState<string[]>(predecessorasAtuais);
+  const [nome, setNome] = useState(tarefa.nome);
   const [duracao, setDuracao] = useState(String(tarefa.duracao_dias));
   const [critica, setCritica] = useState(tarefa.critica);
   /*
@@ -102,6 +103,9 @@ export function EditarTarefaDialog({
      * e o erro volta do servidor, fora de contexto. Checando aqui, a mensagem
      * aparece ao lado do campo que falta.
      */
+    if (!nome.trim()) {
+      return setErro("Informe o nome da tarefa.");
+    }
     if (temPredecessora && !predecessoras.length) {
       return setErro("Selecione ao menos uma tarefa que precede esta.");
     }
@@ -126,6 +130,7 @@ export function EditarTarefaDialog({
     if (proximo) {
       setTemPredecessora(!!predecessorasAtuais.length);
       setPredecessoras(predecessorasAtuais);
+      setNome(tarefa.nome);
       setDuracao(String(tarefa.duracao_dias));
       setCritica(tarefa.critica);
       setInicio(tarefa.restricao_inicio_nao_antes_de ?? tarefa.data_inicio_cedo ?? "");
@@ -148,6 +153,28 @@ export function EditarTarefaDialog({
         </DialogHeader>
         <form action={salvar}>
           <FieldGroup>
+            {/*
+              O nome faltava no formulário.
+              
+              Não era decisão: simplesmente não existia. Corrigir o nome de uma
+              tarefa — um erro de digitação, uma frente que mudou de escopo —
+              obrigava a apagá-la e recriar, e isso leva junto as dependências,
+              o avanço já medido e o vínculo com o item do orçamento.
+            */}
+            <Field>
+              <FieldLabel htmlFor="nome">Nome da tarefa</FieldLabel>
+              <Input
+                id="nome"
+                name="nome"
+                value={nome}
+                onChange={(e) => {
+                  setNome(e.target.value);
+                  setErro(null);
+                }}
+                required
+              />
+            </Field>
+
             {!!tarefasDaObra.length && (
               <Field orientation="horizontal">
                 <Checkbox

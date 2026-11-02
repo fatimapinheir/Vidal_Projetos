@@ -589,6 +589,12 @@ export async function removerTarefa(
 }
 
 const atualizarTarefaSchema = z.object({
+  /*
+   * O nome faltava, e não por decisão: simplesmente não estava no formulário
+   * nem aqui. Errar o nome de uma tarefa obrigava a apagá-la e recriar — o que
+   * leva junto as dependências, o avanço medido e o vínculo com o orçamento.
+   */
+  nome: z.string().trim().min(1, "Informe o nome da tarefa."),
   duracao_dias: z.coerce.number().int().positive("Duração deve ser maior que zero."),
   restricao_inicio_nao_antes_de: z.string().optional(),
   data_inicio_real: z.string().optional(),
@@ -610,6 +616,7 @@ export async function atualizarTarefa(
   const critica = !!formData.get("critica");
 
   const parsed = atualizarTarefaSchema.safeParse({
+    nome: formData.get("nome"),
     duracao_dias: formData.get("duracao_dias"),
     restricao_inicio_nao_antes_de: formData.get("restricao_inicio_nao_antes_de") || undefined,
     data_inicio_real: formData.get("data_inicio_real") || undefined,
@@ -669,6 +676,7 @@ export async function atualizarTarefa(
       // engenheiro tinha de descobrir qual data final dava 10 dias úteis a
       // partir de um início que ele não via. Era a conta do sistema, feita
       // à mão.
+      nome: parsed.data.nome,
       duracao_dias: parsed.data.duracao_dias,
       restricao_inicio_nao_antes_de: parsed.data.restricao_inicio_nao_antes_de || null,
       data_inicio_real: parsed.data.data_inicio_real || null,
