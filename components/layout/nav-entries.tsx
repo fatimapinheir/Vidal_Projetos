@@ -54,6 +54,22 @@ function ItemLink({
   return (
     <Link
       href={href}
+      /*
+        Prefetch DESLIGADO, e isso é medição, não preferência.
+        
+        A barra tem 19 links sempre visíveis — 12 seções da obra e 7 cadastros
+        —, e o Next pedia todos ao servidor. Com `loading.tsx` no lugar, cada
+        pedido passou a produzir payload de verdade e ficou MAIS caro: a aba
+        Network mostrou de 1,4 a 2,5 segundos por link, com `compras` repetido
+        cinco vezes na mesma tela. Quinze pedidos disputando as mesmas
+        instâncias de função com o clique que a pessoa de fato deu.
+        
+        O que o prefetch comprava era adiantar a navegação. O `loading.tsx` já
+        comprou isso de outro jeito, e de graça: o clique responde na hora com
+        o esqueleto, e o conteúdo vem a seguir. Pagar segundos de servidor por
+        telas que ninguém vai abrir deixou de fazer sentido.
+      */
+      prefetch={false}
       onClick={onNavegar}
       aria-current={ativo ? "page" : undefined}
       /*
