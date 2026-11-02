@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { calcularCPM, type FolgaEntrada } from "@/lib/cronograma/cpm";
 import { acharTemplate } from "@/lib/cronograma/templates";
+import { comNumero } from "@/lib/cronograma/numeracao";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -115,8 +116,47 @@ export async function removerEtapa(obraId: string, etapaId: string) {
   await requireRole("engenheiro");
   const supabase = await createClient();
   await supabase.from("cronograma_etapas").delete().eq("id", etapaId);
+
+  /*
+   * Apagar a etapa 3 renumera a 4 para 3 — e os NOMES das tarefas dela junto.
+   *
+   * Antes isto não acontecia: o `ordem` ficava com buraco (1, 2, 4, 5) e os
+   * nomes das tarefas seguiam dizendo "4.1", "4.2" numa etapa que virou a
+   * terceira. O número da tarefa começa com a ordem da etapa, então mexer numa
+   * obriga a mexer na outra.
+   */
+  const { data: restantes } = await supabase
+    .from("cronograma_etapas")
+    .select("id, ordem")
+    .eq("obra_id", obraId)
+    .order("ordem");
+
+  const foraDeLugar = (restantes ?? []).filter((e, i) => e.ordem !== i + 1);
+
+  if (foraDeLugar.length) {
+    await Promise.all(
+      (restantes ?? []).map((etapa, indice) =>
+        etapa.ordem === indice + 1
+          ? Promise.resolve()
+          : supabase.from("cronograma_etapas").update({ ordem: indice + 1 }).eq("id", etapa.id)
+      )
+    );
+  }
+
   await recalcularCronograma(supabase, obraId);
+
+  /*
+   * Renumera as tarefas de TODAS as etapas que mudaram de lugar, não só da
+   * apagada. Em série, e não em paralelo: `reordenarEtapaPorData` lê e escreve
+   * as mesmas linhas, e disparar várias ao mesmo tempo sobre o mesmo
+   * cronograma é pedir corrida de escrita.
+   */
+  for (const etapa of foraDeLugar) {
+    await reordenarEtapaPorData(supabase, etapa.id);
+  }
+
   revalidatePath(`/obras/${obraId}/cronograma`);
+  revalidatePath(`/obras/${obraId}/avanco`);
 }
 
 /*
@@ -165,12 +205,22 @@ async function reordenarEtapaPorData(
   supabase: Awaited<ReturnType<typeof createClient>>,
   etapaId: string
 ) {
-  const { data: tarefas } = await supabase
-    .from("cronograma_tarefas")
-    .select("id, data_inicio_cedo, restricao_inicio_nao_antes_de, created_at")
-    .eq("etapa_id", etapaId);
+  /*
+   * A etapa vem junto por causa do NÚMERO.
+   *
+   * O número da tarefa ("3.4") vive dentro do nome, e o primeiro dígito é a
+   * ordem da etapa. Para reescrever o prefixo é preciso saber em que etapa se
+   * está — ver a nota longa em `lib/cronograma/numeracao`.
+   */
+  const [{ data: etapa }, { data: tarefas }] = await Promise.all([
+    supabase.from("cronograma_etapas").select("ordem").eq("id", etapaId).maybeSingle(),
+    supabase
+      .from("cronograma_tarefas")
+      .select("id, nome, data_inicio_cedo, restricao_inicio_nao_antes_de, created_at")
+      .eq("etapa_id", etapaId),
+  ]);
 
-  if (!tarefas?.length) return;
+  if (!tarefas?.length || !etapa) return;
 
   const inicio = (t: (typeof tarefas)[number]) =>
     t.data_inicio_cedo ?? t.restricao_inicio_nao_antes_de ?? null;
@@ -186,10 +236,26 @@ async function reordenarEtapaPorData(
     return a.created_at < b.created_at ? -1 : 1;
   });
 
+  /*
+   * `ordem` e NOME na mesma passada.
+   *
+   * É aqui que "apagar a 3.3 faz a 3.4 virar 3.3" acontece: a lista é
+   * reordenada, e cada tarefa recebe o prefixo da posição em que ficou. Como
+   * esta função já roda depois de criar, editar e apagar tarefa, a numeração
+   * se mantém sozinha.
+   *
+   * O nome só é gravado quando muda — um `update` por tarefa a cada recálculo
+   * seria trabalho e escrita de banco por nada.
+   */
   await Promise.all(
-    ordenadas.map((tarefa, indice) =>
-      supabase.from("cronograma_tarefas").update({ ordem: indice + 1 }).eq("id", tarefa.id)
-    )
+    ordenadas.map((tarefa, indice) => {
+      const nome = comNumero(tarefa.nome, etapa.ordem, indice + 1);
+      const mudou = nome !== tarefa.nome;
+      return supabase
+        .from("cronograma_tarefas")
+        .update(mudou ? { ordem: indice + 1, nome } : { ordem: indice + 1 })
+        .eq("id", tarefa.id);
+    })
   );
 }
 

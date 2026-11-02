@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { atualizarTarefa } from "@/app/actions/cronograma";
+import { semNumero, numeroDaTarefa } from "@/lib/cronograma/numeracao";
 import {
   SeletorPredecessoras,
   type TarefaOpcao,
@@ -69,7 +70,14 @@ export function EditarTarefaDialog({
   const [open, setOpen] = useState(false);
   const [temPredecessora, setTemPredecessora] = useState(!!predecessorasAtuais.length);
   const [predecessoras, setPredecessoras] = useState<string[]>(predecessorasAtuais);
-  const [nome, setNome] = useState(tarefa.nome);
+  /*
+   * O campo guarda só a DESCRIÇÃO; o número é do sistema.
+   *
+   * Mostrar "4.1 Marcação das paredes" num campo editável convida a mexer no
+   * número — e ele seria sobrescrito ao salvar, porque a posição é que manda.
+   * O número aparece ao lado, fixo, e o que se digita é o resto.
+   */
+  const [nome, setNome] = useState(semNumero(tarefa.nome));
   const [duracao, setDuracao] = useState(String(tarefa.duracao_dias));
   const [critica, setCritica] = useState(tarefa.critica);
   /*
@@ -91,6 +99,7 @@ export function EditarTarefaDialog({
   const [erro, setErro] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const numero = numeroDaTarefa(tarefa.nome);
 
   function salvar(formData: FormData) {
     setErro(null);
@@ -130,7 +139,7 @@ export function EditarTarefaDialog({
     if (proximo) {
       setTemPredecessora(!!predecessorasAtuais.length);
       setPredecessoras(predecessorasAtuais);
-      setNome(tarefa.nome);
+      setNome(semNumero(tarefa.nome));
       setDuracao(String(tarefa.duracao_dias));
       setCritica(tarefa.critica);
       setInicio(tarefa.restricao_inicio_nao_antes_de ?? tarefa.data_inicio_cedo ?? "");
@@ -163,16 +172,27 @@ export function EditarTarefaDialog({
             */}
             <Field>
               <FieldLabel htmlFor="nome">Nome da tarefa</FieldLabel>
-              <Input
-                id="nome"
-                name="nome"
-                value={nome}
-                onChange={(e) => {
-                  setNome(e.target.value);
-                  setErro(null);
-                }}
-                required
-              />
+              <div className="flex items-center gap-2">
+                {numero && (
+                  <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+                    {numero}
+                  </span>
+                )}
+                <Input
+                  id="nome"
+                  name="nome"
+                  value={nome}
+                  onChange={(e) => {
+                    setNome(e.target.value);
+                    setErro(null);
+                  }}
+                  required
+                />
+              </div>
+              <FieldDescription>
+                O número é automático: ele segue a posição da tarefa na etapa. Apagar uma tarefa
+                renumera as seguintes.
+              </FieldDescription>
             </Field>
 
             {!!tarefasDaObra.length && (
