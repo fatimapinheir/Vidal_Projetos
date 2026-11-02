@@ -20,11 +20,17 @@ import { AdicionarItemNaEtapa, NovaEtapaButton, RemoverEtapaButton } from "@/com
 import { EditarItemDialog } from "@/components/orcamento/editar-item-dialog";
 import { ListaPorEtapa } from "@/components/orcamento/lista-por-etapa";
 import { DashboardOrcamento } from "@/components/orcamento/dashboard-orcamento";
+import { VersaoHistorico } from "@/components/orcamento/versao-historico";
+import { buscarTodasAsLinhas } from "@/lib/supabase/buscar-tudo";
 import { AjudaDaPagina } from "@/components/ui/ajuda-da-pagina";
 
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+
+/** As colunas que esta tela usa. Era `select("*")`, que trazia 12 para usar 9. */
+const COLUNAS_ITEM =
+  "id, codigo_sinapi, descricao, unidade, quantidade, preco_unitario, preco_total, etapa, tipo_item";
 
 type ItemOrcamento = {
   id: string;
@@ -67,23 +73,38 @@ export default async function OrcamentoObraPage({
       .order("created_at", { ascending: false }),
   ]);
 
-  const { data: itensHistorico } = versoesHistorico?.length
+  /*
+   * Do histórico vem só contagem e total — uma linha por versão.
+   *
+   * Carregava os ITENS de todas as versões substituídas numa consulta só, para
+   * montar o cabeçalho "227 itens · R$ 486.000" de um bloco que nasce FECHADO.
+   * Eram 352 linhas por abertura da tela, lidas por ninguém — e, pior, sem
+   * limite: o PostgREST corta em 1000 sem avisar, e a ALPHA já tem 438 em duas
+   * versões. Na quinta revisão o histórico passaria a mostrar menos itens do
+   * que existem, com total errado e nenhum erro na tela.
+   *
+   * Os itens de cada versão são buscados quando alguém a abre — ver
+   * `VersaoHistorico` e `buscarItensDaVersao`.
+   */
+  const { data: resumoVersoes } = versoesHistorico?.length
     ? await supabase
-        .from("orcamento_itens")
-        .select("*")
+        .from("vw_orcamento_versao_resumo")
+        .select("versao_id, itens, total")
         .in(
-          "orcamento_versao_id",
+          "versao_id",
           versoesHistorico.map((v) => v.id)
         )
-        .order("ordem")
     : { data: null };
 
-  const itensHistoricoPorVersao = new Map<string, ItemOrcamento[]>();
-  for (const item of itensHistorico ?? []) {
-    const lista = itensHistoricoPorVersao.get(item.orcamento_versao_id) ?? [];
-    lista.push(item);
-    itensHistoricoPorVersao.set(item.orcamento_versao_id, lista);
-  }
+  const resumoPorVersao = new Map(
+    (resumoVersoes ?? []).map((r) => [r.versao_id, { itens: r.itens, total: r.total }])
+  );
+
+  const historico = (versoesHistorico ?? []).map((v) => ({
+    ...v,
+    itens: resumoPorVersao.get(v.id)?.itens ?? 0,
+    total: resumoPorVersao.get(v.id)?.total ?? 0,
+  }));
 
   const cabecalho = (
     <div>
@@ -119,9 +140,7 @@ export default async function OrcamentoObraPage({
             padrao={{ orcamento: true, cronograma: false }}
           />
         </div>
-        {!!versoesHistorico?.length && (
-          <HistoricoRevisoes versoes={versoesHistorico} itensPorVersao={itensHistoricoPorVersao} />
-        )}
+        {!!historico.length && <HistoricoRevisoes obraId={obraId} versoes={historico} />}
       </div>
     );
   }
@@ -133,19 +152,39 @@ export default async function OrcamentoObraPage({
     { data: progresso },
     { data: obraCadastro },
   ] = await Promise.all([
+      /*
+       * Em páginas, e não numa requisição só.
+       *
+       * Um orçamento de casa montado da SINAPI tem de 500 a 2000 linhas, e o
+       * PostgREST corta em 1000 SEM avisar. A soma desta tela é o "orçado" que
+       * o cliente lê: cortada, ela devolve um número menor com cara de certo.
+       *
+       * `select` explícito no lugar de `*`: eram 12 colunas vindas do banco
+       * para as 9 que a tela usa.
+       */
       versaoRascunho
-        ? supabase
-            .from("orcamento_itens")
-            .select("*")
-            .eq("orcamento_versao_id", versaoRascunho.id)
-            .order("ordem")
+        ? buscarTodasAsLinhas<ItemOrcamento>((de, ate) =>
+            supabase
+              .from("orcamento_itens")
+              .select(COLUNAS_ITEM)
+              .eq("orcamento_versao_id", versaoRascunho.id)
+              // `id` desempata: sem ordem estável, duas linhas de mesma `ordem`
+              // podem trocar de lugar entre páginas — uma repete, a outra se perde.
+              .order("ordem")
+              .order("id")
+              .range(de, ate)
+          ).then((r) => ({ data: r.linhas }))
         : Promise.resolve({ data: null }),
       versaoAtiva
-        ? supabase
-            .from("orcamento_itens")
-            .select("*")
-            .eq("orcamento_versao_id", versaoAtiva.id)
-            .order("ordem")
+        ? buscarTodasAsLinhas<ItemOrcamento>((de, ate) =>
+            supabase
+              .from("orcamento_itens")
+              .select(COLUNAS_ITEM)
+              .eq("orcamento_versao_id", versaoAtiva.id)
+              .order("ordem")
+              .order("id")
+              .range(de, ate)
+          ).then((r) => ({ data: r.linhas }))
         : Promise.resolve({ data: null }),
       // Todas as compras da obra: é o "executado" desta tela. O avanço físico
       // não entra mais aqui — ele é medido por tarefa do cronograma, cuja EAP
@@ -412,85 +451,36 @@ export default async function OrcamentoObraPage({
         </>
       )}
 
-      {!!versoesHistorico?.length && (
-        <HistoricoRevisoes versoes={versoesHistorico} itensPorVersao={itensHistoricoPorVersao} />
-      )}
+      {!!historico.length && <HistoricoRevisoes obraId={obraId} versoes={historico} />}
     </div>
   );
 }
 
 function HistoricoRevisoes({
+  obraId,
   versoes,
-  itensPorVersao,
 }: {
-  versoes: { id: string; titulo: string | null; mes_referencia: string | null; created_at: string }[];
-  itensPorVersao: Map<string, ItemOrcamento[]>;
+  obraId: string;
+  versoes: {
+    id: string;
+    titulo: string | null;
+    mes_referencia: string | null;
+    created_at: string;
+    itens: number;
+    total: number;
+  }[];
 }) {
   return (
     <div className="flex flex-col gap-2">
       <h2 className="font-heading text-base font-semibold">Histórico de revisões</h2>
       <p className="text-sm text-muted-foreground">
-        Versões anteriores do orçamento, substituídas quando uma nova revisão foi ativada.
-        Ficam guardadas para consulta — não afetam mais os cálculos atuais.
+        Versões anteriores do orçamento, substituídas quando uma nova revisão foi ativada. Ficam
+        guardadas para consulta — não afetam mais os cálculos atuais.
       </p>
       <div className="flex flex-col gap-2">
-        {versoes.map((versao) => {
-          const itens = itensPorVersao.get(versao.id) ?? [];
-          const total = itens.reduce((sum, i) => sum + i.preco_total, 0);
-          return (
-            <details key={versao.id} className="rounded-xl border">
-              <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm font-medium">
-                <span>
-                  {versao.titulo ||
-                    (versao.mes_referencia ? `Referência ${formatDateBR(versao.mes_referencia)}` : "Sem título")}
-                  <span className="ml-2 font-normal text-muted-foreground">
-                    substituída em {formatDateBR(versao.created_at)}
-                  </span>
-                </span>
-                <span className="text-muted-foreground">
-                  {itens.length} {itens.length === 1 ? "item" : "itens"} · {formatCurrency(total)}
-                </span>
-              </summary>
-              <div className="overflow-x-auto border-t">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead>Etapa</TableHead>
-                      <TableHead>Un.</TableHead>
-                      <TableHead>Qtd.</TableHead>
-                      <TableHead>Preço unit.</TableHead>
-                      <TableHead>Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {itens.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="text-xs">{item.codigo_sinapi ?? "—"}</TableCell>
-                        <TableCell className="max-w-64 truncate">{item.descricao}</TableCell>
-                        <TableCell>
-                          {item.etapa ? <Badge variant="outline">{item.etapa}</Badge> : "—"}
-                        </TableCell>
-                        <TableCell>{item.unidade}</TableCell>
-                        <TableCell>{item.quantidade}</TableCell>
-                        <TableCell>{formatCurrency(item.preco_unitario)}</TableCell>
-                        <TableCell>{formatCurrency(item.preco_total)}</TableCell>
-                      </TableRow>
-                    ))}
-                    {!itens.length && (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground">
-                          Nenhum item registrado nessa versão.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </details>
-          );
-        })}
+        {versoes.map((versao) => (
+          <VersaoHistorico key={versao.id} obraId={obraId} versao={versao} />
+        ))}
       </div>
     </div>
   );

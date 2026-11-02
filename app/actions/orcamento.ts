@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
+import { buscarTodasAsLinhas } from "@/lib/supabase/buscar-tudo";
 import { parseNumeroBR } from "@/lib/parse-numero-br";
 import { normalizarUnidade } from "@/lib/orcamento/unidades";
 import type { ItemPlanilha } from "@/components/upload/spreadsheet-upload-wizard";
@@ -712,4 +713,48 @@ export async function removerEtapaOrcamento(
 
   revalidatePath(`/obras/${obraId}/orcamento`);
   return { error: null };
+}
+
+/**
+ * Os itens de uma versão de orçamento, buscados quando alguém abre a versão.
+ *
+ * Existe para o histórico de revisões não carregar os itens de TODAS as versões
+ * a cada abertura da tela. Ele mostrava "227 itens · R$ 486.000" num bloco que
+ * nasce fechado, e para isso trazia as 227 linhas — de cada versão, sempre.
+ * A contagem e o total agora vêm de `vw_orcamento_versao_resumo`, e as linhas
+ * só vêm quando são realmente olhadas.
+ *
+ * Em páginas, por `buscarTodasAsLinhas`: o PostgREST corta em 1000 linhas sem
+ * avisar, e um orçamento de obra passa disso sem dificuldade.
+ */
+export async function buscarItensDaVersao(obraId: string, versaoId: string) {
+  await requireRole("engenheiro");
+  const supabase = await createClient();
+
+  // A versão tem de ser desta obra: o id vem do navegador, e sem o filtro
+  // qualquer versão de qualquer obra seria legível por aqui.
+  const { data: versao } = await supabase
+    .from("orcamento_versoes")
+    .select("id")
+    .eq("id", versaoId)
+    .eq("obra_id", obraId)
+    .maybeSingle();
+
+  if (!versao) return { itens: [], error: "Versão não encontrada nesta obra." };
+
+  const { linhas, error } = await buscarTodasAsLinhas((de, ate) =>
+    supabase
+      .from("orcamento_itens")
+      .select("id, codigo_sinapi, descricao, unidade, quantidade, preco_unitario, preco_total, etapa")
+      .eq("orcamento_versao_id", versaoId)
+      // Ordem estável, com `id` desempatando: sem isso duas linhas de mesma
+      // `ordem` podem trocar de lugar entre páginas, repetindo uma e perdendo
+      // a outra.
+      .order("ordem")
+      .order("id")
+      .range(de, ate)
+  );
+
+  if (error) return { itens: [], error: "Não foi possível carregar os itens dessa versão." };
+  return { itens: linhas, error: null };
 }

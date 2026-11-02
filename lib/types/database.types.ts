@@ -1250,6 +1250,22 @@ export interface Database {
         };
         Relationships: [];
       };
+      /**
+       * Uma linha por versão de orçamento: quantos itens e quanto soma (0071).
+       *
+       * Existe para o histórico de revisões não carregar os itens de todas as
+       * versões só para mostrar contagem e total num bloco que nasce fechado.
+       */
+      vw_orcamento_versao_resumo: {
+        Row: {
+          versao_id: string;
+          obra_id: string;
+          status: OrcamentoVersaoStatus;
+          itens: number;
+          total: number;
+        };
+        Relationships: [];
+      };
       vw_progresso_obra: {
         Row: {
           obra_id: string;
