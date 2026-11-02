@@ -2,6 +2,7 @@ import type { createClient } from "@/lib/supabase/server";
 import { hojeIso } from "@/lib/locacoes/calculo";
 import { horaNoFuso } from "@/lib/fuso";
 import type { DiarioCondicao, PresencaStatus } from "@/lib/types/database.types";
+import { percentualDeAvanco } from "@/lib/avanco/percentual";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -188,16 +189,17 @@ export async function carregarExtraCliente(
    * etapa só sai de "a iniciar" quando existe medição de avanço maior que
    * zero em alguma tarefa dela.
    *
-   * O percentual é ponderado por duração — a mesma régua de
-   * `vw_progresso_obra`. Média simples faria "limpeza do terreno" (2 dias)
-   * pesar igual a "alvenaria" (30 dias), e concluir as tarefas curtas infla o
-   * número sem obra feita.
+   * O percentual é a MÉDIA SIMPLES das tarefas — a mesma régua de
+   * `lib/avanco/percentual` e de `vw_progresso_obra` (0074). Era ponderado por
+   * duração, e a troca veio da obra: três de quatro tarefas concluídas
+   * mostravam 60% porque a pendente era a mais longa. Número que contraria a
+   * leitura direta vira desconfiança.
    */
   const percentualPorTarefa = new Map(
     (avancos ?? []).map((a) => [a.cronograma_tarefa_id, Number(a.percentual) || 0])
   );
 
-  type Acumulado = EtapaResumo & { diasPlanejados: number; diasExecutados: number };
+  type Acumulado = EtapaResumo & { percentuais: number[] };
   const porEtapa = new Map<string, Acumulado>();
   for (const t of todasTarefas ?? []) {
     const etapa = t.cronograma_etapas as unknown as {
@@ -216,29 +218,27 @@ export async function carregarExtraCliente(
         concluidas: 0,
         situacao: "a_iniciar",
         percentual: 0,
-        diasPlanejados: 0,
-        diasExecutados: 0,
+        percentuais: [],
       } satisfies Acumulado);
 
-    // Duração zero existe (marco), e pesaria nada na ponderação. Conta como
-    // um dia para que uma etapa só de marcos ainda tenha percentual.
-    const dias = Math.max(1, t.duracao_dias ?? 1);
+    /*
+     * A duração saiu da conta. Marco de duração zero deixou de ser caso
+     * especial: antes ele pesava nada na ponderação e precisava virar "um dia"
+     * na marra; agora conta como qualquer outra tarefa.
+     */
     const avanco = percentualPorTarefa.get(t.id) ?? 0;
 
     atual.total += 1;
-    atual.diasPlanejados += dias;
-    atual.diasExecutados += (dias * avanco) / 100;
+    atual.percentuais.push(avanco);
     if (avanco >= 100) atual.concluidas += 1;
     else if (avanco > 0) atual.situacao = "andamento";
 
     porEtapa.set(etapa.id, atual);
   }
   const etapas = [...porEtapa.values()]
-    .map(({ diasPlanejados, diasExecutados, ...e }) => ({
+    .map(({ percentuais, ...e }) => ({
       ...e,
-      percentual: diasPlanejados
-        ? Math.round((diasExecutados / diasPlanejados) * 100)
-        : 0,
+      percentual: Math.round(percentualDeAvanco(percentuais)),
       situacao:
         e.total > 0 && e.concluidas === e.total
           ? ("concluida" as const)

@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatDateBR } from "@/lib/format-date";
 import { hojeIso } from "@/lib/locacoes/calculo";
 import { PercentualTarefa, ConcluirEtapaButton } from "./avanco-controles";
+import { percentualDeAvanco } from "@/lib/avanco/percentual";
 
 const ISO_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -79,19 +80,11 @@ export default async function AvancoObraPage({
     tarefasPorEtapa.set(tarefa.etapa_id, daEtapa);
   }
 
-  /**
-   * O percentual da etapa e o da obra são ponderados por duração, igual à
-   * `vw_progresso_obra`. Média simples faria tarefa de 1 dia pesar o mesmo que
-   * uma de 30, e concluir as curtas infla o progresso.
-   */
+  /** Média simples das tarefas — a régua está em `lib/avanco/percentual`. */
   function percentualDe(lista: NonNullable<typeof tarefas>) {
-    const dias = lista.reduce((s, t) => s + t.duracao_dias, 0);
-    if (dias <= 0) return 0;
-    const executados = lista.reduce(
-      (s, t) => s + (t.duracao_dias * (avancoPorTarefa.get(t.id)?.percentual ?? 0)) / 100,
-      0
+    return percentualDeAvanco(
+      lista.map((t) => avancoPorTarefa.get(t.id)?.percentual ?? 0)
     );
-    return (executados / dias) * 100;
   }
 
   const todasTarefas = tarefas ?? [];
@@ -142,8 +135,7 @@ export default async function AvancoObraPage({
           <Barra percentual={percentualObra} />
           <p className="text-xs text-muted-foreground">
             {concluidas} de {todasTarefas.length} tarefas concluídas
-            {emAndamento > 0 && `, ${emAndamento} em andamento`} · ponderado pela duração de cada
-            tarefa
+            {emAndamento > 0 && `, ${emAndamento} em andamento`} · média simples das tarefas
           </p>
         </CardContent>
       </Card>

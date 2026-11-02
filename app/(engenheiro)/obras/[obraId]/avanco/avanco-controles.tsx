@@ -3,7 +3,7 @@
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Check, CheckCheck } from "lucide-react";
+import { CheckCheck } from "lucide-react";
 import { registrarAvancoTarefa, concluirEtapa } from "@/app/actions/avanco";
 
 /**
@@ -102,16 +102,33 @@ export function PercentualTarefa({
         }`}
       />
       <span className="text-xs text-muted-foreground">%</span>
+      {/*
+        O atalho diz "100%", e não é mais um sinal de visto.
+        
+        Era um ✓ colado no campo que a pessoa acabou de digitar, e sinal de
+        visto ao lado de um campo significa CONFIRMAR em qualquer lugar do
+        mundo. O que ele fazia era outra coisa: marcar a tarefa como concluída.
+        
+        Aconteceu na obra, e está gravado: alguém pôs 0% na "Elevação das
+        paredes internas", viu o visto, clicou para confirmar o zero — e a
+        tarefa foi para 100%. Depois repetiu, achando que tinha errado o
+        clique, e foi para 100% de novo. Quatro registros em dois minutos,
+        alternando 0 e 100.
+        
+        O campo salva sozinho ao sair dele ou no Enter, então nunca houve o que
+        confirmar. Agora o botão diz o número que ele grava — não há como ler
+        como outra coisa.
+      */}
       {valorOtimista < 100 && (
         <Button
           onClick={() => salvar(100)}
           disabled={pending}
           variant="ghost"
-          size="icon-sm"
-          aria-label="Marcar como concluída"
-          title="Marcar como concluída (100%)"
+          size="sm"
+          className="h-8 px-2 text-xs"
+          title="Marcar a tarefa como concluída"
         >
-          <Check className="size-4" />
+          100%
         </Button>
       )}
     </div>
