@@ -96,6 +96,64 @@ describe("folga (margem)", () => {
   });
 });
 
+/*
+ * O caso que travou a CASA VIDAL ALPHA, reduzido ao essencial.
+ *
+ * Numa obra em andamento, as datas REAIS lançadas nem sempre respeitam a
+ * ordem das dependências: lá, 35 tarefas foram concluídas entre 12/10 e
+ * 02/11, independentemente de onde estavam na corrente. Quando uma sucessora
+ * termina antes da predecessora, a passagem para trás precisa de datas ANTES
+ * do início da janela — e o cálculo inteiro parava, com uma mensagem dizendo
+ * que o cronograma tinha ficado GRANDE demais.
+ *
+ * Nenhuma edição em nenhuma tarefa daquela obra salvava.
+ */
+describe("datas reais que contradizem a ordem das dependências", () => {
+  const comReal = (id: string, duracaoDias: number, inicio: string, fim: string) => ({
+    id,
+    nome: id,
+    duracaoDias,
+    restricaoInicioNaoAntesDe: null,
+    dataInicioReal: inicio,
+    dataFimReal: fim,
+  });
+
+  it("calcula em vez de estourar, e acusa a inconsistência como folga negativa", () => {
+    const r = calcularCPM(
+      [
+        { ...tarefa("inicio", 1, "2026-01-05") },
+        // "a" termina DEPOIS de "b", que depende dela. É a contradição.
+        comReal("a", 5, "2026-02-02", "2026-02-20"),
+        comReal("b", 5, "2026-01-12", "2026-01-16"),
+        tarefa("c", 30),
+      ],
+      [liga("inicio", "a"), liga("a", "b"), liga("b", "c")]
+    );
+
+    expect(r).toHaveLength(4);
+    // Todas as datas existem: o cálculo não parou.
+    for (const t of r) {
+      expect(t.dataInicioTarde).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(t.dataFimTarde).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+    // E a contradição aparece onde deve: "a" não cabe no lugar que ocupa.
+    expect(r.find((t) => t.id === "a")!.folgaDias).toBeLessThan(0);
+  });
+
+  it("duração absurda falha rápido, e com a frase do lado certo", () => {
+    /*
+     * Também é teste de DESEMPENHO, por isso o número é grande mas finito: a
+     * janela é um array montado dia a dia, e sem o teto de margem isto
+     * congelaria a tela em vez de reclamar.
+     */
+    const antes = Date.now();
+    expect(() => calcularCPM([tarefa("gigante", 200_000, "2026-01-05")], [])).toThrow(
+      /horizonte/
+    );
+    expect(Date.now() - antes).toBeLessThan(2000);
+  });
+});
+
 describe("o que o motor recusa", () => {
   it("tarefa sem predecessora e sem âncora, com o nome no erro", () => {
     expect(() => calcularCPM([tarefa("a", 1, "2026-01-08"), tarefa("solta", 1)], [])).toThrow(

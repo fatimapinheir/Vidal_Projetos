@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { calcularCPM, type FolgaEntrada } from "@/lib/cronograma/cpm";
 import { acharTemplate } from "@/lib/cronograma/templates";
-import { comNumero } from "@/lib/cronograma/numeracao";
+import { comNumero, semNumero, numeroDaTarefa } from "@/lib/cronograma/numeracao";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -445,22 +445,27 @@ export async function criarTarefa(
 
   if (predecessora) await definirPredecessoras(supabase, novaTarefa.id, [predecessora.id]);
 
-  try {
-    await recalcularCronograma(supabase, obraId);
-  } catch (err) {
-    return {
-      error:
-        err instanceof Error
-          ? err.message
-          : "Tarefa criada, mas não foi possível calcular o cronograma (verifique se ela precisa de uma data âncora).",
-    };
-  }
+  /*
+   * Mesma correção de `atualizarTarefa`: a renumeração roda mesmo se o
+   * recálculo falhar. A tarefa recém-criada nasce sem número — é a
+   * renumeração que o dá —, e deixá-la inalcançável deixaria a tarefa sem
+   * número para sempre num cronograma que não fecha.
+   */
+  const erroDoCalculo = await recalcularCronograma(supabase, obraId).then(
+    () => null,
+    (err: unknown) =>
+      err instanceof Error
+        ? err.message
+        : "Tarefa criada, mas não foi possível calcular o cronograma (verifique se ela precisa de uma data âncora)."
+  );
 
   // Depois do recálculo: é ele que apura a data de início de cada tarefa.
   await reordenarEtapaPorData(supabase, etapaId);
 
   revalidatePath(`/obras/${obraId}/cronograma`);
   revalidatePath(`/obras/${obraId}/avanco`);
+
+  if (erroDoCalculo) return { error: erroDoCalculo };
   return { error: null, success: true };
 }
 
@@ -697,7 +702,7 @@ export async function atualizarTarefa(
 
   const { data: estaTarefa } = await supabase
     .from("cronograma_tarefas")
-    .select("etapa_id")
+    .select("etapa_id, nome")
     .eq("id", tarefaId)
     .eq("obra_id", obraId)
     .maybeSingle();
@@ -731,6 +736,8 @@ export async function atualizarTarefa(
     }
   }
 
+  const numeroAtual = numeroDaTarefa(estaTarefa.nome);
+
   const { error } = await supabase
     .from("cronograma_tarefas")
     .update({
@@ -742,7 +749,22 @@ export async function atualizarTarefa(
       // engenheiro tinha de descobrir qual data final dava 10 dias úteis a
       // partir de um início que ele não via. Era a conta do sistema, feita
       // à mão.
-      nome: parsed.data.nome,
+      /*
+       * O número é recolocado AQUI, não só na renumeração.
+       *
+       * O formulário manda a descrição sem número — é o sistema que numera. Se
+       * o nome fosse gravado pelado e a renumeração só viesse depois, qualquer
+       * falha no meio deixaria a tarefa sem número. Aconteceu: o recálculo do
+       * cronograma estourava, a renumeração nunca rodava, e "Concretagem laje
+       * 1" e "Concretagem laje 2" ficaram sem o "3.5" e o "3.9".
+       *
+       * O número aproveitado é o que a tarefa já tinha. Se a posição mudou, a
+       * renumeração logo abaixo corrige; o que não pode é existir um instante
+       * em que o nome está gravado sem ele.
+       */
+      nome: numeroAtual
+        ? `${numeroAtual} ${semNumero(parsed.data.nome)}`
+        : parsed.data.nome,
       duracao_dias: parsed.data.duracao_dias,
       restricao_inicio_nao_antes_de: parsed.data.restricao_inicio_nao_antes_de || null,
       data_inicio_real: parsed.data.data_inicio_real || null,
@@ -759,16 +781,31 @@ export async function atualizarTarefa(
 
   await definirPredecessoras(supabase, tarefaId, predecessoraIds);
 
-  try {
-    await recalcularCronograma(supabase, obraId);
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Não foi possível recalcular o cronograma." };
-  }
+  /*
+   * A renumeração roda MESMO SE o recálculo falhar.
+   *
+   * Era `return` direto no catch, e a renumeração ficava inalcançável: um
+   * cronograma que não fecha — obra atrasada ao ponto de a sequência não
+   * caber — deixava a tarefa recém-editada sem número e a etapa com a ordem
+   * furada. O erro do cálculo não deveria contaminar a numeração, que não
+   * depende dele.
+   *
+   * A ordenação usa as datas da última vez que o cálculo deu certo. Com o
+   * cronograma inconsistente elas estão velhas, mas velhas é melhor que
+   * nenhuma: a tarefa continua no lugar e com o número que tinha.
+   */
+  const erroDoCalculo = await recalcularCronograma(supabase, obraId).then(
+    () => null,
+    (err: unknown) =>
+      err instanceof Error ? err.message : "Não foi possível recalcular o cronograma."
+  );
 
   await reordenarEtapaPorData(supabase, estaTarefa.etapa_id);
 
   revalidatePath(`/obras/${obraId}/cronograma`);
   revalidatePath(`/obras/${obraId}/avanco`);
+
+  if (erroDoCalculo) return { error: erroDoCalculo };
   return { error: null, success: true };
 }
 

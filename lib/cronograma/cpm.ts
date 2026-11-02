@@ -128,8 +128,27 @@ function construirCalendarioUtil(folgas: FolgaEntrada[], diaMinimo: number, diaM
   }
 
   function paraDiaCalendario(indice: number): number {
-    if (indice < 0 || indice >= indiceParaCalendario.length) {
-      throw new Error("O cronograma ficou maior que o horizonte calculado — tente reduzir folgas/durações.");
+    /*
+     * Duas pontas, duas causas — e a mensagem precisa dizer qual.
+     *
+     * Antes era uma frase só, "o cronograma ficou maior que o horizonte", para
+     * os dois casos. Na obra real quem disparou foi o lado de BAIXO, e a frase
+     * mandava reduzir durações: conselho que não ajudava, porque o problema
+     * não era falta de espaço no fim.
+     */
+    if (indice < 0) {
+      throw new Error(
+        "O cronograma não fecha: a corrente de tarefas encadeadas é mais longa que o " +
+          "tempo entre o início da obra e a última data lançada. Alguma tarefa teria de " +
+          "ter começado antes do início da obra. Revise as datas reais lançadas ou as " +
+          "durações das tarefas encadeadas."
+      );
+    }
+    if (indice >= indiceParaCalendario.length) {
+      throw new Error(
+        "O cronograma passou do horizonte calculado — alguma duração ou folga está " +
+          "grande demais."
+      );
     }
     return indiceParaCalendario[indice];
   }
@@ -249,16 +268,54 @@ export function calcularCPM(
   }
 
   const somaDuracoes = tarefas.reduce((soma, t) => soma + t.duracaoDias, 0);
-  const diaMinimo = Math.min(...datasReferenciadas);
+
   /*
-   * O horizonte é em dias de CALENDÁRIO, e a duração em dias ÚTEIS.
+   * A janela se estende para TRÁS também, e não só para a frente.
+   *
+   * A passagem para trás calcula "o mais tarde que cada tarefa pode começar
+   * sem atrasar o fim". Quando há data real lançada, a passagem para a FRENTE
+   * respeita essa data e comprime o cronograma; a de trás não conhece data
+   * real — ela volta pela duração das tarefas encadeadas.
+   *
+   * Quando a corrente é mais longa que o espaço comprimido, as datas-tarde
+   * caem ANTES do primeiro dia da janela. Foi o que aconteceu na CASA VIDAL
+   * ALPHA: a maior cadeia exige 81 dias úteis, o fim do projeto estava a 40 do
+   * início, e o cálculo precisava recuar 41 dias antes do começo. A janela não
+   * existia ali, e o cronograma inteiro parou de calcular — nenhuma edição
+   * salvava.
+   *
+   * Isso é informação legítima, não erro: significa que a obra está atrasada
+   * ao ponto de a sequência planejada não caber mais. A tela já sabe mostrar
+   * folga negativa. O que faltava era espaço para o número existir.
+   *
+   * O custo é memória de um array de inteiros, algumas milhares de posições.
+   */
+  /*
+   * A margem é em dias de CALENDÁRIO, e a duração vem em dias ÚTEIS.
    *
    * Com a semana de cinco dias, cada dia útil custa 1,4 de calendário — sem a
-   * conversão, um cronograma longo estouraria o horizonte e o cálculo pararia
-   * com "o cronograma ficou maior que o horizonte calculado". Os 730 de folga
-   * continuam por cima, para feriados e paradas.
+   * conversão, um cronograma longo estouraria a janela. Os 730 por cima são
+   * para feriados e paradas.
+   *
+   * A mesma margem vale para os dois lados: a corrente de tarefas nunca exige
+   * mais que a soma das durações, nem para a frente nem para trás.
    */
-  const diaMaximo = diaMinimo + Math.ceil((somaDuracoes * 7) / 5) + 730;
+  /*
+   * Com teto, para entrada absurda falhar RÁPIDO em vez de alocar memória.
+   *
+   * A janela é construída dia a dia num array. Sem teto, uma duração digitada
+   * errada — 5.000.000 em vez de 5 — mandaria montar catorze milhões de
+   * posições antes de qualquer erro aparecer: a tela congelaria em vez de
+   * reclamar.
+   *
+   * Vinte anos para cada lado é folgado com muita sobra: o maior cronograma
+   * desta base soma 714 dias úteis, cerca de mil de calendário. Passando
+   * disso, o `paraDiaCalendario` acusa, que é o comportamento certo.
+   */
+  const MARGEM_MAXIMA_DIAS = 365 * 20;
+  const margem = Math.min(Math.ceil((somaDuracoes * 7) / 5) + 730, MARGEM_MAXIMA_DIAS);
+  const diaMinimo = Math.min(...datasReferenciadas) - margem;
+  const diaMaximo = Math.max(...datasReferenciadas) + margem;
 
   const { paraIndice, paraDiaCalendario } = construirCalendarioUtil(folgas, diaMinimo, diaMaximo);
 
