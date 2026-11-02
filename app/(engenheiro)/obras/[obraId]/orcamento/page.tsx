@@ -52,7 +52,12 @@ export default async function OrcamentoObraPage({
   const { obraId } = await params;
   const supabase = await createClient();
 
-  const [{ data: versaoAtiva }, { data: versaoRascunho }, { data: versoesHistorico }] = await Promise.all([
+  const [
+    { data: versaoAtiva },
+    { data: versaoRascunho },
+    { data: versoesHistorico },
+    { data: resumoVersoes },
+  ] = await Promise.all([
     supabase
       .from("orcamento_versoes")
       .select("id, titulo, mes_referencia, etapas")
@@ -71,6 +76,21 @@ export default async function OrcamentoObraPage({
       .eq("obra_id", obraId)
       .eq("status", "substituida")
       .order("created_at", { ascending: false }),
+    /*
+     * O resumo das versões vem JUNTO, não depois.
+     *
+     * Eu havia colocado esta consulta em seguida, filtrando pelos ids que a
+     * consulta acima devolve — e com isso ela virou um estágio sequencial
+     * próprio: mais uma ida inteira ao Supabase antes de a tela poder
+     * continuar. A dependência era desnecessária, porque a view tem `obra_id`
+     * e `status`: dá para pedir o resumo das substituídas desta obra sem saber
+     * quais são.
+     */
+    supabase
+      .from("vw_orcamento_versao_resumo")
+      .select("versao_id, itens, total")
+      .eq("obra_id", obraId)
+      .eq("status", "substituida"),
   ]);
 
   /*
@@ -86,16 +106,6 @@ export default async function OrcamentoObraPage({
    * Os itens de cada versão são buscados quando alguém a abre — ver
    * `VersaoHistorico` e `buscarItensDaVersao`.
    */
-  const { data: resumoVersoes } = versoesHistorico?.length
-    ? await supabase
-        .from("vw_orcamento_versao_resumo")
-        .select("versao_id, itens, total")
-        .in(
-          "versao_id",
-          versoesHistorico.map((v) => v.id)
-        )
-    : { data: null };
-
   const resumoPorVersao = new Map(
     (resumoVersoes ?? []).map((r) => [r.versao_id, { itens: r.itens, total: r.total }])
   );
