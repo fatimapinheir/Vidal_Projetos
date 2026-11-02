@@ -1,11 +1,11 @@
 "use client";
 
 import { useId, useState } from "react";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { NavEntry, NavItem } from "./app-shell";
+import { ChevronDown, Loader2, type LucideIcon } from "lucide-react";
 import { navIcones, type NomeDeIcone } from "./nav-icones";
 import { obraDoCaminho, resolverHref } from "./nav-href";
 
@@ -37,6 +37,39 @@ function cobre(pathname: string, href: string) {
  */
 function acharAtivo(pathname: string, hrefs: string[]): string | undefined {
   return hrefs.filter((h) => cobre(pathname, h)).sort((a, b) => b.length - a.length)[0];
+}
+
+/**
+ * O ícone do item vira spinner enquanto a tela está a caminho.
+ *
+ * Cobre o buraco que o `loading.tsx` não cobre: o instante ENTRE o clique e a
+ * troca de rota. Com o prefetch desligado, esse instante existe de verdade —
+ * o navegador vai ao servidor buscar a tela antes de poder mostrar qualquer
+ * coisa, e até o esqueleto aparecer a lateral ficava muda sobre qual item
+ * você clicou.
+ *
+ * `useLinkStatus` só funciona DENTRO de um `<Link>`, por isso é um componente
+ * próprio em vez de um estado no item. Trocar o ícone no lugar de acrescentar
+ * um spinner evita a tela pular: mesmo espaço, mesma posição.
+ */
+function IconeOuSpinner({ Icone, ativo }: { Icone?: LucideIcon; ativo: boolean }) {
+  const { pending } = useLinkStatus();
+
+  if (pending) {
+    return (
+      <Loader2
+        className="size-[18px] shrink-0 animate-spin text-sidebar-primary"
+        aria-hidden
+      />
+    );
+  }
+  if (!Icone) return null;
+  return (
+    <Icone
+      className={cn("size-[18px] shrink-0", ativo ? "text-sidebar-primary" : "opacity-80")}
+      aria-hidden
+    />
+  );
 }
 
 function ItemLink({
@@ -101,12 +134,7 @@ function ItemLink({
           className="absolute top-1/2 -left-3 h-6 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary group-data-[recolhida]/lateral:-left-2"
         />
       )}
-      {Icone && (
-        <Icone
-          className={cn("size-[18px] shrink-0", ativo ? "text-sidebar-primary" : "opacity-80")}
-          aria-hidden
-        />
-      )}
+      <IconeOuSpinner Icone={Icone} ativo={ativo} />
       {/* Sem `truncate`: em item de menu duas linhas lêem melhor que reticências,
           que cortariam justamente a palavra que diferencia a tela. */}
       <span className="leading-tight group-data-[recolhida]/lateral:hidden">{item.label}</span>
