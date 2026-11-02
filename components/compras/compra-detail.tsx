@@ -19,6 +19,7 @@ import { EtapaOrcamentoSelect } from "./etapa-orcamento-select";
 import { formatDateBR as formatDate } from "@/lib/format-date";
 import { getProfile } from "@/lib/auth/get-profile";
 import { AnexosCompra } from "./anexos-compra";
+import { rotuloDesconto } from "@/lib/compras/total-item";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -283,11 +284,7 @@ export async function CompraDetail({
                     <TableCell>{item.quantidade}</TableCell>
                     <TableCell>{formatCurrency(item.preco_unitario)}</TableCell>
                     <TableCell className="text-xs">
-                      {item.desconto_tipo === "percentual"
-                        ? `${item.desconto_valor}%`
-                        : item.desconto_tipo === "valor"
-                          ? formatCurrency(item.desconto_valor ?? 0)
-                          : "—"}
+                      {rotuloDesconto(item.desconto_tipo, item.desconto_valor) ?? "—"}
                     </TableCell>
                     <TableCell>{formatCurrency(item.total_liquido)}</TableCell>
                   </TableRow>
@@ -311,7 +308,7 @@ export async function CompraDetail({
             {compra.desconto_tipo && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
-                  Desconto da nota ({compra.desconto_tipo === "percentual" ? `${compra.desconto_valor}%` : formatCurrency(compra.desconto_valor ?? 0)})
+                  Desconto da nota ({rotuloDesconto(compra.desconto_tipo, compra.desconto_valor)})
                 </span>
                 <span>-{formatCurrency(subtotalItens - compra.valor_total)}</span>
               </div>

@@ -24,6 +24,12 @@ import {
 } from "@/components/ui/table";
 import { createCompra, atualizarCompra, type CompraFormState } from "@/app/actions/compras";
 import {
+  subtotalDosItens,
+  totalLiquidoDoItem,
+  aplicarDescontoDaNota,
+  rotuloDesconto,
+} from "@/lib/compras/total-item";
+import {
   ItemCompraPicker,
   type ItemCompraLocal,
   type InsumoOpcao,
@@ -53,16 +59,6 @@ function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function totalItem(item: ItemCompraLocal) {
-  const subtotal = item.quantidade * item.preco_unitario;
-  if (item.desconto_tipo === "percentual") {
-    return Math.max(subtotal * (1 - (item.desconto_valor ?? 0) / 100), 0);
-  }
-  if (item.desconto_tipo === "valor") {
-    return Math.max(subtotal - (item.desconto_valor ?? 0), 0);
-  }
-  return subtotal;
-}
 
 let nextRowId = 1;
 let nextItemId = 1;
@@ -225,13 +221,14 @@ export function OrdemCompraForm({
   const [descontoNotaValor, setDescontoNotaValor] = useState(inicial?.descontoValor ?? "");
 
   const totalParcelas = rows.length;
-  const subtotalItens = itens.reduce((sum, item) => sum + totalItem(item), 0);
-  const totalNota =
-    descontoNotaTipo === "percentual"
-      ? Math.max(subtotalItens * (1 - (Number(descontoNotaValor) || 0) / 100), 0)
-      : descontoNotaTipo === "valor"
-        ? Math.max(subtotalItens - (Number(descontoNotaValor) || 0), 0)
-        : subtotalItens;
+  const subtotalItens = subtotalDosItens(itens);
+  // A conta do desconto da nota vem de `lib/compras/total-item`, a mesma que a
+  // ação usa para conferir e que espelha o gatilho do banco.
+  const totalNota = aplicarDescontoDaNota(
+    subtotalItens,
+    descontoNotaTipo || null,
+    Number(descontoNotaValor) || 0
+  );
 
   /*
    * O rateio é DERIVADO do total da nota, não guardado em estado.
@@ -520,13 +517,9 @@ export function OrdemCompraForm({
                       <TableCell>{item.quantidade}</TableCell>
                       <TableCell>{formatCurrency(item.preco_unitario)}</TableCell>
                       <TableCell className="text-xs">
-                        {item.desconto_tipo === "percentual"
-                          ? `${item.desconto_valor}%`
-                          : item.desconto_tipo === "valor"
-                            ? formatCurrency(item.desconto_valor ?? 0)
-                            : "—"}
+                        {rotuloDesconto(item.desconto_tipo, item.desconto_valor) ?? "—"}
                       </TableCell>
-                      <TableCell>{formatCurrency(totalItem(item))}</TableCell>
+                      <TableCell>{formatCurrency(totalLiquidoDoItem(item))}</TableCell>
                       <TableCell className="text-right">
                         <Button
                           type="button"

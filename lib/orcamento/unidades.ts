@@ -45,6 +45,16 @@ export function normalizarUnidade(bruta: string): string | null {
     .toUpperCase()
     .replace(/²/g, "2")
     .replace(/³/g, "3")
+    /*
+     * Acento sai antes de comparar.
+     *
+     * Sem isto, "mês" — a grafia natural em português, e exatamente a que o
+     * sistema grava nos itens gerados pela locação mensal — não casava com
+     * "MES" e caía no null, preservando a divergência que esta função existe
+     * para acabar. Foi o teste desta função que encontrou.
+     */
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[.\s]/g, "");
   if (!limpa) return null;
 

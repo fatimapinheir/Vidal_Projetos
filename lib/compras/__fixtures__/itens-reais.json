@@ -1,0 +1,688 @@
+[
+  {
+    "quantidade": 2,
+    "preco_unitario": 4,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 8
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 875,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 875
+  },
+  {
+    "quantidade": 100,
+    "preco_unitario": 42.5,
+    "desconto_tipo": null,
+    "desconto_valor": null,
+    "total_liquido": 4250
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 1220.12,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 1220.12
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 875,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 875
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 1000,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 1000
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 550,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 550
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 1000,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 1000
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 871.26,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 871.26
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 8100,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 8100
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 2660.5,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 2660.5
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 2500,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 2500
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 34,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 34
+  },
+  {
+    "quantidade": 30,
+    "preco_unitario": 18,
+    "desconto_tipo": null,
+    "desconto_valor": null,
+    "total_liquido": 540
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 284.16,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 284.16
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 1200,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 1200
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 209.45,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 209.45
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 231,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 231
+  },
+  {
+    "quantidade": 3,
+    "preco_unitario": 72,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 216
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 152,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 152
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 426.21,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 426.21
+  },
+  {
+    "quantidade": 2,
+    "preco_unitario": 125,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 250
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 570,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 570
+  },
+  {
+    "quantidade": 3,
+    "preco_unitario": 150,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 450
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 460,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 460
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 6000,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 6000
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 440,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 440
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 1291,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 1291
+  },
+  {
+    "quantidade": 2,
+    "preco_unitario": 22,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 44
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 99.8,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 99.8
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 1000,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 1000
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 2874.46,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 2874.46
+  },
+  {
+    "quantidade": 2,
+    "preco_unitario": 5,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 10
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 27,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 27
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 1.5,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 1.5
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 460,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 460
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 13373.52,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 13373.52
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 8.5,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 8.5
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 337.35,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 337.35
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 180,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 180
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 900,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 900
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 15.5,
+    "desconto_tipo": null,
+    "desconto_valor": null,
+    "total_liquido": 15.5
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 2000,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 2000
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 885.19,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 885.19
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 663.52,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 663.52
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 2200,
+    "desconto_tipo": null,
+    "desconto_valor": null,
+    "total_liquido": 2200
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 9030,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 9030
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 199.96,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 199.96
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 200,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 200
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 1260,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 1260
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 11300.8,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 11300.8
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 358.9,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 358.9
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 311.39,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 311.39
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 300,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 300
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 514.36,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 514.36
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 285.9,
+    "desconto_tipo": null,
+    "desconto_valor": null,
+    "total_liquido": 285.9
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 230,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 230
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 144,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 144
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 2800,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 2800
+  },
+  {
+    "quantidade": 2,
+    "preco_unitario": 9.5,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 19
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 355,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 355
+  },
+  {
+    "quantidade": 2,
+    "preco_unitario": 100,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 200
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 15,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 15
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 480,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 480
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 4800,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 4800
+  },
+  {
+    "quantidade": 8,
+    "preco_unitario": 800,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 6400
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 3226,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 3226
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 12,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 12
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 2500,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 2500
+  },
+  {
+    "quantidade": 6,
+    "preco_unitario": 300,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 1800
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 540,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 540
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 1875,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 1875
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 800,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 800
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 1999.81,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 1999.81
+  },
+  {
+    "quantidade": 5,
+    "preco_unitario": 66.9,
+    "desconto_tipo": "percentual",
+    "desconto_valor": 5,
+    "total_liquido": 317.78
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 5,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 5
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 600,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 600
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 61,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 61
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 1350,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 1350
+  },
+  {
+    "quantidade": 3,
+    "preco_unitario": 84,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 252
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 7,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 7
+  },
+  {
+    "quantidade": 4,
+    "preco_unitario": 49.9,
+    "desconto_tipo": null,
+    "desconto_valor": null,
+    "total_liquido": 199.6
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 550,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 550
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 900,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 900
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 80,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 80
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 44.99,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 44.99
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 155,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 155
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 600,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 600
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 27.3,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 27.3
+  },
+  {
+    "quantidade": 5,
+    "preco_unitario": 15,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 75
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 50,
+    "desconto_tipo": null,
+    "desconto_valor": null,
+    "total_liquido": 50
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 150,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 150
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 300,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 300
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 760,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 760
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 2000,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 2000
+  },
+  {
+    "quantidade": 150,
+    "preco_unitario": 1.18,
+    "desconto_tipo": null,
+    "desconto_valor": null,
+    "total_liquido": 177
+  },
+  {
+    "quantidade": 3,
+    "preco_unitario": 144,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 432
+  },
+  {
+    "quantidade": 1,
+    "preco_unitario": 58,
+    "desconto_tipo": null,
+    "desconto_valor": 0,
+    "total_liquido": 58
+  }
+]

@@ -60,7 +60,7 @@ export function hojeIso(): string {
  * e se a contagem daqui divergisse, a tela diria um número de mensalidades
  * vencidas diferente do que está em contas a pagar.
  */
-function somarMeses(iso: string, meses: number): string {
+export function somarMeses(iso: string, meses: number): string {
   const [ano, mes, dia] = iso.split("-").map(Number);
   const alvo = new Date(Date.UTC(ano, mes - 1 + meses, 1));
   const ultimoDia = new Date(

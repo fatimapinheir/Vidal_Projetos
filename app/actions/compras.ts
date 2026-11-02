@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
+import { subtotalDosItens, aplicarDescontoDaNota } from "@/lib/compras/total-item";
 import { getProfile } from "@/lib/auth/get-profile";
 import { requireAuth } from "@/lib/auth/require-role";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -89,21 +90,6 @@ const descontoNotaSchema = z
     path: ["desconto_valor"],
   });
 
-function calcularTotalItem(item: {
-  quantidade: number;
-  preco_unitario: number;
-  desconto_tipo?: "valor" | "percentual";
-  desconto_valor?: number;
-}) {
-  const subtotal = item.quantidade * item.preco_unitario;
-  if (item.desconto_tipo === "percentual") {
-    return Math.max(subtotal * (1 - (item.desconto_valor ?? 0) / 100), 0);
-  }
-  if (item.desconto_tipo === "valor") {
-    return Math.max(subtotal - (item.desconto_valor ?? 0), 0);
-  }
-  return subtotal;
-}
 
 export type CompraFormState = { error: string | null };
 
@@ -225,15 +211,22 @@ export async function createCompra(
     return { error: descontoNota.error.issues[0]?.message ?? "Desconto da nota inválido." };
   }
 
-  // Confere se a soma das parcelas bate com o total calculado (itens com desconto individual,
-  // depois o desconto da nota por cima) — mesma fórmula do trigger recalcular_valor_compra.
-  const subtotalItens = itens.reduce((sum, item) => sum + calcularTotalItem(item), 0);
-  const valorTotalEsperado = calcularTotalItem({
-    quantidade: 1,
-    preco_unitario: subtotalItens,
-    desconto_tipo: descontoNota.data.desconto_tipo,
-    desconto_valor: descontoNota.data.desconto_valor,
-  });
+  /*
+   * Confere se a soma das parcelas bate com o total: itens com desconto
+   * individual, e o desconto da nota por cima. Mesma fórmula do gatilho
+   * `recalcular_valor_compra`, agora importada em vez de reescrita.
+   *
+   * O desconto da nota era calculado chamando a conta do ITEM com
+   * `quantidade: 1` e `preco_unitario: subtotal` — dava o número certo, mas
+   * escondia que são dois descontos diferentes. `aplicarDescontoDaNota` diz o
+   * que faz.
+   */
+  const subtotalItens = subtotalDosItens(itens);
+  const valorTotalEsperado = aplicarDescontoDaNota(
+    subtotalItens,
+    descontoNota.data.desconto_tipo,
+    descontoNota.data.desconto_valor
+  );
   const valorParcelas = parcelas.reduce((sum, p) => sum + p.valor, 0);
   if (Math.abs(valorParcelas - valorTotalEsperado) > 0.01) {
     return {
@@ -475,13 +468,12 @@ export async function atualizarCompra(
   const { parcelas } = parcelasResult;
   if (!parcelas.length) return { error: "Adicione ao menos uma parcela." };
 
-  const subtotalItens = itens.reduce((sum, item) => sum + calcularTotalItem(item), 0);
-  const valorTotalEsperado = calcularTotalItem({
-    quantidade: 1,
-    preco_unitario: subtotalItens,
-    desconto_tipo: descontoNota.data.desconto_tipo,
-    desconto_valor: descontoNota.data.desconto_valor,
-  });
+  const subtotalItens = subtotalDosItens(itens);
+  const valorTotalEsperado = aplicarDescontoDaNota(
+    subtotalItens,
+    descontoNota.data.desconto_tipo,
+    descontoNota.data.desconto_valor
+  );
   const valorParcelas = parcelas.reduce((sum, p) => sum + p.valor, 0);
   if (Math.abs(valorParcelas - valorTotalEsperado) > 0.01) {
     return {

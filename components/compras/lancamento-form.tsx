@@ -34,6 +34,7 @@ import {
   type LancamentoState,
 } from "@/app/actions/lancamentos";
 import { hojeNoFuso } from "@/lib/fuso";
+import { subtotalDosItens, totalLiquidoDoItem } from "@/lib/compras/total-item";
 
 const FORMAS = [
   { value: "pix", label: "Pix" },
@@ -58,15 +59,6 @@ const estadoInicial: LancamentoState = { error: null };
  */
 let proximoItemId = 1;
 
-/** Total líquido de um item, com o desconto individual já aplicado. */
-function totalDoItem(item: ItemCompraLocal) {
-  const bruto = item.quantidade * item.preco_unitario;
-  if (item.desconto_tipo === "percentual") {
-    return Math.max(bruto * (1 - (item.desconto_valor ?? 0) / 100), 0);
-  }
-  if (item.desconto_tipo === "valor") return Math.max(bruto - (item.desconto_valor ?? 0), 0);
-  return bruto;
-}
 
 const moeda = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -150,7 +142,7 @@ export function LancamentoForm({
   const jaEnviados = useRef(new Map<string, string>());
   const [dataPagamento, setDataPagamento] = useState(inicial?.dataPagamento ?? hojeNoFuso());
   const [erroArquivo, setErroArquivo] = useState<string | null>(null);
-  const totalItens = itens.reduce((soma, item) => soma + totalDoItem(item), 0);
+  const totalItens = subtotalDosItens(itens);
   const [enviandoArquivo, setEnviandoArquivo] = useState(false);
 
   /**
@@ -417,7 +409,7 @@ export function LancamentoForm({
                       <TableCell>{item.unidade}</TableCell>
                       <TableCell>{item.quantidade}</TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {moeda(totalDoItem(item))}
+                        {moeda(totalLiquidoDoItem(item))}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button

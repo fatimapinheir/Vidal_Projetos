@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAuth, requireRole } from "@/lib/auth/require-role";
 import { lerAnexosDoForm, salvarAnexosDaCompra } from "@/lib/compras/anexos";
 import { etapaOrcamentoValida } from "@/lib/compras/etapa-orcamento";
+import { subtotalDosItens } from "@/lib/compras/total-item";
 
 const itemSchema = z.object({
   orcamento_item_id: z.uuid().optional(),
@@ -24,15 +25,6 @@ const itemSchema = z.object({
   desconto_valor: z.number().nonnegative().optional(),
 });
 
-/** Total líquido do item, com o desconto individual aplicado. Mesma fórmula do gatilho. */
-function totalLiquidoDoItem(item: z.infer<typeof itemSchema>) {
-  const bruto = item.quantidade * item.preco_unitario;
-  if (item.desconto_tipo === "percentual") {
-    return Math.max(bruto * (1 - (item.desconto_valor ?? 0) / 100), 0);
-  }
-  if (item.desconto_tipo === "valor") return Math.max(bruto - (item.desconto_valor ?? 0), 0);
-  return bruto;
-}
 
 /**
  * Lê os itens do formulário. Ao menos um, sempre.
@@ -183,7 +175,7 @@ export async function criarLancamento(
    * já nasce certo; ainda assim o valor da parcela é relido do banco mais
    * abaixo, e não deste cálculo — quem manda é o gatilho.
    */
-  const totalDosItens = itens.reduce((soma, item) => soma + totalLiquidoDoItem(item), 0);
+  const totalDosItens = subtotalDosItens(itens);
   if (totalDosItens <= 0) return { error: "O valor do lançamento precisa ser maior que zero." };
 
   const { data: compra, error } = await supabase
@@ -359,7 +351,7 @@ export async function atualizarLancamento(
   if (lidos.error !== undefined) return { error: lidos.error };
   const { itens } = lidos;
 
-  const totalDosItens = itens.reduce((soma, item) => soma + totalLiquidoDoItem(item), 0);
+  const totalDosItens = subtotalDosItens(itens);
   if (totalDosItens <= 0) return { error: "O valor do lançamento precisa ser maior que zero." };
 
   const { error: erroCompra } = await supabase
