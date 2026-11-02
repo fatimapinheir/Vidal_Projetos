@@ -1266,6 +1266,31 @@ export interface Database {
         };
         Relationships: [];
       };
+      /**
+       * Itens das versões ativa e rascunho, com `obra_id` e `status` (0073).
+       *
+       * Existe para a tela do orçamento pedir os itens sem antes descobrir o
+       * id da versão — eram duas idas ao banco em fila, e cada uma custa
+       * ~431 ms da Virgínia para São Paulo.
+       */
+      vw_orcamento_itens_vigentes: {
+        Row: {
+          id: string;
+          orcamento_versao_id: string;
+          obra_id: string;
+          status: OrcamentoVersaoStatus;
+          codigo_sinapi: string | null;
+          descricao: string;
+          unidade: string;
+          quantidade: number;
+          preco_unitario: number;
+          preco_total: number;
+          etapa: string | null;
+          tipo_item: TipoItemOrcamento | null;
+          ordem: number;
+        };
+        Relationships: [];
+      };
       vw_progresso_obra: {
         Row: {
           obra_id: string;

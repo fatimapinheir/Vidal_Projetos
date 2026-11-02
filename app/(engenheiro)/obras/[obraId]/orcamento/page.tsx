@@ -22,6 +22,7 @@ import { ListaPorEtapa } from "@/components/orcamento/lista-por-etapa";
 import { DashboardOrcamento } from "@/components/orcamento/dashboard-orcamento";
 import { VersaoHistorico } from "@/components/orcamento/versao-historico";
 import { buscarTodasAsLinhas } from "@/lib/supabase/buscar-tudo";
+import type { OrcamentoVersaoStatus } from "@/lib/types/database.types";
 import { AjudaDaPagina } from "@/components/ui/ajuda-da-pagina";
 
 function formatCurrency(value: number) {
@@ -31,6 +32,9 @@ function formatCurrency(value: number) {
 /** As colunas que esta tela usa. Era `select("*")`, que trazia 12 para usar 9. */
 const COLUNAS_ITEM =
   "id, codigo_sinapi, descricao, unidade, quantidade, preco_unitario, preco_total, etapa, tipo_item";
+
+/** O item como volta da view: os campos da tela, mais o status da versão. */
+type ItemComVersao = ItemOrcamento & { status: OrcamentoVersaoStatus };
 
 type ItemOrcamento = {
   id: string;
@@ -52,11 +56,21 @@ export default async function OrcamentoObraPage({
   const { obraId } = await params;
   const supabase = await createClient();
 
+  /*
+   * UMA ida ao Supabase para tudo que a tela precisa.
+   *
+   * Eram duas em fila: versões, e depois os itens dessas versões. Cada espera
+   * custa 431 ms daqui (Virgínia → São Paulo), e esta tela tinha duas.
+   */
   const [
     { data: versaoAtiva },
     { data: versaoRascunho },
     { data: versoesHistorico },
     { data: resumoVersoes },
+    { data: todosOsItens },
+    { data: comprasVinculadas },
+    { data: progresso },
+    { data: obraCadastro },
   ] = await Promise.all([
     supabase
       .from("orcamento_versoes")
@@ -91,6 +105,33 @@ export default async function OrcamentoObraPage({
       .select("versao_id, itens, total")
       .eq("obra_id", obraId)
       .eq("status", "substituida"),
+    /*
+     * Os ITENS vêm neste mesmo lote, e isso é o ponto da mudança.
+     *
+     * Estavam num segundo `Promise.all`, porque precisavam do id da versão que
+     * a consulta acima devolve. Esperar esse id custava uma ida INTEIRA ao
+     * Supabase — 431 ms medidos em produção, porque a função roda na Virgínia
+     * e o banco está em São Paulo.
+     *
+     * A dependência se dissolve com um join embutido: em vez de "os itens da
+     * versão X", pede-se "os itens das versões ativa e rascunho DESTA OBRA".
+     * O `!inner` filtra pela versão sem precisar conhecê-la, e o `status` vem
+     * junto para separar rascunho de ativa depois, já em memória.
+     */
+    buscarTodasAsLinhas<ItemComVersao>((de, ate) =>
+      supabase
+        .from("vw_orcamento_itens_vigentes")
+        .select(`${COLUNAS_ITEM}, status`)
+        .eq("obra_id", obraId)
+        // `id` desempata: sem ordem estável, duas linhas de mesma `ordem` podem
+        // trocar de lugar entre páginas — uma repete, a outra se perde.
+        .order("ordem")
+        .order("id")
+        .range(de, ate)
+    ).then((r) => ({ data: r.linhas })),
+    supabase.from("compras").select("valor_total, status, orcamento_etapa").eq("obra_id", obraId),
+    supabase.from("vw_progresso_obra").select("*").eq("obra_id", obraId).maybeSingle(),
+    supabase.from("obras").select("metragem_quadrada").eq("id", obraId).maybeSingle(),
   ]);
 
   /*
@@ -155,64 +196,30 @@ export default async function OrcamentoObraPage({
     );
   }
 
-  const [
-    { data: itensRascunho },
-    { data: itensAtiva },
-    { data: comprasVinculadas },
-    { data: progresso },
-    { data: obraCadastro },
-  ] = await Promise.all([
-      /*
-       * Em páginas, e não numa requisição só.
-       *
-       * Um orçamento de casa montado da SINAPI tem de 500 a 2000 linhas, e o
-       * PostgREST corta em 1000 SEM avisar. A soma desta tela é o "orçado" que
-       * o cliente lê: cortada, ela devolve um número menor com cara de certo.
-       *
-       * `select` explícito no lugar de `*`: eram 12 colunas vindas do banco
-       * para as 9 que a tela usa.
-       */
-      versaoRascunho
-        ? buscarTodasAsLinhas<ItemOrcamento>((de, ate) =>
-            supabase
-              .from("orcamento_itens")
-              .select(COLUNAS_ITEM)
-              .eq("orcamento_versao_id", versaoRascunho.id)
-              // `id` desempata: sem ordem estável, duas linhas de mesma `ordem`
-              // podem trocar de lugar entre páginas — uma repete, a outra se perde.
-              .order("ordem")
-              .order("id")
-              .range(de, ate)
-          ).then((r) => ({ data: r.linhas }))
-        : Promise.resolve({ data: null }),
-      versaoAtiva
-        ? buscarTodasAsLinhas<ItemOrcamento>((de, ate) =>
-            supabase
-              .from("orcamento_itens")
-              .select(COLUNAS_ITEM)
-              .eq("orcamento_versao_id", versaoAtiva.id)
-              .order("ordem")
-              .order("id")
-              .range(de, ate)
-          ).then((r) => ({ data: r.linhas }))
-        : Promise.resolve({ data: null }),
-      // Todas as compras da obra: é o "executado" desta tela. O avanço físico
-      // não entra mais aqui — ele é medido por tarefa do cronograma, cuja EAP
-      // é propositalmente outra.
-      //
-      // Sem etapa também entra. Filtrar por vínculo fazia o total ignorar
-      // gasto real, e o lançamento que o cliente registra nasce justamente
-      // sem etapa — ou seja, o buraco crescia sozinho.
-      supabase
-        .from("compras")
-        .select("valor_total, status, orcamento_etapa")
-        .eq("obra_id", obraId),
-      versaoAtiva
-        ? supabase.from("vw_progresso_obra").select("*").eq("obra_id", obraId).maybeSingle()
-        : Promise.resolve({ data: null }),
-      supabase.from("obras").select("metragem_quadrada").eq("id", obraId).maybeSingle(),
-    ]);
+  /*
+   * Rascunho e ativa saem do MESMO lote, separados pelo status que veio
+   * embutido. Antes eram duas consultas, cada uma esperando o id da sua
+   * versão — e as duas esperavam o lote anterior terminar.
+   *
+   * O comentário que estava aqui sobre o teto de 1000 do PostgREST continua
+   * valendo: `buscarTodasAsLinhas` pagina, porque um orçamento de casa tem de
+   * 500 a 2000 linhas e a resposta é cortada em 1000 SEM aviso. A soma desta
+   * tela é o "orçado" que o cliente lê; cortada, devolve um número menor com
+   * cara de certo.
+   */
+  /*
+   * O `status` só serviu para separar rascunho de ativa; não vai para a tela.
+   * Desestruturar e devolver o resto é o jeito de tirá-lo sem copiar campo a
+   * campo — e sem deixar uma variável sem uso para o lint reclamar.
+   */
+  const semStatus = (item: ItemComVersao): ItemOrcamento => {
+    const copia: Partial<ItemComVersao> = { ...item };
+    delete copia.status;
+    return copia as ItemOrcamento;
+  };
 
+  const itensAtiva = (todosOsItens ?? []).filter((i) => i.status === "ativa").map(semStatus);
+  const itensRascunho = (todosOsItens ?? []).filter((i) => i.status === "rascunho").map(semStatus);
 
   /**
    * Orçado × comprado por etapa do orçamento.
