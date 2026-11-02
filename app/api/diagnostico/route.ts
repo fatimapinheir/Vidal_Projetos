@@ -65,9 +65,23 @@ export async function GET() {
   const primeira = await medir(() =>
     supabase.from("obras").select("id", { count: "exact", head: true })
   );
-  const segunda = await medir(() =>
-    supabase.from("obras").select("id", { count: "exact", head: true })
-  );
+
+  /*
+   * Cinco medidas, não uma.
+   *
+   * A primeira rodada desta rota deu 431 ms de ida e volta; a segunda deu 196.
+   * A mesma consulta, na mesma infraestrutura. Uma medida só não distingue
+   * "rede ruim agora" de "rede ruim sempre", e decisão de pagar plano não
+   * deveria sair de uma amostra.
+   */
+  const amostras: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    amostras.push(
+      (await medir(() => supabase.from("obras").select("id", { count: "exact", head: true }))).ms
+    );
+  }
+  const ordenadas = [...amostras].sort((a, b) => a - b);
+  const segunda = { ms: ordenadas[Math.floor(ordenadas.length / 2)] };
 
   // Uma obra qualquer, para as etapas seguintes terem sobre o que medir.
   const { data: obra } = await supabase.from("obras").select("id").limit(1).maybeSingle();
@@ -107,7 +121,20 @@ export async function GET() {
       )
     ).ms;
 
-    const versoes = await medir(() =>
+    /*
+     * O orçamento virou UMA camada, e esta medição precisava acompanhar.
+     *
+     * Eram duas em fila: versões, e depois os itens daquelas versões. A
+     * segunda esperava o id que a primeira devolvia. Agora os itens vêm da
+     * view `vw_orcamento_itens_vigentes`, que tem `obra_id` — então a pergunta
+     * entra no mesmo lote e ninguém espera ninguém.
+     *
+     * Na primeira medição depois da mudança eu esqueci de atualizar isto aqui,
+     * e a rota reportou a estrutura antiga: `orcamento_itens` aparecia como
+     * camada própria de 459 ms que a página já não tinha. Medição que não
+     * acompanha o código mente com cara de dado.
+     */
+    const orcamento = await medir(() =>
       Promise.all([
         supabase
           .from("orcamento_versoes")
@@ -120,31 +147,22 @@ export async function GET() {
           .select("versao_id, itens, total")
           .eq("obra_id", obraId)
           .eq("status", "substituida"),
+        supabase
+          .from("vw_orcamento_itens_vigentes")
+          .select(
+            "id, codigo_sinapi, descricao, unidade, quantidade, preco_unitario, preco_total, etapa, tipo_item, status"
+          )
+          .eq("obra_id", obraId)
+          .order("ordem")
+          .order("id")
+          .range(0, 999),
+        supabase.from("compras").select("valor_total, status, orcamento_etapa").eq("obra_id", obraId),
+        supabase.from("vw_progresso_obra").select("*").eq("obra_id", obraId).maybeSingle(),
+        supabase.from("obras").select("metragem_quadrada").eq("id", obraId).maybeSingle(),
       ])
     );
-    camadas.orcamento_versoes = versoes.ms;
-
-    const versaoAtivaId = versoes.valor[0].data?.id ?? null;
-
-    if (versaoAtivaId) {
-      const itens = await medir(() =>
-        Promise.all([
-          supabase
-            .from("orcamento_itens")
-            .select(
-              "id, codigo_sinapi, descricao, unidade, quantidade, preco_unitario, preco_total, etapa, tipo_item"
-            )
-            .eq("orcamento_versao_id", versaoAtivaId)
-            .order("ordem")
-            .order("id")
-            .range(0, 999),
-          supabase.from("compras").select("valor_total, status, orcamento_etapa").eq("obra_id", obraId),
-          supabase.from("vw_progresso_obra").select("*").eq("obra_id", obraId).maybeSingle(),
-        ])
-      );
-      camadas.orcamento_itens = itens.ms;
-      camadas.itens_encontrados = itens.valor[0].data?.length ?? 0;
-    }
+    camadas.orcamento_tudo_junto = orcamento.ms;
+    camadas.itens_encontrados = orcamento.valor[2].data?.length ?? 0;
   }
 
   const msTotal = Math.round(performance.now() - t0);
@@ -162,7 +180,9 @@ export async function GET() {
     },
     conexao_com_o_supabase: {
       primeira_consulta_ms: primeira.ms,
-      segunda_consulta_ms: segunda.ms,
+      /** Mediana de cinco medidas — ver a nota sobre variância acima. */
+      ida_e_volta_mediana_ms: segunda.ms,
+      ida_e_volta_amostras_ms: amostras,
       /*
        * A segunda é a ida e volta pura. Perto de 5ms significa função e banco
        * na mesma região; perto de 120ms significa Virgínia falando com São
