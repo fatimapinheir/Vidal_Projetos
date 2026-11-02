@@ -32,7 +32,17 @@ export default async function EngenheiroDashboardPage() {
     { data: resumoPorObra },
     lembretes,
   ] = await Promise.all([
-    supabase.from("obras").select("*").order("created_at", { ascending: false }),
+    /*
+     * As colunas que o cartão usa; eram as 34 da tabela.
+     *
+     * As de endereço entram porque `formatarEndereco` recebe a obra inteira —
+     * foi o TypeScript que cobrou, e é justamente para isso que vale declarar
+     * as colunas em vez de pedir `*`.
+     */
+    supabase
+      .from("obras")
+      .select("id, nome, status, logradouro, numero, complemento, bairro, cidade, uf")
+      .order("created_at", { ascending: false }),
     supabase.from("obras").select("*", { count: "exact", head: true }).eq("status", "em_andamento"),
     supabase.from("compras").select("*", { count: "exact", head: true }).eq("status", "cotada"),
     /*

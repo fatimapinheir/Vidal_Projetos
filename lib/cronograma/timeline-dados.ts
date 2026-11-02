@@ -46,7 +46,16 @@ export async function buscarDadosTimeline(
 ): Promise<DadosTimeline> {
   const [{ data: etapas }, { data: tarefas }, { data: folgas }] = await Promise.all([
     supabase.from("cronograma_etapas").select("id, nome").eq("obra_id", obraId).order("ordem"),
-    supabase.from("cronograma_tarefas").select("*").eq("obra_id", obraId).order("ordem"),
+    // Exatamente as doze colunas que o `map` abaixo usa. Era `*`, as 21 — e com
+    // 267 tarefas as nove sobrando viajavam 267 vezes, nas duas telas que
+    // mostram a timeline.
+    supabase
+      .from("cronograma_tarefas")
+      .select(
+        "id, etapa_id, nome, duracao_dias, data_inicio_cedo, data_fim_cedo, baseline_inicio, baseline_fim, data_inicio_real, data_fim_real, folga_dias, critica"
+      )
+      .eq("obra_id", obraId)
+      .order("ordem"),
     supabase.from("cronograma_folgas").select("data_inicio, data_fim").eq("obra_id", obraId),
   ]);
 

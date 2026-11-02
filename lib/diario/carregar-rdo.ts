@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatarEndereco } from "@/lib/obra-cadastro";
 import { derivarConteudoDia, efetivoConfirmado, type EfetivoItem } from "@/lib/diario/montar-dia";
 import type { DiarioCondicao, Tables } from "@/lib/types/database.types";
+import { urlsAssinadas } from "@/lib/storage/urls-assinadas";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -140,14 +141,17 @@ export async function carregarRdo(
   const responsaveis =
     (diario?.responsaveis_snapshot as string[] | null) ?? conteudo?.responsaveis ?? [];
 
-  const fotosComUrl = await Promise.all(
-    (fotos ?? []).map(async (f) => {
-      const { data: url } = await supabase.storage
-        .from("diario-obra")
-        .createSignedUrl(f.path, 60 * 30);
-      return { url: url?.signedUrl ?? null, legenda: f.legenda };
-    })
+  // Uma requisição para todas as fotos do RDO, não uma por foto.
+  const urlsDasFotos = await urlsAssinadas(
+    supabase,
+    "diario-obra",
+    (fotos ?? []).map((f) => f.path),
+    60 * 30
   );
+  const fotosComUrl = (fotos ?? []).map((f) => ({
+    url: urlsDasFotos.get(f.path) ?? null,
+    legenda: f.legenda,
+  }));
 
   // Quem assina é quem FECHOU o dia, não quem está lendo a tela: o RDO é um
   // documento datado, e trocar a assinatura conforme o leitor o descaracteriza.

@@ -20,6 +20,7 @@ import { formatDateBR as formatDate } from "@/lib/format-date";
 import { getProfile } from "@/lib/auth/get-profile";
 import { AnexosCompra } from "./anexos-compra";
 import { rotuloDesconto } from "@/lib/compras/total-item";
+import { urlsAssinadas, urlsAssinadasPorBucket } from "@/lib/storage/urls-assinadas";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -116,23 +117,38 @@ export async function CompraDetail({
       : []),
   ];
 
-  const anexosComUrl = await Promise.all(
-    anexosParaMostrar.map(async (anexo) => {
-      const { data } = await supabase.storage
-        .from(anexo.bucket)
-        .createSignedUrl(anexo.path, 60 * 10);
-      return { ...anexo, url: data?.signedUrl ?? null };
-    })
+  /*
+   * Uma requisição por BUCKET, não por arquivo.
+   *
+   * Os anexos se espalham por dois buckets — a cotação em `cotacoes`, o
+   * comprovante em `comprovantes-pagamento` —, então o agrupamento é
+   * necessário. Antes era um `createSignedUrl` por anexo, e os comprovantes
+   * das parcelas vinham num `for` SEQUENCIAL: numa ordem de seis parcelas
+   * pagas, seis esperas em fila.
+   */
+  const urlsDosAnexos = await urlsAssinadasPorBucket(supabase, anexosParaMostrar, 60 * 10);
+  const anexosComUrl = anexosParaMostrar.map((anexo) => ({
+    ...anexo,
+    url: urlsDosAnexos.get(`${anexo.bucket}/${anexo.path}`) ?? null,
+  }));
+
+  const caminhosDeComprovante = (parcelas ?? [])
+    .map((p) => p.comprovante_pagamento_path)
+    .filter((caminho): caminho is string => !!caminho);
+
+  const urlsDeComprovante = await urlsAssinadas(
+    supabase,
+    "comprovantes-pagamento",
+    caminhosDeComprovante,
+    60 * 10
   );
 
   const comprovantesUrls = new Map<string, string>();
-  for (const p of parcelas ?? []) {
-    if (p.comprovante_pagamento_path) {
-      const { data } = await supabase.storage
-        .from("comprovantes-pagamento")
-        .createSignedUrl(p.comprovante_pagamento_path, 60 * 10);
-      if (data?.signedUrl) comprovantesUrls.set(p.id, data.signedUrl);
-    }
+  for (const parcela of parcelas ?? []) {
+    const url = parcela.comprovante_pagamento_path
+      ? urlsDeComprovante.get(parcela.comprovante_pagamento_path)
+      : undefined;
+    if (url) comprovantesUrls.set(parcela.id, url);
   }
 
   const parcelaUnica = parcelas?.length === 1 ? parcelas[0] : undefined;

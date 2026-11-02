@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { urlsAssinadas } from "@/lib/storage/urls-assinadas";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ChevronLeft, FileDown } from "lucide-react";
@@ -82,14 +83,17 @@ export default async function DiarioDiaPage({
     .sort((a, b) => a.funcao.localeCompare(b.funcao, "pt-BR"));
 
 
-  const fotosComUrl = await Promise.all(
-    (fotos ?? []).map(async (foto) => {
-      const { data: assinada } = await supabase.storage
-        .from("diario-obra")
-        .createSignedUrl(foto.path, 60 * 10);
-      return { ...foto, url: assinada?.signedUrl ?? null };
-    })
+  // Uma requisição para todas as fotos, não uma por foto.
+  const urlsDasFotos = await urlsAssinadas(
+    supabase,
+    "diario-obra",
+    (fotos ?? []).map((f) => f.path),
+    60 * 10
   );
+  const fotosComUrl = (fotos ?? []).map((foto) => ({
+    ...foto,
+    url: urlsDasFotos.get(foto.path) ?? null,
+  }));
 
   const fechado = !!diario?.fechado_em;
 

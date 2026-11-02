@@ -20,8 +20,31 @@ import { RemoverEtapaButton, RemoverTarefaButton } from "./cronograma-actions";
 import { marcarTarefasCriticas, removerTarefas } from "@/app/actions/cronograma";
 import type { DependenciaTipo, Tables } from "@/lib/types/database.types";
 
-type Tarefa = Tables<"cronograma_tarefas">;
-type Etapa = Tables<"cronograma_etapas">;
+/*
+ * O que esta tabela precisa de uma tarefa — não a linha inteira.
+ *
+ * Era `Tables<"cronograma_tarefas">`, as 21 colunas. Com `Pick` o contrato fica
+ * explícito e o TypeScript passa a cobrar: se amanhã a tela usar uma coluna
+ * nova, ele acusa aqui em vez de deixar a consulta trazer tudo "por garantia".
+ */
+type Tarefa = Pick<
+  Tables<"cronograma_tarefas">,
+  | "id"
+  | "etapa_id"
+  | "nome"
+  | "duracao_dias"
+  | "restricao_inicio_nao_antes_de"
+  | "data_inicio_cedo"
+  | "data_fim_cedo"
+  | "data_inicio_real"
+  | "data_fim_real"
+  | "baseline_inicio"
+  | "baseline_fim"
+  | "folga_dias"
+  | "critica"
+  | "ordem"
+>;
+type Etapa = Pick<Tables<"cronograma_etapas">, "id" | "nome" | "ordem">;
 type Dependencia = {
   id: string;
   tarefa_predecessora_id: string;

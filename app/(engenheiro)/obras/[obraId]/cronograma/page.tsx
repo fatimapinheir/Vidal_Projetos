@@ -28,8 +28,17 @@ export default async function CronogramaObraPage({
     timeline,
     { data: obra },
   ] = await Promise.all([
-      supabase.from("cronograma_etapas").select("*").eq("obra_id", obraId).order("ordem"),
-      supabase.from("cronograma_tarefas").select("*").eq("obra_id", obraId).order("ordem"),
+      // Colunas explícitas: `cronograma_tarefas` tem 21 e esta tela usa 14.
+      // Com 267 tarefas numa obra, as sete sobrando viajam 267 vezes por
+      // abertura — e a timeline já traz os próprios dados em separado.
+      supabase.from("cronograma_etapas").select("id, nome, ordem").eq("obra_id", obraId).order("ordem"),
+      supabase
+        .from("cronograma_tarefas")
+        .select(
+          "id, etapa_id, nome, duracao_dias, restricao_inicio_nao_antes_de, data_inicio_cedo, data_fim_cedo, data_inicio_real, data_fim_real, baseline_inicio, baseline_fim, folga_dias, critica, ordem"
+        )
+        .eq("obra_id", obraId)
+        .order("ordem"),
       supabase
         .from("orcamento_versoes")
         .select("id")

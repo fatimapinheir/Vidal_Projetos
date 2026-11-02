@@ -29,8 +29,20 @@ export default async function ObraLayout({
   const { obraId } = await params;
   const supabase = await createClient();
 
+  /*
+   * Só as colunas que esta moldura usa — eram as 34 da tabela.
+   *
+   * Isto roda em TODA tela de dentro de uma obra, e de novo a cada
+   * `router.refresh()` que uma ação dispara. Trazer 34 colunas para mostrar o
+   * status e o endereço era o tipo de desperdício que não aparece em nenhuma
+   * tela e aparece no tempo de troca de tela.
+   */
   const [{ data: obra }, { data: obras }] = await Promise.all([
-    supabase.from("obras").select("*").eq("id", obraId).single(),
+    supabase
+      .from("obras")
+      .select("status, logradouro, numero, complemento, bairro, cidade, uf")
+      .eq("id", obraId)
+      .single(),
     supabase.from("obras").select("id, nome").order("nome"),
   ]);
 
