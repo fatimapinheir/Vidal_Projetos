@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
-import { getProfile } from "@/lib/auth/get-profile";
+import { getSessao } from "@/lib/auth/sessao";
 import { lerPagina } from "@/lib/paginacao";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Rosca } from "@/components/charts/rosca";
@@ -73,7 +73,7 @@ export default async function PortalLancamentosPage({
     carregarLancamentos(supabase, obraId, { busca: filtros.busca, tipo, aba, pagina }),
     // Para decidir em quais linhas aparece a lixeira: o cliente só exclui o
     // lançamento que ele mesmo registrou.
-    getProfile(),
+    getSessao(),
   ]);
 
   if (!obra) notFound();

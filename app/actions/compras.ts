@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { subtotalDosItens, aplicarDescontoDaNota } from "@/lib/compras/total-item";
-import { getProfile } from "@/lib/auth/get-profile";
+import { getSessao } from "@/lib/auth/sessao";
 import { requireAuth } from "@/lib/auth/require-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -551,7 +551,7 @@ async function resolveObraIdForCompra(compraId: string) {
 }
 
 export async function aprovarCompraAction(compraId: string) {
-  const profile = await getProfile();
+  const profile = await getSessao();
   if (!profile) redirect("/login");
 
   const supabase = await createClient();
@@ -568,7 +568,7 @@ export async function aprovarCompraAction(compraId: string) {
 }
 
 export async function recusarCompraAction(compraId: string, formData: FormData) {
-  const profile = await getProfile();
+  const profile = await getSessao();
   if (!profile) redirect("/login");
 
   const motivo = String(formData.get("motivo") ?? "");
@@ -709,7 +709,7 @@ export async function pagarParcelaAction(
   parcelaId: string,
   comprovantePath: string
 ) {
-  const profile = await getProfile();
+  const profile = await getSessao();
   if (!profile) redirect("/login");
 
   if (!comprovantePath) throw new Error("Anexe o comprovante de pagamento.");
@@ -743,7 +743,7 @@ export async function pagarCompraAgoraAction(
   parcelaId: string,
   comprovantePath: string
 ) {
-  const profile = await getProfile();
+  const profile = await getSessao();
   if (!profile) redirect("/login");
 
   if (!comprovantePath) throw new Error("Anexe o comprovante de pagamento.");

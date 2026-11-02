@@ -17,7 +17,7 @@ import { PagamentoEnviadoParcela } from "./pagamento-enviado-parcela";
 import { CompraAprovacaoActions } from "./compra-aprovacao-actions";
 import { EtapaOrcamentoSelect } from "./etapa-orcamento-select";
 import { formatDateBR as formatDate } from "@/lib/format-date";
-import { getProfile } from "@/lib/auth/get-profile";
+import { getSessao } from "@/lib/auth/sessao";
 import { AnexosCompra } from "./anexos-compra";
 import { rotuloDesconto } from "@/lib/compras/total-item";
 import { urlsAssinadas, urlsAssinadasPorBucket } from "@/lib/storage/urls-assinadas";
@@ -37,7 +37,7 @@ export async function CompraDetail({
   viewerRole: "engenheiro" | "cliente";
 }) {
   const supabase = await createClient();
-  const profile = await getProfile();
+  const profile = await getSessao();
 
   const { data: compra } = await supabase
     .from("compras")

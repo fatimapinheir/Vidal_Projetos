@@ -1,7 +1,7 @@
 import { Download, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
-import { getProfile } from "@/lib/auth/get-profile";
+import { getSessao } from "@/lib/auth/sessao";
 import {
   SpreadsheetUploadWizard,
   type MapeamentoSalvo,
@@ -25,7 +25,7 @@ export default async function UploadOrcamentoPage({
     .maybeSingle();
 
   if (!rascunho) {
-    const profile = await getProfile();
+    const profile = await getSessao();
     const { data: novoRascunho } = await supabase
       .from("orcamento_versoes")
       .insert({ obra_id: obraId, criado_por: profile!.id })

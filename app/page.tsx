@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { getProfile } from "@/lib/auth/get-profile";
+import { getSessao } from "@/lib/auth/sessao";
 
 export default async function Home() {
-  const profile = await getProfile();
+  const profile = await getSessao();
 
   if (!profile) redirect("/login");
   redirect(profile.role === "engenheiro" ? "/dashboard" : "/portal/dashboard");

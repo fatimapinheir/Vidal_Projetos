@@ -84,9 +84,12 @@ export async function GET() {
     camadas.layout_engenheiro = (
       await medir(() =>
         Promise.all([
-          // O que `requireRole` e a moldura do engenheiro leem: perfil (papel)
-          // e o caminho da logo, que mora no próprio perfil.
-          supabase.from("profiles").select("id, nome, role, logo_path").limit(1),
+          /*
+           * Só a logo. O papel saiu daqui: `requireRole` passou a ler do token
+           * e não vai mais ao banco (ver `lib/auth/sessao`). Esta camada ainda
+           * custa uma ida por causa da logo da empresa, que não viaja no token.
+           */
+          supabase.from("profiles").select("logo_path").limit(1),
         ])
       )
     ).ms;
