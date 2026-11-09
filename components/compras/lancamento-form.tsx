@@ -24,7 +24,7 @@ import {
   type InsumoOpcao,
 } from "./item-compra-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { enviarArquivoParaStorage, removerArquivosDoStorage } from "@/lib/storage/upload-direto";
 import { SeletorAnexos } from "./seletor-anexos";
 import { MAX_ANEXOS_COMPRA } from "@/lib/compras/anexos";
@@ -123,6 +123,13 @@ export function LancamentoForm({
   const [itens, setItens] = useState<(ItemCompraLocal & { localId: number })[]>(
     () => (inicial?.itens ?? []).map((item) => ({ ...item, localId: proximoItemId++ }))
   );
+  /*
+   * Qual LINHA DE ITEM está aberta para correção. `null` = nenhuma.
+   *
+   * Não confundir com `editando`, logo acima: aquele diz que o formulário
+   * inteiro está editando um lançamento já gravado.
+   */
+  const [itemEditando, setItemEditando] = useState<number | null>(null);
   const [comprovantes, setComprovantes] = useState<File[]>([]);
   /*
    * Arquivo já enviado não sobe de novo.
@@ -412,19 +419,36 @@ export function LancamentoForm({
                         {moeda(totalLiquidoDoItem(item))}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Remover ${item.descricao}`}
-                          onClick={() =>
-                            setItens((atuais) =>
-                              atuais.filter((i) => i.localId !== item.localId)
-                            )
-                          }
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
+                        <span className="flex items-center justify-end gap-1">
+                          {/* O lápis antes da lixeira: corrigir é o que se
+                              quer na maior parte das vezes, apagar é o caso
+                              raro. */}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Editar ${item.descricao}`}
+                            onClick={() => setItemEditando(item.localId)}
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Remover ${item.descricao}`}
+                            onClick={() => {
+                              // Apagar o que está em edição fecharia o
+                              // formulário num item que não existe mais.
+                              if (itemEditando === item.localId) setItemEditando(null);
+                              setItens((atuais) =>
+                                atuais.filter((i) => i.localId !== item.localId)
+                              );
+                            }}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -438,6 +462,16 @@ export function LancamentoForm({
             onAdd={(item) =>
               setItens((atuais) => [...atuais, { ...item, localId: proximoItemId++ }])
             }
+            itemEmEdicao={itens.find((i) => i.localId === itemEditando) ?? null}
+            onSalvarEdicao={(editado) => {
+              setItens((atuais) =>
+                atuais.map((i) =>
+                  i.localId === itemEditando ? { ...editado, localId: i.localId } : i
+                )
+              );
+              setItemEditando(null);
+            }}
+            onCancelarEdicao={() => setItemEditando(null)}
           />
 
           {/* O total fecha a seção dos itens: é a soma do que está acima. */}

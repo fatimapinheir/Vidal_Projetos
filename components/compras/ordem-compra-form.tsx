@@ -37,7 +37,7 @@ import {
 import { CampoFornecedor } from "@/components/compras/campo-fornecedor";
 import { CampoCategoria, type Categoria } from "@/components/compras/campo-categoria";
 import { CamposNotaFiscal } from "@/components/compras/campos-nota-fiscal";
-import { Lock, Trash2 } from "lucide-react";
+import { Lock, Pencil, Trash2 } from "lucide-react";
 import { enviarArquivoParaStorage, removerArquivosDoStorage } from "@/lib/storage/upload-direto";
 import { SeletorAnexos } from "@/components/compras/seletor-anexos";
 import { MAX_ANEXOS_COMPRA } from "@/lib/compras/anexos";
@@ -132,6 +132,8 @@ export function OrdemCompraForm({
     ? atualizarCompra.bind(null, obraId, inicial.id)
     : createCompra.bind(null, obraId);
   const [state, formAction, pending] = useActionState(action, initialState);
+  /** Qual linha de item está aberta para correção. `null` = nenhuma. */
+  const [itemEditando, setItemEditando] = useState<number | null>(null);
   const [anexos, setAnexos] = useState<File[]>([]);
   const [erroAnexo, setErroAnexo] = useState<string | null>(null);
   const [enviandoAnexo, setEnviandoAnexo] = useState(false);
@@ -521,16 +523,33 @@ export function OrdemCompraForm({
                       </TableCell>
                       <TableCell>{formatCurrency(totalLiquidoDoItem(item))}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() =>
-                            setItens((prev) => prev.filter((i) => i.localId !== item.localId))
-                          }
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
+                        <span className="flex items-center justify-end gap-1">
+                          {/* O lápis antes da lixeira: corrigir é o caso
+                              comum, apagar é o raro. */}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Editar ${item.descricao}`}
+                            onClick={() => setItemEditando(item.localId)}
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Remover ${item.descricao}`}
+                            onClick={() => {
+                              // Apagar o que está em edição deixaria o
+                              // formulário aberto num item que não existe mais.
+                              if (itemEditando === item.localId) setItemEditando(null);
+                              setItens((prev) => prev.filter((i) => i.localId !== item.localId));
+                            }}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -542,6 +561,16 @@ export function OrdemCompraForm({
           <ItemCompraPicker
             insumos={insumos}
             onAdd={(item) => setItens((prev) => [...prev, { ...item, localId: nextItemId++ }])}
+            itemEmEdicao={itens.find((i) => i.localId === itemEditando) ?? null}
+            onSalvarEdicao={(editado) => {
+              setItens((prev) =>
+                prev.map((i) =>
+                  i.localId === itemEditando ? { ...editado, localId: i.localId } : i
+                )
+              );
+              setItemEditando(null);
+            }}
+            onCancelarEdicao={() => setItemEditando(null)}
           />
 
           <Field orientation="responsive">

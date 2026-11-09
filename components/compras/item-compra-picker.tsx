@@ -56,6 +56,22 @@ export type ItemCompraLocal = {
   desconto_valor?: number;
 };
 
+/** O que identifica o item: vem do catálogo ao incluir, do próprio item ao editar. */
+type IdentidadeDoItem = {
+  insumo_id?: string;
+  /*
+   * Vínculo com o item do orçamento, de passagem.
+   *
+   * Nenhuma tela o define hoje, mas item já gravado com ele não pode perdê-lo
+   * numa correção de quantidade — e o formulário monta um objeto novo a cada
+   * salvamento, então o que não for carregado explicitamente se perde.
+   */
+  orcamento_item_id?: string;
+  descricao: string;
+  unidade: string;
+  categoria_custo?: TipoItemOrcamento;
+};
+
 /**
  * Quantidade e valor. Só isso.
  *
@@ -71,18 +87,38 @@ export type ItemCompraLocal = {
  * de uma compra para a outra é o que se digita aqui.
  */
 function FormularioItem({
-  insumo,
-  onAdd,
+  identidade,
+  inicial,
+  rotuloConfirmar,
+  onConfirmar,
   onCancel,
 }: {
-  insumo: InsumoOpcao;
-  onAdd: (item: ItemCompraLocal) => void;
+  identidade: IdentidadeDoItem;
+  /*
+   * Valores de partida — presentes só na EDIÇÃO.
+   *
+   * O mesmo formulário serve a incluir e a corrigir. Eram caminhos separados
+   * na ideia original, e seriam dois lugares para manter a mesma validação e
+   * a mesma máscara de moeda.
+   */
+  inicial?: Pick<
+    ItemCompraLocal,
+    "quantidade" | "preco_unitario" | "desconto_tipo" | "desconto_valor"
+  >;
+  rotuloConfirmar: string;
+  onConfirmar: (item: ItemCompraLocal) => void;
   onCancel: () => void;
 }) {
-  const [quantidade, setQuantidade] = useState("");
-  const [precoUnitario, setPrecoUnitario] = useState(0);
-  const [descontoTipo, setDescontoTipo] = useState<"" | "valor" | "percentual">("");
-  const [descontoValor, setDescontoValor] = useState("");
+  const [quantidade, setQuantidade] = useState(
+    inicial ? String(inicial.quantidade) : ""
+  );
+  const [precoUnitario, setPrecoUnitario] = useState(inicial?.preco_unitario ?? 0);
+  const [descontoTipo, setDescontoTipo] = useState<"" | "valor" | "percentual">(
+    inicial?.desconto_tipo ?? ""
+  );
+  const [descontoValor, setDescontoValor] = useState(
+    inicial?.desconto_valor != null ? String(inicial.desconto_valor) : ""
+  );
   const [erro, setErro] = useState<string | null>(null);
 
   function enviar() {
@@ -92,17 +128,20 @@ function FormularioItem({
       return setErro("Informe um valor unitário válido.");
     }
 
-    onAdd({
-      insumo_id: insumo.id,
+    onConfirmar({
+      insumo_id: identidade.insumo_id,
+      orcamento_item_id: identidade.orcamento_item_id,
       /*
        * Descrição, unidade e categoria são CÓPIA do catálogo, gravadas no item.
        *
        * Renomear o insumo amanhã não pode reescrever a nota de ontem, e apagá-lo
-       * não pode deixar a compra sem dizer o que foi comprado.
+       * não pode deixar a compra sem dizer o que foi comprado. Na edição elas
+       * vêm do próprio item, pelo mesmo motivo: corrigir a quantidade de uma
+       * compra antiga não pode trazer junto o nome novo do insumo.
        */
-      descricao: insumo.descricao,
-      unidade: insumo.unidade,
-      categoria_custo: insumo.categoria_custo,
+      descricao: identidade.descricao,
+      unidade: identidade.unidade,
+      categoria_custo: identidade.categoria_custo,
       quantidade: q,
       preco_unitario: precoUnitario,
       desconto_tipo: descontoTipo || undefined,
@@ -121,9 +160,12 @@ function FormularioItem({
           com a grafia antiga. Quem corrige o cadastro é a tela de insumos.
         */}
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="text-sm font-medium">{insumo.descricao}</span>
+          <span className="text-sm font-medium">{identidade.descricao}</span>
           <span className="text-xs text-muted-foreground">
-            {rotuloUnidade(insumo.unidade)} · {ROTULO_CATEGORIA[insumo.categoria_custo]}
+            {rotuloUnidade(identidade.unidade)}
+            {identidade.categoria_custo
+              ? ` · ${ROTULO_CATEGORIA[identidade.categoria_custo]}`
+              : ""}
           </span>
         </div>
 
@@ -188,7 +230,7 @@ function FormularioItem({
         {erro && <FieldError>{erro}</FieldError>}
         <div className="flex gap-2">
           <Button type="button" size="sm" onClick={enviar}>
-            Adicionar item
+            {rotuloConfirmar}
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
             Cancelar
@@ -211,9 +253,24 @@ function FormularioItem({
 export function ItemCompraPicker({
   insumos,
   onAdd,
+  itemEmEdicao,
+  onSalvarEdicao,
+  onCancelarEdicao,
 }: {
   insumos: InsumoOpcao[];
   onAdd: (item: ItemCompraLocal) => void;
+  /*
+   * Quando o formulário põe um item aqui, o seletor some e dá lugar aos campos
+   * dele preenchidos.
+   *
+   * Corrigir uma quantidade exigia apagar a linha e lançar tudo de novo — e,
+   * com desconto no item, era recomeçar três campos por causa de um dígito.
+   * Quem é dono da lista é o formulário; o que ele pede aqui é a mesma tela
+   * de sempre, só que preenchida.
+   */
+  itemEmEdicao?: (ItemCompraLocal & { localId: number }) | null;
+  onSalvarEdicao?: (item: ItemCompraLocal) => void;
+  onCancelarEdicao?: () => void;
 }) {
   const [lista, setLista] = useState(insumos);
   const [escolhido, setEscolhido] = useState("");
@@ -281,8 +338,54 @@ export function ItemCompraPicker({
     });
   }
 
+  if (itemEmEdicao && onSalvarEdicao && onCancelarEdicao) {
+    return (
+      <FormularioItem
+        /*
+         * `key` pela linha, e não é detalhe.
+         *
+         * Os campos guardam o valor inicial em `useState`, que só lê o inicial
+         * na montagem. Sem a chave, clicar no lápis de uma linha e depois no de
+         * outra reaproveitaria o mesmo componente: a segunda abriria com a
+         * quantidade e o preço da primeira, e salvar gravaria os números
+         * errados na linha certa.
+         */
+        key={itemEmEdicao.localId}
+        /*
+         * A identidade vem do ITEM, não do catálogo. O insumo pode ter sido
+         * renomeado — ou apagado — depois desta compra, e a linha tem de
+         * continuar dizendo o que foi comprado naquele dia.
+         */
+        identidade={{
+          insumo_id: itemEmEdicao.insumo_id,
+          orcamento_item_id: itemEmEdicao.orcamento_item_id,
+          descricao: itemEmEdicao.descricao,
+          unidade: itemEmEdicao.unidade,
+          categoria_custo: itemEmEdicao.categoria_custo,
+        }}
+        inicial={itemEmEdicao}
+        rotuloConfirmar="Salvar alterações"
+        onConfirmar={onSalvarEdicao}
+        onCancel={onCancelarEdicao}
+      />
+    );
+  }
+
   if (insumo) {
-    return <FormularioItem insumo={insumo} onAdd={adicionar} onCancel={resetar} />;
+    return (
+      <FormularioItem
+        key={insumo.id}
+        identidade={{
+          insumo_id: insumo.id,
+          descricao: insumo.descricao,
+          unidade: insumo.unidade,
+          categoria_custo: insumo.categoria_custo,
+        }}
+        rotuloConfirmar="Adicionar item"
+        onConfirmar={adicionar}
+        onCancel={resetar}
+      />
+    );
   }
 
   return (
