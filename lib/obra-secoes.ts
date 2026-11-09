@@ -38,6 +38,9 @@ export const SECOES_OBRA: SecaoObra[] = [
   { slug: "avanco", segmento: "avanco", label: "Avanço", icone: "avanco" },
 
   // Suprimentos
+  // Cotações vem ANTES de ordens de compra porque é a ordem em que acontecem:
+  // pede-se preço, compara-se, e só então existe uma ordem.
+  { slug: "cotacoes", segmento: "cotacoes", label: "Cotações", icone: "cotacoes" },
   { slug: "compras", segmento: "compras", label: "Ordens de Compra", icone: "compras" },
   { slug: "locacoes", segmento: "locacoes", label: "Locações", icone: "locacoes" },
 

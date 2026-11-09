@@ -30,6 +30,9 @@ export type FormaPagamento =
   | "cheque"
   | "outro";
 export type CompraStatus = "cotada" | "aprovada" | "recusada" | "paga";
+/** Onde a cotação está: rascunho é do engenheiro, o cliente só vê de `aguardando_cliente` em diante. */
+export type CotacaoStatus = "rascunho" | "aguardando_cliente" | "decidida" | "recusada";
+export type PropostaStatus = "em_analise" | "escolhida" | "nao_escolhida";
 export type ParcelaStatus = "pendente" | "paga" | "vencida";
 export type DescontoTipo = "valor" | "percentual";
 export type OrcamentoVersaoStatus = "rascunho" | "ativa" | "substituida";
@@ -838,6 +841,12 @@ export interface Database {
           /** Número da NF. Nulo quando a compra não tem nota. */
           nota_fiscal_numero: string | null;
           nota_fiscal_emissao: string | null;
+          /**
+           * Proposta de cotação que gerou esta ordem (0077). Nula na ordem
+           * criada direto. É por aqui que a ordem alcança o anexo do
+           * fornecedor, que continua morando na proposta.
+           */
+          cotacao_proposta_id: string | null;
           criado_por: string;
           created_at: string;
           updated_at: string;
@@ -870,6 +879,7 @@ export interface Database {
           locacao_id?: string | null;
           nota_fiscal_numero?: string | null;
           nota_fiscal_emissao?: string | null;
+          cotacao_proposta_id?: string | null;
           criado_por: string;
           created_at?: string;
           updated_at?: string;
@@ -1133,6 +1143,177 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["avanco_registros"]["Insert"]>;
         Relationships: [];
       };
+      /**
+       * A necessidade de compra, uma vez, com várias propostas penduradas (0077).
+       *
+       * Vive em tabela própria e não em `compras` de propósito: proposta em
+       * análise não pode ser alcançável por nenhuma soma da obra. Ver o
+       * cabeçalho da migração.
+       */
+      cotacoes: {
+        Row: {
+          id: string;
+          obra_id: string;
+          descricao: string;
+          /** Validada contra a versão ativa ao gravar, como em `compras`. */
+          orcamento_etapa: string | null;
+          prazo_decisao: string | null;
+          observacoes: string | null;
+          status: CotacaoStatus;
+          decidida_por: string | null;
+          decidida_em: string | null;
+          motivo_recusa: string | null;
+          criado_por: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          obra_id: string;
+          descricao: string;
+          orcamento_etapa?: string | null;
+          prazo_decisao?: string | null;
+          observacoes?: string | null;
+          status?: CotacaoStatus;
+          decidida_por?: string | null;
+          decidida_em?: string | null;
+          motivo_recusa?: string | null;
+          criado_por: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["cotacoes"]["Insert"]>;
+        Relationships: [];
+      };
+      cotacao_propostas: {
+        Row: {
+          id: string;
+          cotacao_id: string;
+          fornecedor_id: string;
+          /** Condições desta proposta. O QUE se compra é da cotação. */
+          observacoes: string | null;
+          /** Derivado dos itens pelo gatilho, igual a `compras.valor_total`. */
+          valor_total: number;
+          forma_pagamento: FormaPagamento;
+          data_proposta: string;
+          data_entrega_prevista: string | null;
+          desconto_tipo: DescontoTipo | null;
+          desconto_valor: number | null;
+          categoria_id: string | null;
+          status: PropostaStatus;
+          /** A ordem de compra gerada. Só a escolhida tem. */
+          compra_id: string | null;
+          criado_por: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          cotacao_id: string;
+          fornecedor_id: string;
+          observacoes?: string | null;
+          valor_total?: number;
+          forma_pagamento: FormaPagamento;
+          data_proposta?: string;
+          data_entrega_prevista?: string | null;
+          desconto_tipo?: DescontoTipo | null;
+          desconto_valor?: number | null;
+          categoria_id?: string | null;
+          status?: PropostaStatus;
+          compra_id?: string | null;
+          criado_por: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["cotacao_propostas"]["Insert"]>;
+        Relationships: [];
+      };
+      /** Espelho coluna a coluna de `compra_itens`: a conversão é um insert-select. */
+      cotacao_proposta_itens: {
+        Row: {
+          id: string;
+          proposta_id: string;
+          orcamento_item_id: string | null;
+          insumo_id: string | null;
+          descricao: string;
+          unidade: string;
+          categoria_custo: TipoItemOrcamento | null;
+          quantidade: number;
+          preco_unitario: number;
+          desconto_tipo: DescontoTipo | null;
+          desconto_valor: number | null;
+          subtotal: number;
+          total_liquido: number;
+          ordem: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          proposta_id: string;
+          orcamento_item_id?: string | null;
+          insumo_id?: string | null;
+          descricao: string;
+          unidade: string;
+          categoria_custo?: TipoItemOrcamento | null;
+          quantidade?: number;
+          preco_unitario?: number;
+          desconto_tipo?: DescontoTipo | null;
+          desconto_valor?: number | null;
+          ordem: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["cotacao_proposta_itens"]["Insert"]>;
+        Relationships: [];
+      };
+      /** O plano de pagamento PROPOSTO. Sem pagamento nem comprovante: quem paga é a ordem gerada. */
+      cotacao_proposta_parcelas: {
+        Row: {
+          id: string;
+          proposta_id: string;
+          numero_parcela: number;
+          valor: number;
+          data_vencimento: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          proposta_id: string;
+          numero_parcela: number;
+          valor: number;
+          data_vencimento: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["cotacao_proposta_parcelas"]["Insert"]>;
+        Relationships: [];
+      };
+      /**
+       * O PDF que o fornecedor mandou. Máximo de 3 (trg_limite_anexos_proposta).
+       *
+       * O arquivo NÃO é copiado para `compra_anexos` na conversão: um caminho no
+       * Storage com dois donos acabaria apagado pela exclusão de um deles.
+       */
+      cotacao_proposta_anexos: {
+        Row: {
+          id: string;
+          proposta_id: string;
+          bucket: "cotacoes";
+          path: string;
+          nome: string;
+          criado_por: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          proposta_id: string;
+          bucket: "cotacoes";
+          path: string;
+          nome: string;
+          criado_por?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["cotacao_proposta_anexos"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: {
       /**
@@ -1304,6 +1485,41 @@ export interface Database {
         };
         Relationships: [];
       };
+      /**
+       * Cotações com a contagem de propostas e a faixa de valores (0077).
+       *
+       * Alimenta a tela de cotações, e só ela: valor de proposta não é gasto da
+       * obra, e não entra em dashboard nenhum.
+       */
+      vw_cotacoes_lista: {
+        Row: {
+          id: string;
+          obra_id: string;
+          descricao: string;
+          orcamento_etapa: string | null;
+          prazo_decisao: string | null;
+          observacoes: string | null;
+          status: CotacaoStatus;
+          decidida_por: string | null;
+          decidida_em: string | null;
+          motivo_recusa: string | null;
+          criado_por: string;
+          created_at: string;
+          updated_at: string;
+          propostas: number;
+          /** Null quando a cotação ainda não tem proposta nenhuma. */
+          menor_valor: number | null;
+          maior_valor: number | null;
+          fornecedor_escolhido: string | null;
+          valor_escolhido: number | null;
+          compra_id: string | null;
+          /** Posto de situação: pendente (1) antes de rascunho (2). Ver 0078. */
+          ordem_situacao: number;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
     };
     Functions: {
       is_engenheiro: {
@@ -1348,6 +1564,15 @@ export interface Database {
         Args: { p_compra_id: string; p_motivo: string };
         Returns: undefined;
       };
+      /** Devolve o id da ordem de compra criada a partir da proposta escolhida (0077). */
+      escolher_proposta: {
+        Args: { p_proposta_id: string };
+        Returns: string;
+      };
+      recusar_cotacao: {
+        Args: { p_cotacao_id: string; p_motivo: string };
+        Returns: undefined;
+      };
       pagar_parcela: {
         Args: { p_parcela_id: string; p_comprovante_path: string };
         Returns: undefined;
@@ -1375,6 +1600,8 @@ export interface Database {
       parcela_status: ParcelaStatus;
       orcamento_versao_status: OrcamentoVersaoStatus;
       desconto_tipo: DescontoTipo;
+      cotacao_status: CotacaoStatus;
+      proposta_status: PropostaStatus;
       regime_pagamento: RegimePagamento;
       condicao_pagamento: CondicaoPagamento;
       locacao_unidade: LocacaoUnidade;

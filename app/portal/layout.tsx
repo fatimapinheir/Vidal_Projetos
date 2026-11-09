@@ -22,6 +22,9 @@ const SECOES = [
   { label: "Início", icone: "visaoGeral" as const, segmento: "", slug: "visao-geral" },
   { label: "Orçamento", icone: "planejamento" as const, segmento: "orcamento", slug: "orcamento" },
   { label: "Cronograma", icone: "cronograma" as const, segmento: "cronograma", slug: "cronograma" },
+  // Antes dos lançamentos: a cotação é a decisão que o cliente ainda vai
+  // tomar, e o lançamento é o registro do que já saiu. Pendência primeiro.
+  { label: "Cotações", icone: "cotacoes" as const, segmento: "cotacoes", slug: "cotacoes" },
   {
     label: "Lançamentos financeiros",
     icone: "compras" as const,

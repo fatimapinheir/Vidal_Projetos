@@ -174,6 +174,24 @@ export async function CompraDetail({
       : compra.eh_lancamento && !!profile && compra.criado_por === profile.id;
 
 
+  /*
+   * De qual cotação esta ordem saiu, quando saiu de uma (0077).
+   *
+   * O documento que o fornecedor mandou continua morando na PROPOSTA, e não é
+   * copiado para `compra_anexos`: um caminho no Storage com dois donos acabaria
+   * apagado pela exclusão de um deles. Então o caminho até ele é este link — e
+   * é também o que prova, meses depois, que o preço foi comparado.
+   */
+  const { data: propostaDeOrigem } = compra.cotacao_proposta_id
+    ? await supabase
+        .from("cotacao_propostas")
+        .select("cotacao_id, cotacoes(descricao)")
+        .eq("id", compra.cotacao_proposta_id)
+        .maybeSingle<{ cotacao_id: string; cotacoes: { descricao: string } | null }>()
+    : { data: null };
+
+  const baseDoLado = viewerRole === "engenheiro" ? "/obras" : "/portal/obras";
+
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -181,6 +199,17 @@ export async function CompraDetail({
           <div>
             <CardTitle>{compra.descricao}</CardTitle>
             <p className="text-sm text-muted-foreground">{fornecedor?.nome}</p>
+            {propostaDeOrigem && (
+              <p className="pt-1 text-sm">
+                <Link
+                  href={`${baseDoLado}/${compra.obra_id}/cotacoes/${propostaDeOrigem.cotacao_id}`}
+                  className="text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                >
+                  Veio da cotação
+                  {propostaDeOrigem.cotacoes ? ` "${propostaDeOrigem.cotacoes.descricao}"` : ""}
+                </Link>
+              </p>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {/* Editar é do engenheiro, e vale para os dois tipos. O que a

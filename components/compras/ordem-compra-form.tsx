@@ -38,7 +38,8 @@ import { CampoFornecedor } from "@/components/compras/campo-fornecedor";
 import { CampoCategoria, type Categoria } from "@/components/compras/campo-categoria";
 import { CamposNotaFiscal } from "@/components/compras/campos-nota-fiscal";
 import { Lock, Pencil, Trash2 } from "lucide-react";
-import { enviarArquivoParaStorage, removerArquivosDoStorage } from "@/lib/storage/upload-direto";
+import { enviarAnexos, anexarAoForm } from "@/lib/storage/enviar-anexos";
+import { ratearEmParcelasIguais } from "@/lib/compras/rateio";
 import { SeletorAnexos } from "@/components/compras/seletor-anexos";
 import { MAX_ANEXOS_COMPRA } from "@/lib/compras/anexos";
 
@@ -62,21 +63,6 @@ function formatCurrency(value: number) {
 
 let nextRowId = 1;
 let nextItemId = 1;
-
-/** Divide o total em `n` parcelas iguais, jogando os centavos de arredondamento na última. */
-function splitIgual(ids: number[], total: number): Record<number, string> {
-  const n = ids.length;
-  if (!n) return {};
-  const centavosTotal = Math.round(total * 100);
-  const base = Math.floor(centavosTotal / n);
-  const resto = centavosTotal - base * n;
-  const resultado: Record<number, string> = {};
-  ids.forEach((id, i) => {
-    const centavos = base + (i === n - 1 ? resto : 0);
-    resultado[id] = (centavos / 100).toFixed(2);
-  });
-  return resultado;
-}
 
 /** A ordem já gravada, quando o formulário está editando. */
 export type OrdemCompraInicial = {
@@ -166,23 +152,13 @@ export function OrdemCompraForm({
 
     if (anexos.length) {
       setEnviandoAnexo(true);
-      const enviados: { path: string; nome: string }[] = [];
-      for (const arquivo of anexos) {
-        const envio = await enviarArquivoParaStorage("cotacoes", obraId, arquivo);
-        if (envio.path === null) {
-          await removerArquivosDoStorage("cotacoes", enviados.map((e) => e.path));
-          setEnviandoAnexo(false);
-          setErroAnexo(envio.error);
-          return;
-        }
-        enviados.push({ path: envio.path, nome: arquivo.name });
-      }
+      const envio = await enviarAnexos("cotacoes", obraId, anexos);
       setEnviandoAnexo(false);
-
-      for (const anexo of enviados) {
-        formData.append("anexo_path", anexo.path);
-        formData.append("anexo_nome", anexo.nome);
+      if (envio.anexos === null) {
+        setErroAnexo(envio.error);
+        return;
       }
+      anexarAoForm(formData, envio.anexos);
     }
 
     formAction(formData);
@@ -245,7 +221,7 @@ export function OrdemCompraForm({
    * partir dali os números são do usuário, e mudar um item não pode reescrever
    * por cima do que ele digitou.
    */
-  const rateio = splitIgual(rows.map((r) => r.id), totalNota);
+  const rateio = ratearEmParcelasIguais(rows.map((r) => r.id), totalNota);
   const valores = Object.keys(valoresEditados).length ? valoresEditados : rateio;
 
   function editarParcela(id: number, valor: string) {

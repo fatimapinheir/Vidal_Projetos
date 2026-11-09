@@ -19,6 +19,8 @@ import { EditarObraDialog } from "./editar-obra-dialog";
 import { assinarImagensObra } from "@/lib/obras/imagens";
 import { AcessoClienteAposCadastro } from "@/components/obras/acesso-cliente-apos-cadastro";
 import { Pencil } from "lucide-react";
+import { AvisoCotacaoPendente } from "@/components/cotacoes/aviso-cotacao-pendente";
+import { cotacoesAguardandoCliente } from "@/lib/cotacoes/carregar";
 
 const statusOptions = [
   { value: "planejamento", label: "Planejamento" },
@@ -78,12 +80,14 @@ export default async function ObraOverviewPage({
   // Só vale mostrar a timeline depois que o CPM rodou e as tarefas têm datas.
   const temTimeline = timeline.tarefas.some((t) => t.inicio && t.fim);
 
-  const [dadosVisao, extraCliente, imagens] = await Promise.all([
+  const [dadosVisao, extraCliente, imagens, cotacoesPendentes] = await Promise.all([
     carregarVisaoGeral(supabase, obraId),
     // Os mesmos dados da tela inicial do cliente — é o que permite conferir a
     // prévia sem pedir a senha dele.
     carregarExtraCliente(supabase, obraId),
     assinarImagensObra(supabase, obra),
+    // Só a contagem: valor cotado não aparece em painel nenhum.
+    cotacoesAguardandoCliente(supabase, obraId),
   ]);
 
 
@@ -121,6 +125,16 @@ export default async function ObraOverviewPage({
   return (
     <div className="grid gap-4 md:grid-cols-3">
       <AcessoClienteAposCadastro obraId={obraId} nova={nova === "1"} />
+
+      {cotacoesPendentes > 0 && (
+        <div className="md:col-span-3">
+          <AvisoCotacaoPendente
+            quantas={cotacoesPendentes}
+            href={`/obras/${obraId}/cotacoes`}
+            lado="engenheiro"
+          />
+        </div>
+      )}
 
       {/*
         "O que está chegando" saiu DESTA tela, a pedido, por enquanto.

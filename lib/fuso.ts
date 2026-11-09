@@ -53,3 +53,22 @@ export function horaNoFuso(agora: Date = new Date()): number {
   const parte = FORMATO_HORA.formatToParts(agora).find((p) => p.type === "hour");
   return Number(parte?.value ?? 0);
 }
+
+/**
+ * O DIA de um instante gravado no banco, no fuso do canteiro (ISO YYYY-MM-DD).
+ *
+ * Colunas `timestamptz` — `aprovado_em`, `decidida_em`, `created_at` — chegam
+ * do PostgREST em UTC. Cortar os dez primeiros caracteres da string, que é o
+ * que `formatDateBR` faz com uma coluna `date`, mostra o dia errado em tudo o
+ * que acontece depois das 21h: a decisão tomada às 21h30 de uma terça aparece
+ * como quarta. Mesmo bug de `hojeNoFuso`, no outro sentido.
+ *
+ * Devolve `null` para entrada vazia ou data inválida, para quem chama poder
+ * mostrar "—" em vez de "Invalid Date".
+ */
+export function diaDoInstante(valor: string | null | undefined): string | null {
+  if (!valor) return null;
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return null;
+  return hojeNoFuso(data);
+}
