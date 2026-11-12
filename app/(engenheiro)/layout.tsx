@@ -28,7 +28,14 @@ const navItems: NavEntry[] = [
   { secao: "Obra" },
   ...entradasDaObra(),
 
-  { secao: "Gerenciar" },
+  /*
+   * Sem rótulo de seção antes de Cadastros.
+   *
+   * Era "GERENCIAR", e com o cartão RH logo acima ficaram dois cartões
+   * separados por um texto que não dizia nada além de "daqui para baixo é
+   * outra coisa" — que os próprios cartões já dizem, por serem cartões. Os
+   * dois agora fecham a coluna juntos, no fim da lista.
+   */
   {
     label: "Cadastros",
     icone: "cadastros",
