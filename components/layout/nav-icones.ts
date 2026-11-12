@@ -12,6 +12,7 @@ import {
   Package,
   Scale,
   ShoppingCart,
+  UsersRound,
   Table2,
   TrendingUp,
   Truck,
@@ -45,6 +46,7 @@ export const navIcones = {
   locacoes: Container,
   presencas: UserCheck,
   fechamentos: Wallet,
+  rh: UsersRound,
 
   // Cadastros
   cadastros: FolderCog,

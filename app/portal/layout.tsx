@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppShell, type NavEntry } from "@/components/layout/app-shell";
 import { lerLateralRecolhida } from "@/lib/lateral.server";
 import { buscarLogoEmpresa } from "@/lib/obras/logo-empresa";
+import { papeisDoUsuario } from "@/lib/auth/papeis";
 
 /**
  * Seções da obra no portal do cliente.
@@ -51,6 +52,9 @@ export default async function PortalLayout({ children }: { children: React.React
     supabase.from("obra_clientes").select("obra_id", { count: "exact", head: true }),
   ]);
 
+  // Ver a nota no layout do engenheiro: `papeis` é do banco, não do token.
+  const conta = await papeisDoUsuario(supabase, profile.id);
+
   const navItems: NavEntry[] = [
     ...SECOES.map((secao) => ({
       label: secao.label,
@@ -74,6 +78,9 @@ export default async function PortalLayout({ children }: { children: React.React
       navItems={navItems}
       userName={profile.nome}
       userLabel="Cliente"
+      userRole={profile.role}
+      papeis={conta?.papeis ?? [profile.role]}
+      obraPadraoId={conta?.obraPadraoId ?? null}
       lateralRecolhida={lateralRecolhida}
       logoEmpresaUrl={logo.url}
       logoEmpresaNome={logo.nome}

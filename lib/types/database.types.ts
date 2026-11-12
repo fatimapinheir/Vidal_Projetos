@@ -51,7 +51,15 @@ export interface Database {
       profiles: {
         Row: {
           id: string;
+          /**
+           * O perfil ATIVO. É o que a RLS lê (`is_engenheiro()`), e o que
+           * `trocar_perfil` muda. Tem de estar em `papeis` — ver 0079.
+           */
           role: UserRole;
+          /** Os perfis que esta pessoa PODE assumir. Nunca vazio. */
+          papeis: UserRole[];
+          /** Obra em que o perfil de engenheiro abre. Nula = cai no Dashboard. */
+          obra_padrao_id: string | null;
           nome: string;
           telefone: string | null;
           email: string | null;
@@ -65,6 +73,9 @@ export interface Database {
         Insert: {
           id: string;
           role?: UserRole;
+          /** Omitido, o gatilho `trg_profiles_papeis_iniciais` grava `[role]`. */
+          papeis?: UserRole[];
+          obra_padrao_id?: string | null;
           nome: string;
           telefone?: string | null;
           email?: string | null;
@@ -1588,6 +1599,15 @@ export interface Database {
       logo_da_empresa: {
         Args: Record<string, never>;
         Returns: { logo_path: string | null; nome: string }[];
+      };
+      /** Devolve o papel que passou a valer. Lança quando não está em `papeis` (0079). */
+      trocar_perfil: {
+        Args: { p_role: UserRole };
+        Returns: UserRole;
+      };
+      definir_obra_padrao: {
+        Args: { p_obra_id: string | null };
+        Returns: undefined;
       };
     };
     Enums: {

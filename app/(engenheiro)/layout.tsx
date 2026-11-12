@@ -4,7 +4,8 @@ import { lerObraAtiva } from "@/lib/obra-ativa.server";
 import { lerLateralRecolhida } from "@/lib/lateral.server";
 import { buscarLogoEmpresa } from "@/lib/obras/logo-empresa";
 import { createClient } from "@/lib/supabase/server";
-import { SECOES_OBRA } from "@/lib/obra-secoes";
+import { entradasDaObra } from "@/lib/obra-secoes";
+import { papeisDoUsuario } from "@/lib/auth/papeis";
 
 /**
  * As seções da obra entram como descritor, não como link pronto.
@@ -15,14 +16,17 @@ import { SECOES_OBRA } from "@/lib/obra-secoes";
  * atrasado. Ver `resolverHref`.
  */
 const navItems: NavEntry[] = [
-  { href: "/dashboard", label: "Dashboard", icone: "dashboard" },
+  /*
+   * "Dashboard" está FORA do menu por enquanto, a pedido.
+   *
+   * A rota continua existindo e sendo alcançável — é para onde `requireRole`
+   * manda quem erra o lado, e onde o engenheiro sem obra padrão cai depois do
+   * login. Só não ocupa mais uma linha da coluna. Para trazer de volta:
+   *   { href: "/dashboard", label: "Dashboard", icone: "dashboard" },
+   */
 
   { secao: "Obra" },
-  ...SECOES_OBRA.map((secao) => ({
-    label: secao.label,
-    icone: secao.icone,
-    obraSecao: { slug: secao.slug, segmento: secao.segmento },
-  })),
+  ...entradasDaObra(),
 
   { secao: "Gerenciar" },
   {
@@ -48,18 +52,31 @@ export default async function EngenheiroLayout({ children }: { children: React.R
    * que o `router.refresh()` de uma ação dispara. Ela não depende de nada que
    * o bloco acima devolve; estar fora era descuido, não necessidade.
    */
+  const supabase = await createClient();
   const [profile, obraLembrada, lateralRecolhida, logo] = await Promise.all([
     requireRole("engenheiro"),
     lerObraAtiva(),
     lerLateralRecolhida(),
-    createClient().then(buscarLogoEmpresa),
+    buscarLogoEmpresa(supabase),
   ]);
+
+  /*
+   * Os papéis vêm do banco, e só podiam ser buscados depois de saber QUEM está
+   * logado — daí estar fora do `Promise.all` acima. É uma ida a mais, e é o
+   * preço de `papeis` não viajar no token: colocá-lo lá criaria uma segunda
+   * cópia para sair de sincronia, já que quem concede o papel é o engenheiro
+   * por SQL. Ver `lib/auth/papeis`.
+   */
+  const conta = await papeisDoUsuario(supabase, profile.id);
 
   return (
     <AppShell
       navItems={navItems}
       userName={profile.nome}
       userLabel="Engenheiro"
+      userRole={profile.role}
+      papeis={conta?.papeis ?? [profile.role]}
+      obraPadraoId={conta?.obraPadraoId ?? null}
       obraLembrada={obraLembrada}
       lateralRecolhida={lateralRecolhida}
       logoEmpresaUrl={logo.url}

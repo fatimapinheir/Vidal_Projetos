@@ -1,7 +1,5 @@
-import Link from "next/link";
-import { LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { logout } from "@/lib/auth/actions";
+import { MenuDoUsuario } from "./menu-do-usuario";
+import type { UserRole } from "@/lib/types/database.types";
 import { Logo } from "@/components/marca/logo";
 import { TemaToggle } from "@/components/theme/tema-toggle";
 import type { NomeDeIcone } from "./nav-icones";
@@ -33,29 +31,6 @@ export type NavGroup = { label: string; items: NavItem[]; icone?: NomeDeIcone };
 export type NavSecao = { secao: string };
 export type NavEntry = NavItem | NavGroup | NavSecao;
 
-/** Iniciais para o avatar — no máximo duas, senão vira sopa de letra. */
-function iniciais(nome: string) {
-  const partes = nome.trim().split(/\s+/).filter(Boolean);
-  if (!partes.length) return "?";
-  const primeira = partes[0][0];
-  const ultima = partes.length > 1 ? partes[partes.length - 1][0] : "";
-  return (primeira + ultima).toUpperCase();
-}
-
-function Avatar({ nome, className }: { nome: string; className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={
-        "flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground " +
-        (className ?? "")
-      }
-    >
-      {iniciais(nome)}
-    </span>
-  );
-}
-
 /**
  * O pé da lateral: quem fez o sistema.
  *
@@ -82,6 +57,9 @@ export function AppShell({
   navItems,
   userName,
   userLabel,
+  userRole,
+  papeis,
+  obraPadraoId,
   obraLembrada = null,
   lateralRecolhida = false,
   logoEmpresaUrl = null,
@@ -91,6 +69,11 @@ export function AppShell({
   navItems: NavEntry[];
   userName: string;
   userLabel: string;
+  /** Perfil ativo de quem está logado. */
+  userRole: UserRole;
+  /** Perfis que ele pode assumir. Mais de um faz aparecer o seletor no menu. */
+  papeis: UserRole[];
+  obraPadraoId: string | null;
   /** Última obra aberta, do cookie. Serve de palpite quando a URL não diz. */
   obraLembrada?: string | null;
   /** Preferência vinda do cookie — ver `lib/lateral`. */
@@ -167,22 +150,20 @@ export function AppShell({
 
           <TemaToggle />
 
-          <Link
-            href="/perfil"
-            title={`${userName} — ${userLabel}`}
-            className="rounded-full transition-opacity hover:opacity-85"
-          >
-            <Avatar nome={userName} />
-            <span className="sr-only">
-              {userName} — {userLabel}
-            </span>
-          </Link>
-
-          <form action={logout}>
-            <Button type="submit" variant="ghost" size="icon-sm" aria-label="Sair">
-              <LogOut className="size-4" />
-            </Button>
-          </form>
+          {/*
+            O avatar virou menu. Era um link para `/perfil` com um botão de
+            sair ao lado — e `/perfil` vive dentro de `app/(engenheiro)`, então
+            para o cliente o ícone levava a um redirect de volta e ele não
+            tinha onde trocar a própria senha. "Sair" entrou no menu junto: um
+            botão de logout permanente ao lado do avatar é um alvo de toque a
+            um dedo de distância de onde ninguém quer acertar.
+          */}
+          <MenuDoUsuario
+            nome={userName}
+            role={userRole}
+            papeis={papeis}
+            obraPadraoId={obraPadraoId}
+          />
         </header>
 
         <main className="flex-1 overflow-x-hidden p-4 md:p-6">{children}</main>
