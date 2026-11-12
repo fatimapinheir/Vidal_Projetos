@@ -1,4 +1,5 @@
 import { MenuDoUsuario } from "./menu-do-usuario";
+import { AvisoPerfilDivergente } from "./aviso-perfil-divergente";
 import type { UserRole } from "@/lib/types/database.types";
 import { Logo } from "@/components/marca/logo";
 import { TemaToggle } from "@/components/theme/tema-toggle";
@@ -60,6 +61,7 @@ export function AppShell({
   userRole,
   papeis,
   obraPadraoId,
+  papelNoBanco = null,
   obraLembrada = null,
   lateralRecolhida = false,
   logoEmpresaUrl = null,
@@ -74,6 +76,11 @@ export function AppShell({
   /** Perfis que ele pode assumir. Mais de um faz aparecer o seletor no menu. */
   papeis: UserRole[];
   obraPadraoId: string | null;
+  /**
+   * O perfil que o BANCO diz, quando difere do que veio no token. Null é o
+   * caso normal. Ver `AvisoPerfilDivergente`.
+   */
+  papelNoBanco?: UserRole | null;
   /** Última obra aberta, do cookie. Serve de palpite quando a URL não diz. */
   obraLembrada?: string | null;
   /** Preferência vinda do cookie — ver `lib/lateral`. */
@@ -166,7 +173,15 @@ export function AppShell({
           />
         </header>
 
-        <main className="flex-1 overflow-x-hidden p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-x-hidden p-4 md:p-6">
+          {papelNoBanco && papelNoBanco !== userRole && (
+            <AvisoPerfilDivergente
+              papelNaTela={userRole === "engenheiro" ? "Engenheiro" : "Cliente"}
+              papelNoBanco={papelNoBanco === "engenheiro" ? "Engenheiro" : "Cliente"}
+            />
+          )}
+          {children}
+        </main>
       </div>
     </div>
   );

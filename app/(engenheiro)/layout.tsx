@@ -84,6 +84,7 @@ export default async function EngenheiroLayout({ children }: { children: React.R
       userRole={profile.role}
       papeis={conta?.papeis ?? [profile.role]}
       obraPadraoId={conta?.obraPadraoId ?? null}
+      papelNoBanco={conta?.role ?? null}
       obraLembrada={obraLembrada}
       lateralRecolhida={lateralRecolhida}
       logoEmpresaUrl={logo.url}

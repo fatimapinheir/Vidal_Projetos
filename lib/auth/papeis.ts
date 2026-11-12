@@ -6,7 +6,15 @@ type Client = SupabaseClient<Database>;
 export type PapeisDoUsuario = {
   /** Os perfis que esta pessoa pode assumir. Nunca vazio. */
   papeis: UserRole[];
-  /** Obra em que o perfil de engenheiro abre. Nula = Dashboard. */
+  /**
+   * O perfil ativo SEGUNDO O BANCO — que é quem a RLS obedece.
+   *
+   * Normalmente igual ao que vem no token. Quando difere, a pessoa está no
+   * estado em que a moldura é de um perfil e os dados são do outro, e a tela
+   * precisa dizer isso em vez de ficar vazia sem explicação.
+   */
+  role: UserRole;
+  /** Obra em que o perfil de engenheiro abre. Nula = escolher ao entrar. */
   obraPadraoId: string | null;
 };
 
@@ -31,13 +39,14 @@ export async function papeisDoUsuario(
 ): Promise<PapeisDoUsuario | null> {
   const { data } = await supabase
     .from("profiles")
-    .select("papeis, obra_padrao_id")
+    .select("papeis, role, obra_padrao_id")
     .eq("id", usuarioId)
     .maybeSingle();
 
   if (!data) return null;
 
   return {
+    role: data.role,
     // A restrição `profiles_papeis_nao_vazio` garante o conteúdo; o `?? []` é
     // para o caso de o PostgREST devolver nulo por algum motivo nosso.
     papeis: data.papeis ?? [],

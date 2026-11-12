@@ -81,6 +81,7 @@ export default async function PortalLayout({ children }: { children: React.React
       userRole={profile.role}
       papeis={conta?.papeis ?? [profile.role]}
       obraPadraoId={conta?.obraPadraoId ?? null}
+      papelNoBanco={conta?.role ?? null}
       lateralRecolhida={lateralRecolhida}
       logoEmpresaUrl={logo.url}
       logoEmpresaNome={logo.nome}
