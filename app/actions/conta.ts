@@ -14,6 +14,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/auth/require-role";
 import { papeisDoUsuario, destinoDoPerfil } from "@/lib/auth/papeis";
+import { lerObraAtiva } from "@/lib/obra-ativa.server";
 
 export type ContaFormState = { error: string | null; ok?: boolean };
 
@@ -57,8 +58,11 @@ export async function trocarPerfilAction(role: string): Promise<ContaFormState> 
     return { error: "Perfil trocado no banco, mas a sessão não acompanhou. Tente de novo." };
   }
 
-  const papeis = await papeisDoUsuario(supabase, sessao.id);
-  redirect(destinoDoPerfil(alvo, papeis?.obraPadraoId ?? null));
+  const [papeis, obraLembrada] = await Promise.all([
+    papeisDoUsuario(supabase, sessao.id),
+    lerObraAtiva(),
+  ]);
+  redirect(destinoDoPerfil(alvo, papeis?.obraPadraoId ?? null, obraLembrada));
 }
 
 const senhaSchema = z

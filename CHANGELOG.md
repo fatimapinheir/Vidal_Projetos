@@ -38,8 +38,11 @@ Na primeira vez o sistema pergunta sozinho; depois fica no menu do nome.
 
 - **Folgas**, **Presenças** e **Fechamentos** entraram num cartão único
   chamado **RH**, que abre e fecha.
-- **Dashboard** saiu do menu. A tela continua existindo — é onde você cai ao
-  entrar sem obra padrão definida.
+- **Dashboard** saiu do menu, e a entrada do engenheiro passou a ser uma obra.
+  Ao entrar, o sistema abre a **obra padrão**; se não houver, a **última obra
+  que você abriu**; e só se não souber nenhuma das duas é que mostra a tela de
+  escolher obra. A tela do Dashboard continua existindo, mas nada mais leva
+  até ela.
 - O rótulo "GERENCIAR" saiu. RH e Cadastros fecham a coluna juntos.
 
 ### O RDO passa a saber quem é o responsável técnico

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessao } from "@/lib/auth/sessao";
 import { createClient } from "@/lib/supabase/server";
 import { papeisDoUsuario, destinoDoPerfil } from "@/lib/auth/papeis";
+import { lerObraAtiva } from "@/lib/obra-ativa.server";
 
 export default async function Home() {
   const sessao = await getSessao();
@@ -14,7 +15,11 @@ export default async function Home() {
    * tornar barato.
    */
   const supabase = await createClient();
-  const conta = await papeisDoUsuario(supabase, sessao.id);
+  const [conta, obraLembrada] = await Promise.all([
+    papeisDoUsuario(supabase, sessao.id),
+    // A última obra aberta é o destino de quem nunca definiu uma padrão.
+    lerObraAtiva(),
+  ]);
 
-  redirect(destinoDoPerfil(sessao.role, conta?.obraPadraoId ?? null));
+  redirect(destinoDoPerfil(sessao.role, conta?.obraPadraoId ?? null, obraLembrada));
 }

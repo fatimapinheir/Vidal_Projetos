@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { destinoDoPerfil } from "@/lib/auth/papeis";
+import { lerObraAtiva } from "@/lib/obra-ativa.server";
 
 export type LoginState = { error: string | null };
 
@@ -35,9 +36,17 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
     .eq("id", data.user.id)
     .single();
 
+  /*
+   * A última obra aberta vem do cookie, que sobrevive ao logout: quem entra de
+   * novo na mesma máquina volta para onde estava, sem precisar ter definido
+   * obra padrão. `lerObraAtiva` confere que a obra ainda existe e passa pela
+   * RLS, então um cookie velho ou de outra pessoa simplesmente não conta.
+   */
+  const obraLembrada = await lerObraAtiva();
+
   redirect(
     profile
-      ? destinoDoPerfil(profile.role, profile.obra_padrao_id)
+      ? destinoDoPerfil(profile.role, profile.obra_padrao_id, obraLembrada)
       : "/portal/dashboard"
   );
 }

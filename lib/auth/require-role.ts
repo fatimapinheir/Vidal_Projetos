@@ -20,7 +20,14 @@ export async function requireRole(role: UserRole): Promise<Sessao> {
   }
 
   if (sessao.role !== role) {
-    redirect(sessao.role === "engenheiro" ? "/dashboard" : "/portal/dashboard");
+    /*
+     * Manda para a RAIZ, que decide o destino, em vez de escolher aqui.
+     *
+     * Era `/dashboard`, e o Dashboard saiu do menu: quem errasse o lado caía
+     * numa tela sem caminho de volta. A raiz conhece a obra padrão e a última
+     * obra aberta — regra num lugar só, em `destinoDoPerfil`.
+     */
+    redirect("/");
   }
 
   return sessao;

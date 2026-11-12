@@ -48,17 +48,36 @@ export async function papeisDoUsuario(
 /**
  * Para onde alguém vai ao entrar num perfil.
  *
- * Com obra padrão definida, o perfil de engenheiro abre na visão geral dela.
- * Era sempre o Dashboard, e para quem acompanha UMA obra isso significava um
- * clique a mais em toda entrada — o painel de todas as obras é o assunto de
- * quem gerencia a construtora, não de quem tem os dois perfis por ser cliente
- * de uma obra só.
+ * O engenheiro entra numa OBRA, não num painel. O Dashboard saiu do menu, e
+ * continuar mandando a entrada para lá deixava a pessoa numa tela sem caminho
+ * de volta — nenhum item do menu aponta para ela.
+ *
+ * Três tentativas, em ordem de quanto cada uma sabe sobre a intenção:
+ *
+ *   1. **Obra padrão**, quando definida. É escolha explícita, e ganha de tudo.
+ *   2. **Última obra aberta**, do cookie que a barra lateral já usa para saber
+ *      para onde apontar. Cobre quem nunca definiu padrão — que é o caso de
+ *      quem tem um perfil só e por isso nunca foi perguntado.
+ *   3. **A tela de escolher obra**, que já existe para as seções e lista as
+ *      obras com endereço e status. É a resposta honesta para "não sei em qual
+ *      você quer entrar" — melhor que um painel que o menu não alcança.
+ *
+ * O cliente segue no `/portal/dashboard` quando não tem padrão: com uma obra
+ * só, aquela tela já redireciona direto para ela; com mais de uma, escolher é
+ * exatamente o que ela existe para fazer.
  */
-export function destinoDoPerfil(role: UserRole, obraPadraoId: string | null): string {
+export function destinoDoPerfil(
+  role: UserRole,
+  obraPadraoId: string | null,
+  /** Última obra aberta (`lerObraAtiva`), quando não há padrão definida. */
+  obraLembradaId: string | null = null
+): string {
   if (role === "cliente") {
     return obraPadraoId ? `/portal/obras/${obraPadraoId}` : "/portal/dashboard";
   }
-  return obraPadraoId ? `/obras/${obraPadraoId}` : "/dashboard";
+
+  const obra = obraPadraoId ?? obraLembradaId;
+  return obra ? `/obras/${obra}` : "/selecionar-obra/visao-geral";
 }
 
 /**
