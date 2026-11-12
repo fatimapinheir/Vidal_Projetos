@@ -151,6 +151,10 @@
 .rdo-linha-assinatura strong { font-size: 0.95em; }
 .rdo-linha-assinatura span { font-size: 0.76em; color: #5a6273; letter-spacing: 0.05em; }
 
+/* Fora da moldura da assinatura, e menor: diz quem preencheu, não quem assina. */
+.rdo-registrado-por { margin: 0.57em 0 0; font-size: 0.81em; color: #5a6273; text-align: right; }
+.rdo-registrado-por span { font-weight: 600; letter-spacing: 0.04em; }
+
 /*
  * Tela estreita: as grades de duas e quatro colunas não cabem.
  *

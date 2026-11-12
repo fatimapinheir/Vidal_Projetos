@@ -24,6 +24,15 @@ const obraSchema = z.object({
   nome: z.string().min(1, "Informe o nome da obra."),
   data_inicio: textoOpcional,
   data_fim_prevista: textoOpcional,
+  /*
+   * Quem responde tecnicamente pela obra (0081). É dele o nome, o CREA, a
+   * assinatura e a logo no RDO — independente de quem registrou o dia.
+   *
+   * Opcional: obra sem responsável definido continua imprimindo o RDO como
+   * antes. Que ele seja engenheiro é conferido pelo gatilho no banco, que é
+   * onde a regra não depende de nenhuma tela lembrar dela.
+   */
+  responsavel_tecnico_id: z.uuid().optional().nullable().catch(null),
 
   // Localização
   cep: textoOpcional,
@@ -81,6 +90,7 @@ function lerFormulario(formData: FormData) {
     nome: texto("nome"),
     data_inicio: texto("data_inicio"),
     data_fim_prevista: texto("data_fim_prevista"),
+    responsavel_tecnico_id: texto("responsavel_tecnico_id") || null,
     cep: texto("cep"),
     logradouro: texto("logradouro"),
     numero: texto("numero"),

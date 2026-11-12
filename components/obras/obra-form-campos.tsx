@@ -30,6 +30,7 @@ export type ObraCampos = {
   nome: string;
   data_inicio: string | null;
   data_fim_prevista: string | null;
+  responsavel_tecnico_id: string | null;
   cep: string | null;
   logradouro: string | null;
   numero: string | null;
@@ -66,9 +67,12 @@ export type ObraCampos = {
 export function ObraFormCampos({
   obra,
   tipos,
+  engenheiros = [],
 }: {
   obra?: Partial<ObraCampos>;
   tipos: TipoObra[];
+  /** Quem pode ser responsável técnico. Vazio esconde o campo. */
+  engenheiros?: { id: string; nome: string }[];
 }) {
   // Controlados porque a busca por CEP os preenche; o resto fica solto no DOM.
   const [logradouro, setLogradouro] = useState(obra?.logradouro ?? "");
@@ -127,6 +131,34 @@ export function ObraFormCampos({
           <Input id="data_fim_prevista" name="data_fim_prevista" type="date" defaultValue={obra?.data_fim_prevista ?? ""} />
         </div>
       </Field>
+
+      {/*
+        O responsável técnico fica aqui em cima, junto do nome e das datas, e
+        não entre as características: é um dado do CONTRATO da obra, e é dele
+        que saem o nome, o CREA e a assinatura de todo RDO que a obra gerar.
+      */}
+      {engenheiros.length > 0 && (
+        <Field>
+          <FieldLabel htmlFor="responsavel_tecnico_id">Responsável técnico</FieldLabel>
+          <select
+            id="responsavel_tecnico_id"
+            name="responsavel_tecnico_id"
+            defaultValue={obra?.responsavel_tecnico_id ?? ""}
+            className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+          >
+            <option value="">Não definido</option>
+            {engenheiros.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.nome}
+              </option>
+            ))}
+          </select>
+          <FieldDescription>
+            Assina o RDO desta obra — nome, CREA e assinatura saem do cadastro dele, mesmo quando
+            outra pessoa registra o dia.
+          </FieldDescription>
+        </Field>
+      )}
 
       <FieldSet>
         <FieldLegend variant="label">Localização</FieldLegend>

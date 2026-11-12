@@ -96,6 +96,12 @@ export interface Database {
           status: ObraStatus;
           data_inicio: string | null;
           data_fim_prevista: string | null;
+          /**
+           * Engenheiro que responde tecnicamente pela obra (0081). É dele o
+           * nome, o CREA, a assinatura e a logo no RDO — independente de quem
+           * registrou ou fechou o dia.
+           */
+          responsavel_tecnico_id: string | null;
           criado_por: string;
           created_at: string;
           updated_at: string;
@@ -136,6 +142,7 @@ export interface Database {
           status?: ObraStatus;
           data_inicio?: string | null;
           data_fim_prevista?: string | null;
+          responsavel_tecnico_id?: string | null;
           criado_por: string;
           created_at?: string;
           updated_at?: string;

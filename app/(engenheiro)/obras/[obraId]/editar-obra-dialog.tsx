@@ -49,12 +49,14 @@ export function EditarObraDialog({
   obra,
   clientes,
   tipos,
+  engenheiros = [],
   imagens,
   gatilho,
 }: {
   obra: Tables<"obras">;
   clientes: ClienteVinculado[];
   tipos: TipoObra[];
+  engenheiros?: { id: string; nome: string }[];
   /** URLs assinadas das fotos — o bucket é privado, quem assina é a página. */
   imagens: UrlsImagensObra;
   /** Permite abrir o mesmo diálogo pelo card de dados ou pelo card de cliente. */
@@ -105,7 +107,7 @@ export function EditarObraDialog({
         </DialogHeader>
 
         <form action={salvarAction} className="flex flex-col gap-4">
-          <ObraFormCampos obra={obra} tipos={tipos} />
+          <ObraFormCampos obra={obra} tipos={tipos} engenheiros={engenheiros} />
           {estadoSalvar.error && <FieldError>{estadoSalvar.error}</FieldError>}
           <div>
             <Button type="submit" disabled={salvando}>

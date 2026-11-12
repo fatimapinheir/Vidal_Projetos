@@ -237,6 +237,23 @@ export function RdoDocumento({ dados }: { dados: DadosRdo }) {
               <span>RESPONSÁVEL TÉCNICO</span>
             </div>
           </div>
+
+          {/*
+            Quem preencheu o diário, abaixo da assinatura e em letra menor.
+            
+            São duas pessoas diferentes no uso real: o auxiliar registra o dia,
+            o responsável técnico responde por ele. O documento precisa dizer os
+            dois sem sugerir que o segundo nome também assina — daí a posição,
+            fora da moldura da assinatura, e o peso visual menor.
+            
+            Só aparece quando é OUTRA pessoa: repetir o mesmo nome duas vezes
+            não informa nada e sugere dois fatos onde há um só.
+          */}
+          {dados.registradoPor && (
+            <p className="rdo-registrado-por">
+              <span>REGISTRADO POR:</span> {dados.registradoPor}
+            </p>
+          )}
         </section>
       </article>
     </div>

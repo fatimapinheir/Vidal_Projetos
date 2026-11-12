@@ -60,3 +60,27 @@ export function destinoDoPerfil(role: UserRole, obraPadraoId: string | null): st
   }
   return obraPadraoId ? `/obras/${obraPadraoId}` : "/dashboard";
 }
+
+/**
+ * Quem pode ser responsável técnico de uma obra.
+ *
+ * Filtra por `papeis`, e não por `role`: quem tem os dois perfis continua
+ * elegível enquanto estiver navegando como cliente. O perfil ATIVO diz o que a
+ * pessoa está fazendo agora; o que ela PODE ser é o que importa para aparecer
+ * na lista — senão o responsável técnico sumiria do formulário no dia em que
+ * ele resolvesse olhar a obra pelo portal.
+ *
+ * A mesma regra é conferida no banco pelo gatilho
+ * `trg_obras_responsavel_tecnico` (0081) — aqui é conveniência de tela.
+ */
+export async function engenheirosDisponiveis(
+  supabase: Client
+): Promise<{ id: string; nome: string }[]> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, nome")
+    .contains("papeis", ["engenheiro"])
+    .order("nome");
+
+  return data ?? [];
+}

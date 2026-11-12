@@ -21,6 +21,7 @@ import { AcessoClienteAposCadastro } from "@/components/obras/acesso-cliente-apo
 import { Pencil } from "lucide-react";
 import { AvisoCotacaoPendente } from "@/components/cotacoes/aviso-cotacao-pendente";
 import { cotacoesAguardandoCliente } from "@/lib/cotacoes/carregar";
+import { engenheirosDisponiveis } from "@/lib/auth/papeis";
 
 const statusOptions = [
   { value: "planejamento", label: "Planejamento" },
@@ -89,6 +90,9 @@ export default async function ObraOverviewPage({
     // Só a contagem: valor cotado não aparece em painel nenhum.
     cotacoesAguardandoCliente(supabase, obraId),
   ]);
+
+  // Para o seletor de responsável técnico na edição da obra.
+  const engenheiros = await engenheirosDisponiveis(supabase);
 
 
   const clientes = (clientesVinculados ?? []).map((v) => {
@@ -195,6 +199,7 @@ export default async function ObraOverviewPage({
             obra={obra}
             clientes={clientes}
             tipos={tipos ?? []}
+            engenheiros={engenheiros}
             imagens={imagens}
           />
         </CardHeader>
@@ -282,6 +287,7 @@ export default async function ObraOverviewPage({
               obra={obra}
               clientes={clientes}
               tipos={tipos ?? []}
+              engenheiros={engenheiros}
               imagens={imagens}
               gatilho={
                 <Button variant="ghost" size="sm">

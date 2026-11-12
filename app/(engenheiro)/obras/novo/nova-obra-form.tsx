@@ -8,12 +8,18 @@ import { createObra, type ObraFormState } from "@/app/actions/obras";
 
 const initialState: ObraFormState = { error: null };
 
-export function NovaObraForm({ tipos }: { tipos: TipoObra[] }) {
+export function NovaObraForm({
+  tipos,
+  engenheiros,
+}: {
+  tipos: TipoObra[];
+  engenheiros: { id: string; nome: string }[];
+}) {
   const [state, formAction, pending] = useActionState(createObra, initialState);
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <ObraFormCampos tipos={tipos} />
+      <ObraFormCampos tipos={tipos} engenheiros={engenheiros} />
       {state.error && <FieldError>{state.error}</FieldError>}
       <div>
         <Button type="submit" disabled={pending}>

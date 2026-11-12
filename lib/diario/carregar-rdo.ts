@@ -16,8 +16,15 @@ export type DadosRdo = {
   obraNome: string;
   local: string;
   contratante: string;
+  /** Quem responde tecnicamente pela obra. É quem assina. */
   responsavel: { nome: string; crea: string | null };
   assinaturaUrl: string | null;
+  /**
+   * Quem preencheu o diário deste dia. Separado de `responsavel` de propósito:
+   * o auxiliar registra, o responsável técnico assina, e o documento precisa
+   * dizer os dois.
+   */
+  registradoPor: string | null;
   /** Logo da construtora, para o cabeçalho. Nula, o cabeçalho usa texto. */
   logoEmpresaUrl: string | null;
   temperatura: number | null;
@@ -153,32 +160,67 @@ export async function carregarRdo(
     legenda: f.legenda,
   }));
 
-  // Quem assina é quem FECHOU o dia, não quem está lendo a tela: o RDO é um
-  // documento datado, e trocar a assinatura conforme o leitor o descaracteriza.
-  const assinanteId = diario?.fechado_por ?? assinanteFallback;
+  /*
+   * Quem assina é o RESPONSÁVEL TÉCNICO DA OBRA (0081).
+   *
+   * Era quem fechou o dia, e isso trocava o responsável técnico do documento
+   * conforme quem mexeu no diário: em produção, o RDO de 10/11/2026 foi fechado
+   * por um engenheiro sem CREA e saiu com o nome dele no campo, sem CREA e sem
+   * assinatura. Responsável técnico é um fato do contrato da obra, não do
+   * expediente de quem registrou o dia.
+   *
+   * O caminho antigo fica como alternativa, para obra sem responsável definido
+   * continuar imprimindo o que sempre imprimiu em vez de perder a assinatura.
+   */
+  const assinanteId =
+    obra.responsavel_tecnico_id ?? diario?.fechado_por ?? assinanteFallback;
   const admin = createAdminClient();
 
   let responsavel = { nome: "—", crea: null as string | null };
   let assinaturaUrl: string | null = null;
   let logoPath: string | null = null;
+  let registradoPor: string | null = null;
 
-  if (assinanteId) {
-    const { data: perfil } = await admin
-      .from("profiles")
-      .select("nome, crea, assinatura_path, logo_path")
-      .eq("id", assinanteId)
-      .maybeSingle();
+  /*
+   * Os dois perfis numa consulta só, pelo client administrativo — mesma
+   * justificativa do cabeçalho desta função, e agora também para o nome de
+   * quem registrou: o cliente não enxerga `profiles` de outra pessoa.
+   */
+  const idsDeInteresse = [assinanteId, diario?.registrado_por].filter(
+    (id): id is string => !!id
+  );
 
-    if (perfil) {
-      responsavel = { nome: perfil.nome, crea: perfil.crea };
-      logoPath = perfil.logo_path;
-      if (perfil.assinatura_path) {
-        const { data: url } = await admin.storage
-          .from("assinaturas")
-          .createSignedUrl(perfil.assinatura_path, 60 * 30);
-        assinaturaUrl = url?.signedUrl ?? null;
-      }
+  const { data: perfis } = idsDeInteresse.length
+    ? await admin
+        .from("profiles")
+        .select("id, nome, crea, assinatura_path, logo_path")
+        .in("id", [...new Set(idsDeInteresse)])
+    : { data: null };
+
+  const perfilDe = (id: string | null | undefined) =>
+    id ? (perfis ?? []).find((p) => p.id === id) ?? null : null;
+
+  const assinante = perfilDe(assinanteId);
+  if (assinante) {
+    responsavel = { nome: assinante.nome, crea: assinante.crea };
+    logoPath = assinante.logo_path;
+    if (assinante.assinatura_path) {
+      const { data: url } = await admin.storage
+        .from("assinaturas")
+        .createSignedUrl(assinante.assinatura_path, 60 * 30);
+      assinaturaUrl = url?.signedUrl ?? null;
     }
+  }
+
+  /*
+   * O nome de quem registrou só é impresso quando é OUTRA pessoa.
+   *
+   * Repetir o mesmo nome em "registrado por" e na assinatura não informa nada
+   * e sugere que são dois fatos quando é um só.
+   */
+  const quemRegistrou = perfilDe(diario?.registrado_por);
+  if (quemRegistrou && quemRegistrou.id !== assinanteId) {
+    registradoPor = quemRegistrou.nome;
   }
 
   /*
@@ -198,6 +240,7 @@ export async function carregarRdo(
     contratante,
     responsavel,
     assinaturaUrl,
+    registradoPor,
     logoEmpresaUrl,
     temperatura: diario?.temperatura ?? null,
     condicaoDia: diario?.clima ?? null,
