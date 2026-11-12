@@ -4,6 +4,8 @@ import { CalendarX2, ChevronLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { carregarRdo } from "@/lib/diario/carregar-rdo";
+import { tituloDoRdo } from "@/lib/diario/titulo-rdo";
+import type { Metadata } from "next";
 import { RdoDocumento } from "@/components/diario/rdo-documento";
 import { formatDateBR } from "@/lib/format-date";
 import { hojeNoFuso } from "@/lib/fuso";
@@ -25,6 +27,29 @@ const ISO_DATA = /^\d{4}-\d{2}-\d{2}$/;
  * por isso que a tela de "sem RDO" abaixo não distingue rascunho de nada: do
  * ponto de vista do cliente, as duas situações são a mesma.
  */
+/**
+ * Mesmo nome de arquivo do lado do engenheiro: o cliente baixa o MESMO
+ * documento, e dois nomes para o mesmo PDF acabariam em duas cópias na pasta
+ * de quem recebe. Ver a nota em `tituloDoRdo`.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ obraId: string; data: string }>;
+}): Promise<Metadata> {
+  const { obraId, data } = await params;
+  if (!ISO_DATA.test(data)) return {};
+
+  const supabase = await createClient();
+  const { data: obra } = await supabase
+    .from("obras")
+    .select("nome")
+    .eq("id", obraId)
+    .maybeSingle();
+
+  return obra ? { title: tituloDoRdo(data, obra.nome) } : {};
+}
+
 export default async function PortalDiarioDiaPage({
   params,
 }: {
