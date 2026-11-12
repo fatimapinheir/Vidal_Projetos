@@ -31,8 +31,8 @@ conta. Não precisa mais passar pela recuperação por e-mail.
 ### Obra padrão
 
 Quem tem os dois perfis escolhe em qual obra o perfil de engenheiro abre, e
-passa a entrar direto na visão geral dela em vez do painel de todas as obras.
-Na primeira vez o sistema pergunta sozinho; depois fica no menu do nome.
+passa a entrar direto na visão geral dela. Na primeira vez o sistema pergunta
+sozinho; depois a opção fica no menu do nome.
 
 ### Menu mais curto
 

@@ -19,8 +19,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuPortal,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -158,68 +156,82 @@ export function MenuDoUsuario({
           <Iniciais nome={nome} />
         </DropdownMenuTrigger>
 
-        <DropdownMenuPortal>
-          <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel className="flex flex-col gap-0.5">
-              <span className="truncate font-medium">{nome}</span>
-              <span className="text-xs font-normal text-muted-foreground">
-                {ROTULO_PAPEL[role]}
-                {papeis.length > 1 && " · perfil ativo"}
-              </span>
-            </DropdownMenuLabel>
+        {/*
+          Sem <DropdownMenuPortal> por fora: o `DropdownMenuContent` deste
+          projeto já se envolve num `Menu.Portal`. O segundo era redundante.
+        */}
+        <DropdownMenuContent align="end" className="w-64">
+          {/*
+            Div, e não `DropdownMenuLabel`.
+            
+            Aquele componente é o `Menu.GroupLabel` do base-ui, que LANÇA
+            fora de um `Menu.Group` ("MenuGroupContext is missing") — e como
+            o conteúdo do menu só monta ao abrir, o erro derrubava a página
+            no primeiro clique no avatar, não no carregamento.
+            
+            Envolver num `Menu.Group` calaria o erro e diria a coisa errada:
+            isto não rotula um grupo de opções, é a identificação de quem
+            está logado.
+          */}
+          <div className="flex flex-col gap-0.5 px-1.5 py-1">
+            <span className="truncate text-sm font-medium">{nome}</span>
+            <span className="text-xs text-muted-foreground">
+              {ROTULO_PAPEL[role]}
+              {papeis.length > 1 && " · perfil ativo"}
+            </span>
+          </div>
 
-            {outros.length > 0 && (
-              <>
-                <DropdownMenuSeparator />
-                {outros.map((alvo) => (
-                  <DropdownMenuItem
-                    key={alvo}
-                    disabled={trocando}
-                    onClick={() => trocarPara(alvo)}
-                  >
-                    {alvo === "engenheiro" ? (
-                      <HardHat className="size-4" aria-hidden />
-                    ) : (
-                      <Users className="size-4" aria-hidden />
-                    )}
-                    {trocando ? "Trocando..." : `Entrar como ${ROTULO_PAPEL[alvo]}`}
-                  </DropdownMenuItem>
-                ))}
-              </>
-            )}
+          {outros.length > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              {outros.map((alvo) => (
+                <DropdownMenuItem
+                  key={alvo}
+                  disabled={trocando}
+                  onClick={() => trocarPara(alvo)}
+                >
+                  {alvo === "engenheiro" ? (
+                    <HardHat className="size-4" aria-hidden />
+                  ) : (
+                    <Users className="size-4" aria-hidden />
+                  )}
+                  {trocando ? "Trocando..." : `Entrar como ${ROTULO_PAPEL[alvo]}`}
+                </DropdownMenuItem>
+              ))}
+            </>
+          )}
 
-            <DropdownMenuSeparator />
+          <DropdownMenuSeparator />
 
-            {podeSerEngenheiro && (
-              <DropdownMenuItem onClick={() => setObraAberta(true)}>
-                <Building2 className="size-4" aria-hidden />
-                Obra padrão
-              </DropdownMenuItem>
-            )}
-
-            <DropdownMenuItem onClick={() => setSenhaAberta(true)}>
-              <KeyRound className="size-4" aria-hidden />
-              Alterar senha
+          {podeSerEngenheiro && (
+            <DropdownMenuItem onClick={() => setObraAberta(true)}>
+              <Building2 className="size-4" aria-hidden />
+              Obra padrão
             </DropdownMenuItem>
+          )}
 
-            {role === "engenheiro" && (
-              <DropdownMenuItem render={<Link href="/perfil" />} nativeButton={false}>
-                <User className="size-4" aria-hidden />
-                Meus dados
-              </DropdownMenuItem>
-            )}
+          <DropdownMenuItem onClick={() => setSenhaAberta(true)}>
+            <KeyRound className="size-4" aria-hidden />
+            Alterar senha
+          </DropdownMenuItem>
 
-            <DropdownMenuSeparator />
-
-            <DropdownMenuItem
-              disabled={saindo}
-              onClick={() => iniciarSaida(() => logout())}
-            >
-              <LogOut className="size-4" aria-hidden />
-              {saindo ? "Saindo..." : "Sair"}
+          {role === "engenheiro" && (
+            <DropdownMenuItem render={<Link href="/perfil" />} nativeButton={false}>
+              <User className="size-4" aria-hidden />
+              Meus dados
             </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenuPortal>
+          )}
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            disabled={saindo}
+            onClick={() => iniciarSaida(() => logout())}
+          >
+            <LogOut className="size-4" aria-hidden />
+            {saindo ? "Saindo..." : "Sair"}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
       </DropdownMenu>
 
       <DialogSenha aberta={senhaAberta} aoFechar={() => setSenhaAberta(false)} />
@@ -331,12 +343,30 @@ function DialogObraPadrao({
   perguntando?: boolean;
 }) {
   const [obras, setObras] = useState<{ id: string; nome: string }[] | null>(null);
+  const [erroObras, setErroObras] = useState<string | null>(null);
   const [escolhida, setEscolhida] = useState(obraPadraoId ?? "");
   const [salvando, iniciarSalvar] = useTransition();
 
   useEffect(() => {
     if (!aberta || obras !== null) return;
-    void obrasParaPadrao().then(setObras);
+    /*
+     * A falha precisa APARECER.
+     *
+     * Sem o `catch`, uma busca que falha — sessão expirada enquanto o menu
+     * estava aberto é o caso real — deixava o seletor em "Carregando..." para
+     * sempre e o botão Salvar desabilitado, sem nada na tela dizendo por quê.
+     * É o mesmo beco sem saída do botão desabilitado em silêncio que já custou
+     * caro no lançamento pelo celular.
+     *
+     * Com lista vazia o diálogo continua útil: dá para gravar "Nenhuma", que
+     * é uma resposta legítima.
+     */
+    obrasParaPadrao()
+      .then((lista) => setObras(lista))
+      .catch(() => {
+        setObras([]);
+        setErroObras("Não foi possível carregar as obras. Feche e abra de novo.");
+      });
   }, [aberta, obras]);
 
   function salvar() {
@@ -347,7 +377,9 @@ function DialogObraPadrao({
         return;
       }
       toast.success(
-        escolhida ? "Obra padrão definida." : "Obra padrão removida: volta a abrir no Dashboard."
+        escolhida
+          ? "Obra padrão definida."
+          : "Obra padrão removida: passa a abrir na última obra que você usou."
       );
       aoFechar();
     });
@@ -361,7 +393,7 @@ function DialogObraPadrao({
           <DialogDescription>
             {perguntando
               ? "Você tem dois perfis. Escolha em qual obra o perfil de engenheiro deve abrir — você entra direto na visão geral dela. Pode deixar em branco e definir depois, neste mesmo menu."
-              : "É nela que o perfil de engenheiro abre, direto na visão geral. Sem obra padrão, a entrada é no Dashboard de todas as obras."}
+              : "É nela que o perfil de engenheiro abre, direto na visão geral. Sem obra padrão, a entrada é na última obra que você abriu."}
           </DialogDescription>
         </DialogHeader>
 
@@ -374,13 +406,16 @@ function DialogObraPadrao({
             disabled={obras === null}
             className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
           >
-            <option value="">{obras === null ? "Carregando..." : "Nenhuma (abrir no Dashboard)"}</option>
+            <option value="">
+              {obras === null ? "Carregando..." : "Nenhuma (escolher a obra ao entrar)"}
+            </option>
             {(obras ?? []).map((o) => (
               <option key={o.id} value={o.id}>
                 {o.nome}
               </option>
             ))}
           </select>
+          {erroObras && <FieldError>{erroObras}</FieldError>}
         </Field>
 
         <DialogFooter>
