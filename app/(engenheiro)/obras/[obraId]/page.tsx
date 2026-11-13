@@ -81,7 +81,7 @@ export default async function ObraOverviewPage({
   // Só vale mostrar a timeline depois que o CPM rodou e as tarefas têm datas.
   const temTimeline = timeline.tarefas.some((t) => t.inicio && t.fim);
 
-  const [dadosVisao, extraCliente, imagens, cotacoesPendentes] = await Promise.all([
+  const [dadosVisao, extraCliente, imagens, cotacoesPendentes, engenheiros] = await Promise.all([
     carregarVisaoGeral(supabase, obraId),
     // Os mesmos dados da tela inicial do cliente — é o que permite conferir a
     // prévia sem pedir a senha dele.
@@ -89,10 +89,16 @@ export default async function ObraOverviewPage({
     assinarImagensObra(supabase, obra),
     // Só a contagem: valor cotado não aparece em painel nenhum.
     cotacoesAguardandoCliente(supabase, obraId),
+    /*
+     * A lista de engenheiros alimenta o seletor de responsável técnico, dentro
+     * do diálogo de edição. Estava numa espera própria depois deste bloco e
+     * custava uma ida e volta inteira a São Paulo — numa tela que a pessoa
+     * abre para VER a obra, por causa de um campo de um formulário que ela
+     * talvez nem abra.
+     */
+    engenheirosDisponiveis(supabase),
   ]);
 
-  // Para o seletor de responsável técnico na edição da obra.
-  const engenheiros = await engenheirosDisponiveis(supabase);
 
 
   const clientes = (clientesVinculados ?? []).map((v) => {

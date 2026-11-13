@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/require-role";
+import { getSessao } from "@/lib/auth/sessao";
 import { AppShell, type NavEntry } from "@/components/layout/app-shell";
 import { lerObraAtiva } from "@/lib/obra-ativa.server";
 import { lerLateralRecolhida } from "@/lib/lateral.server";
@@ -60,21 +62,29 @@ export default async function EngenheiroLayout({ children }: { children: React.R
    * o bloco acima devolve; estar fora era descuido, não necessidade.
    */
   const supabase = await createClient();
-  const [profile, obraLembrada, lateralRecolhida, logo] = await Promise.all([
+
+  /*
+   * O id sai do TOKEN, e por isso os papéis cabem no mesmo `Promise.all`.
+   *
+   * Estava numa espera própria depois do bloco, com a justificativa de que só
+   * dava para buscar os papéis depois de saber quem está logado. Verdade pela
+   * metade: quem está logado vem de `getSessao`, que lê o token e NÃO vai ao
+   * banco — o id está disponível de graça antes de qualquer consulta.
+   *
+   * Em sequência, aquilo custava uma ida e volta inteira a São Paulo em TODA
+   * tela do engenheiro. Medida em produção: 417 ms de mediana por ida, porque
+   * a função roda na Virgínia e o banco está em São Paulo.
+   */
+  const sessao = await getSessao();
+  if (!sessao) redirect("/login");
+
+  const [profile, obraLembrada, lateralRecolhida, logo, conta] = await Promise.all([
     requireRole("engenheiro"),
     lerObraAtiva(),
     lerLateralRecolhida(),
     buscarLogoEmpresa(supabase),
+    papeisDoUsuario(supabase, sessao.id),
   ]);
-
-  /*
-   * Os papéis vêm do banco, e só podiam ser buscados depois de saber QUEM está
-   * logado — daí estar fora do `Promise.all` acima. É uma ida a mais, e é o
-   * preço de `papeis` não viajar no token: colocá-lo lá criaria uma segunda
-   * cópia para sair de sincronia, já que quem concede o papel é o engenheiro
-   * por SQL. Ver `lib/auth/papeis`.
-   */
-  const conta = await papeisDoUsuario(supabase, profile.id);
 
   return (
     <AppShell

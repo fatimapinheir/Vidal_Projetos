@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/require-role";
+import { getSessao } from "@/lib/auth/sessao";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell, type NavEntry } from "@/components/layout/app-shell";
 import { lerLateralRecolhida } from "@/lib/lateral.server";
@@ -45,15 +47,22 @@ export default async function PortalLayout({ children }: { children: React.React
    * é ele que `requireRole` resolve.
    */
   const supabase = await createClient();
-  const [profile, lateralRecolhida, logo, { count: quantasObras }] = await Promise.all([
+  /*
+   * O id vem do token, de graça — ver a nota no layout do engenheiro. Os
+   * papéis entram no mesmo bloco por isso; em sequência custavam uma ida e
+   * volta inteira a São Paulo em toda tela do portal.
+   */
+  const sessao = await getSessao();
+  if (!sessao) redirect("/login");
+
+  const [profile, lateralRecolhida, logo, { count: quantasObras }, conta] = await Promise.all([
     requireRole("cliente"),
     lerLateralRecolhida(),
     buscarLogoEmpresa(supabase),
     supabase.from("obra_clientes").select("obra_id", { count: "exact", head: true }),
+    papeisDoUsuario(supabase, sessao.id),
   ]);
 
-  // Ver a nota no layout do engenheiro: `papeis` é do banco, não do token.
-  const conta = await papeisDoUsuario(supabase, profile.id);
 
   const navItems: NavEntry[] = [
     ...SECOES.map((secao) => ({
