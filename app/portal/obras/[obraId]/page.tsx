@@ -41,22 +41,32 @@ export default async function PortalObraPage({
   const perfil = await requireRole("cliente");
   const supabase = await createClient();
 
-  const { data: obra } = await supabase
-    .from("obras")
-    .select("*")
-    .eq("id", obraId)
-    .single();
-  if (!obra) notFound();
-
-  const [dados, extra, imagens, cotacoesPendentes] = await Promise.all([
+  /*
+   * A obra entra no MESMO bloco do resto, e não numa espera antes dele.
+   *
+   * Estava sozinha na frente porque `assinarImagensObra` precisa das colunas
+   * de imagem dela. Mas o resto não precisa: `carregarVisaoGeral`,
+   * `carregarExtraCliente` e a contagem de cotações trabalham com o `obraId`,
+   * que vem da URL. Esperar a obra para só então começar os outros custava uma
+   * ida e volta inteira a São Paulo — 417 ms de mediana, medidos de dentro da
+   * função, porque ela roda na Virgínia.
+   *
+   * A assinatura das imagens fica depois, e na maioria das obras não custa
+   * nada: sem caminho de imagem gravado, ela não vai à rede.
+   */
+  const [{ data: obra }, dados, extra, cotacoesPendentes] = await Promise.all([
+    supabase.from("obras").select("*").eq("id", obraId).single(),
     carregarVisaoGeral(supabase, obraId),
     carregarExtraCliente(supabase, obraId),
-    // A policy do bucket deixa o cliente ler as fotos da obra dele; a URL é
-    // assinada aqui, com validade de uma hora.
-    assinarImagensObra(supabase, obra),
     // Contagem, e só: nenhum valor cotado entra nesta tela.
     cotacoesAguardandoCliente(supabase, obraId),
   ]);
+
+  if (!obra) notFound();
+
+  // A policy do bucket deixa o cliente ler as fotos da obra dele; a URL é
+  // assinada aqui, com validade de uma hora.
+  const imagens = await assinarImagensObra(supabase, obra);
 
   return (
     <div className="flex flex-col gap-4">
