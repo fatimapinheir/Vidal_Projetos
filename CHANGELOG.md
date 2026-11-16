@@ -10,6 +10,48 @@ momento da publicação do site.
 
 ---
 
+## 16/11/2026
+
+### O sistema ficou cerca de 1,6 segundo mais rápido por tela
+
+O cliente reclamou da lentidão de novo, e a causa era de infraestrutura: as
+funções que montam as páginas rodavam na **Virgínia** enquanto o banco de dados
+está em **São Paulo**. Cada tela conversa com o banco algumas vezes, e cada
+conversa atravessava o continente.
+
+Medido de dentro do servidor, antes e depois de mover as funções para São
+Paulo:
+
+| Ida e volta ao banco | Antes (Virgínia) | Depois (São Paulo) |
+| -------------------- | ---------------- | ------------------ |
+| Mediana              | 417 ms           | **50 ms**          |
+| Pior caso            | 951 ms           | **90 ms**          |
+
+São **8 vezes** mais rápido — e, o que importa tanto quanto, muito mais
+constante: a diferença entre a consulta mais rápida e a mais lenta caiu de
+792 ms para 56 ms. A lentidão não era só grande, era imprevisível.
+
+Junto, três consultas que estavam sendo feitas **em fila** passaram a ser
+feitas ao mesmo tempo, e a tela inicial do cliente deixou de esperar uma
+consulta para só então começar as outras.
+
+Somando tudo, a tela inicial do cliente:
+
+|       | Espera no banco | Total       |
+| ----- | --------------- | ----------- |
+| Antes | 1.668 ms        | ~1.783 ms   |
+| Agora | **100 ms**      | **~151 ms** |
+
+O carregamento das telas em si também melhorou 32%, porque o servidor ficou
+mais perto de quem usa.
+
+**O que ainda não está resolvido:** depois de um tempo sem ninguém acessar, a
+primeira pessoa a abrir o sistema pode esperar alguns segundos enquanto o
+servidor "acorda". É ocasional, diferente da lentidão anterior que acontecia
+em toda tela, e será tratado à parte.
+
+---
+
 ## 12/11/2026
 
 ### Um usuário pode ter dois perfis
