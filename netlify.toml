@@ -8,6 +8,30 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# ---------------------------------------------------------------------------
+# REGIÃO DAS FUNÇÕES: GRU (São Paulo)
+#
+# Configurada no PAINEL (Cloud compute → Functions → Region), e não aqui: o
+# `netlify.toml` só aceita região por função nomeada (`[functions.nome]`), e o
+# SSR do Next.js não tem um nome estável para apontar. O ajuste de site
+# inteiro existe só na interface.
+#
+# Este comentário existe porque a configuração mora fora do repositório e se
+# perderia em silêncio se o site fosse recriado. O que ela resolve, medido de
+# dentro da função em 13/11/2026, com a função ainda em `us-east-1`:
+#
+#   ida e volta ao banco      417 ms de mediana (15 amostras, 159–951)
+#   amostras rápidas          ~167 ms  = UMA travessia Virgínia–São Paulo
+#   amostras lentas           ~423 ms  = cerca de TRÊS travessias
+#
+# O Postgres do Supabase está em São Paulo. A função ficava na Virgínia, e
+# cada tela faz duas ondas de consultas — ou seja, duas travessias do
+# continente, pagas em triplo pelo handshake de cada consulta.
+#
+# ATENÇÃO: trocar a região no painel não basta. Só vale a partir do próximo
+# deploy; os anteriores continuam rodando na região em que foram publicados.
+# ---------------------------------------------------------------------------
+
 [build.environment]
   # Mesma versão usada em desenvolvimento — evita diferença de comportamento
   # entre o que foi testado e o que vai ao ar.
