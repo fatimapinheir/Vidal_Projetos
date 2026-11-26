@@ -8,6 +8,22 @@ import { chavesDoProjeto } from "@/lib/auth/chaves-do-projeto";
  * (Next.js 16 renomeou middleware.ts para proxy.ts).
  */
 export async function updateSession(request: NextRequest) {
+  /*
+   * O aquecimento sai antes de tudo. Ele existe só para subir o processo do
+   * Node (ver `app/api/aquecer/route.ts`), então verificar sessão aqui seria
+   * trabalho jogado fora.
+   *
+   * E, principalmente: sem esta saída o proxy mandaria a chamada para /login,
+   * e a função Node — que é exatamente o que se quer acordar — nunca seria
+   * invocada. O aquecimento ficaria silenciosamente inútil.
+   *
+   * Comparação exata, e não `startsWith`, para não abrir caminho para mais
+   * nada sob /api sem passar pela checagem de sessão.
+   */
+  if (request.nextUrl.pathname === "/api/aquecer") {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient<Database>(

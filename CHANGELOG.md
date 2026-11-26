@@ -10,6 +10,50 @@ momento da publicação do site.
 
 ---
 
+## 26/11/2026
+
+### A tela de login abre na hora, não em cinco segundos
+
+Faltava fechar a última ponta da lentidão: quando ninguém usava o sistema por
+um tempo, o servidor "adormecia", e a primeira pessoa a entrar pagava a espera
+de acordá-lo. Medido em produção, a tela de login levava **5,2 segundos** para
+aparecer nesse caso — contra 0,2 segundo com o servidor já acordado.
+
+O pior é que isso acontecia justamente na porta de entrada, que é a primeira
+coisa que qualquer pessoa vê.
+
+Duas mudanças resolveram:
+
+**A tela de login virou uma página pronta.** Ela não precisava do servidor para
+nada — era montada na hora só para decidir se mostrava um aviso de link de
+e-mail expirado, que quase nunca aparece. Agora ela vem pronta, direto do
+servidor de conteúdo. Medido em produção, ela responde em **~175 ms**, e com
+uma regularidade que a versão anterior não tinha: entre a amostra mais rápida e
+a mais lenta há 12 ms de diferença, contra 41 ms da página montada na hora. O
+aviso de link expirado continua funcionando igual.
+
+**O servidor acorda enquanto você digita.** Como a tela de login não acorda
+mais o servidor, a espera iria aparecer no clique em "Entrar". Então a tela
+agora pede o despertar do servidor no momento em que abre: preencher e-mail e
+senha leva uns 10 a 15 segundos, tempo suficiente para ele subir em paralelo.
+Quando você clica em "Entrar", já está pronto.
+
+| Abrir a tela de login | Antes   | Depois      |
+| --------------------- | ------- | ----------- |
+| Servidor adormecido   | 5,2 s   | **~175 ms** |
+| Servidor acordado     | ~215 ms | **~175 ms** |
+
+Uma observação honesta: o sistema roda em vários servidores ao mesmo tempo, e
+não há como garantir que o que foi acordado seja exatamente o que vai receber o
+seu login. Num sistema com o nosso volume de uso isso acerta na grande maioria
+das vezes, mas não é uma garantia absoluta.
+
+Quem já está logado e volta ao sistema depois de horas ainda pode encontrar
+essa espera na primeira tela. Resolver esse caso exige manter o servidor
+acordado de forma contínua, o que tem custo e ficou para uma próxima avaliação.
+
+---
+
 ## 16/11/2026
 
 ### O sistema ficou cerca de 1,6 segundo mais rápido por tela
