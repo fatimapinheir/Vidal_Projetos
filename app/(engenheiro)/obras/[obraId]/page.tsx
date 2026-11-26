@@ -133,7 +133,25 @@ export default async function ObraOverviewPage({
   const updateStatusWithId = updateObraStatus.bind(null, obraId);
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    /*
+      `minmax(0,1fr)` em vez de deixar a coluna `auto`, e isto conserta um
+      CORTE à direita no celular.
+
+      Item de grid tem `min-width: auto`, então a coluna não encolhe abaixo do
+      conteúdo. A prévia da tela do cliente carrega a trilha de etapas, que tem
+      `min-w-max` e 144px por etapa — com seis etapas são mais de 860px. A
+      trilha tem o próprio `overflow-x-auto` e deveria rolar dentro de si, mas a
+      coluna estourava antes disso e levava junto TODOS os cartões do mesmo
+      item: por isso a tela cortava à direita em bloco, e não num cartão só.
+
+      Pior, o corte era mudo: o `<main>` tem `overflow-x-hidden`, então não
+      aparecia nem barra de rolagem — o conteúdo era amputado sem aviso.
+
+      O portal do cliente não tinha o problema porque usa `flex flex-col`, onde
+      o item estica para a largura do contêiner em vez de crescer com o
+      conteúdo. Só a visão geral do engenheiro é grid.
+    */
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-3">
       <AcessoClienteAposCadastro obraId={obraId} nova={nova === "1"} />
 
       {cotacoesPendentes > 0 && (
