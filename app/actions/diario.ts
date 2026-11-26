@@ -121,6 +121,31 @@ export async function salvarDiario(
 
   if (error) return { error: "Não foi possível salvar o diário." };
 
+  /*
+   * "Salvar e fechar o dia" num clique — e isto conserta uma PERDA DE DADOS.
+   *
+   * O botão "Fechar o dia" vive noutro cartão, acima deste formulário, e
+   * `fecharDia` não recebe o formulário: ele grava só os congelados (efetivo,
+   * equipamentos, tarefas, entregas) e o `fechado_em`. Quem digitava o
+   * registro do dia e clicava em "Fechar o dia" — que é o que se faz ao
+   * terminar — perdia o texto, porque ele nunca foi enviado. E a folha ficava
+   * fechada, então `salvarDiario` passava a recusar com "dia fechado".
+   *
+   * Nos dados de produção isso apareceu em 6 das 9 folhas: dias fechados com
+   * atividades, clima e temperatura TODOS nulos, enquanto as duas folhas com
+   * texto tinham clima e temperatura também — eram os dias em que ele salvou
+   * antes de fechar. Não era o campo de texto falhando; era o formulário
+   * inteiro nunca chegando ao banco.
+   *
+   * Lido direto do `formData`, e não pelo esquema: campo no esquema que não
+   * existe no formulário faz `formData.get()` devolver `null` e o Zod recusar
+   * o envio inteiro com mensagem em inglês — já aconteceu, ver o comentário
+   * do esquema.
+   */
+  if (formData.get("fechar") === "1") {
+    return fecharDia(obraId, data);
+  }
+
   revalidatePath(`/obras/${obraId}/diario`);
   revalidatePath(`/obras/${obraId}/diario/${data}`);
   return { error: null, success: true };

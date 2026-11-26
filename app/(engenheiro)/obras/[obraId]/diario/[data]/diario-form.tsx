@@ -140,9 +140,33 @@ export function DiarioForm({
         {state.error && <FieldError>{state.error}</FieldError>}
 
         {!somenteLeitura && (
-          <Button type="submit" disabled={pending}>
-            {pending ? "Salvando..." : "Salvar diário"}
-          </Button>
+          /*
+            Dois botões, e o segundo existe para consertar uma perda de dados.
+            
+            O "Fechar o dia" fica noutro cartão, acima daqui, e ele NÃO envia
+            este formulário — quem digitava o registro e clicava lá perdia o
+            texto, porque fechar não salva. Agora dá para terminar o dia sem
+            sair do formulário, e nesse caminho é impossível perder: o mesmo
+            envio grava e fecha.
+            
+            `name`/`value` no botão: o navegador manda o par do botão que foi
+            clicado, então a ação distingue os dois sem estado nenhum no
+            cliente.
+          */
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button type="submit" disabled={pending}>
+              {pending ? "Salvando..." : "Salvar diário"}
+            </Button>
+            <Button
+              type="submit"
+              name="fechar"
+              value="1"
+              variant="outline"
+              disabled={pending}
+            >
+              Salvar e fechar o dia
+            </Button>
+          </div>
         )}
       </FieldGroup>
     </form>

@@ -29,6 +29,17 @@ function emItens(texto: string | null | undefined) {
 export function RdoDocumento({ dados }: { dados: DadosRdo }) {
   const atividades = emItens(dados.atividades);
   const ocorrencias = emItens(dados.ocorrencias);
+  const visitas = emItens(dados.visitas);
+  /*
+   * Os "extras" entram na MESMA lista dos cadastrados, não numa seção à parte.
+   *
+   * No papel a distinção não interessa: quem lê o RDO quer saber que
+   * equipamentos estavam em obra, não se o equipamento veio de uma locação
+   * cadastrada no sistema ou foi anotado à mão. Duas seções com o mesmo título
+   * só faria o leitor somar de cabeça.
+   */
+  const equipamentosExtras = emItens(dados.equipamentosExtras);
+  const entregasExtras = emItens(dados.entregasExtras);
 
   return (
     <div className="rdo-wrapper">
@@ -188,9 +199,83 @@ export function RdoDocumento({ dados }: { dados: DadosRdo }) {
           </section>
         </div>
 
+        <div className="rdo-duas-colunas">
+          <section className="rdo-secao">
+            <h2>
+              <span>6</span> TAREFAS DO CRONOGRAMA
+            </h2>
+            <ul className="rdo-lista">
+              {dados.tarefas.map((t, i) => (
+                <li key={i}>
+                  {t.nome}
+                  {t.etapa ? ` — ${t.etapa}` : ""}
+                  {/* A crítica é marcada no papel: é a que não aceita atraso. */}
+                  {t.critica ? " (crítica)" : ""}
+                </li>
+              ))}
+              {!dados.tarefas.length && <li className="vazio">Nada registrado.</li>}
+            </ul>
+          </section>
+
+          <section className="rdo-secao">
+            <h2>
+              <span>7</span> EQUIPAMENTOS EM OBRA
+            </h2>
+            <ul className="rdo-lista">
+              {dados.equipamentos.map((e, i) => (
+                <li key={`loc-${i}`}>
+                  {e.quantidade > 1 ? `${e.quantidade}× ` : ""}
+                  {e.equipamento}
+                  {e.locador ? ` — ${e.locador}` : ""}
+                </li>
+              ))}
+              {equipamentosExtras.map((t, i) => (
+                <li key={`extra-${i}`}>{t}</li>
+              ))}
+              {!dados.equipamentos.length && !equipamentosExtras.length && (
+                <li className="vazio">Nada registrado.</li>
+              )}
+            </ul>
+          </section>
+        </div>
+
+        <div className="rdo-duas-colunas">
+          <section className="rdo-secao">
+            <h2>
+              <span>8</span> ENTREGAS RECEBIDAS
+            </h2>
+            <ul className="rdo-lista">
+              {dados.entregas.map((e, i) => (
+                <li key={`ord-${i}`}>
+                  {e.descricao}
+                  {e.fornecedor ? ` — ${e.fornecedor}` : ""}
+                </li>
+              ))}
+              {entregasExtras.map((t, i) => (
+                <li key={`extra-${i}`}>{t}</li>
+              ))}
+              {!dados.entregas.length && !entregasExtras.length && (
+                <li className="vazio">Nada registrado.</li>
+              )}
+            </ul>
+          </section>
+
+          <section className="rdo-secao">
+            <h2>
+              <span>9</span> VISITAS
+            </h2>
+            <ul className="rdo-lista">
+              {visitas.map((t, i) => (
+                <li key={i}>{t}</li>
+              ))}
+              {!visitas.length && <li className="vazio">Nada registrado.</li>}
+            </ul>
+          </section>
+        </div>
+
         <section className="rdo-secao">
           <h2>
-            <span>6</span> REGISTRO FOTOGRÁFICO
+            <span>10</span> REGISTRO FOTOGRÁFICO
           </h2>
           {dados.fotos.length ? (
             <div className="rdo-fotos">

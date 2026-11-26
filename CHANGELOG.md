@@ -10,6 +10,59 @@ momento da publicação do site.
 
 ---
 
+## 26/11/2026 — RDO: correção de perda de texto e quatro seções novas
+
+### O registro do dia estava sendo perdido ao fechar
+
+Ardiles reportou que digitava o texto do dia e não salvava. A causa não era o
+campo de texto — era a ordem dos botões.
+
+O botão **"Fechar o dia"** fica num cartão acima do formulário, e ele **não
+enviava o formulário**: gravava só o efetivo, os equipamentos, as tarefas e as
+entregas congelados. Quem digitava o registro e clicava em "Fechar o dia" — que
+é o que se faz ao terminar — perdia o texto, porque ele nunca chegava ao
+servidor. E a folha ficava fechada, então salvar passava a responder "esse dia
+está fechado".
+
+A mensagem de confirmação ajudava a cair na armadilha: dizia que as coisas
+"ficam congeladas como estão agora" e não avisava que o texto da tela não ia
+junto.
+
+**Isso aconteceu em 6 das 9 folhas já registradas.** O que foi perdido não tem
+recuperação — nunca saiu do navegador.
+
+**A correção:** o formulário ganhou um segundo botão, **"Salvar e fechar o
+dia"**, que grava e fecha no mesmo clique. Por esse caminho é impossível
+perder. O botão de cima continua existindo (ele também reabre o dia), e agora
+avisa, com estas palavras, que o texto não salvo não será gravado.
+
+### Quatro informações que eram salvas e nunca apareciam no relatório
+
+Auditando o RDO coluna por coluna, apareceu que o documento imprimia só
+atividades, ocorrências, clima, temperatura, efetivo e fotos. Ficavam de fora,
+embora o sistema as guardasse a cada dia:
+
+| Agora no RDO | O que estava acontecendo |
+| ------------ | ------------------------ |
+| **Tarefas do cronograma** | Congeladas no fechamento para durar — e não saíam no papel |
+| **Equipamentos em obra** | Até 6 por dia registrados, nenhum impresso |
+| **Entregas recebidas** | Até 4 por dia, mais o texto livre de entregas sem ordem de compra |
+| **Visitas** | Campo **só de escrita**: o formulário coletava, o banco guardava, e nada no sistema mostrava de volta |
+
+O caso das visitas era o pior: a tela de índice do diário *prometia* que elas
+entravam no relatório, o engenheiro anotava a visita do fiscal, e aquilo
+desaparecia de vista para sempre. Registrar a visita do fiscal e não ter onde
+provar é o contrário do que um RDO serve.
+
+Os equipamentos e as entregas anotados à mão (sem locação ou ordem de compra
+cadastrada) entram na **mesma lista** dos cadastrados. No papel essa distinção
+não interessa: quem lê quer saber o que estava em obra, não de onde veio o
+registro.
+
+O registro fotográfico passou a ser a seção 10.
+
+---
+
 ## 26/11/2026 — Pagamento sem comprovante, por permissão
 
 ### O comprovante deixa de ser obrigatório para quem você autorizar

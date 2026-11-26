@@ -2,7 +2,14 @@ import "server-only";
 import type { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatarEndereco } from "@/lib/obra-cadastro";
-import { derivarConteudoDia, efetivoConfirmado, type EfetivoItem } from "@/lib/diario/montar-dia";
+import {
+  derivarConteudoDia,
+  efetivoConfirmado,
+  type EfetivoItem,
+  type EquipamentoItem,
+  type TarefaItem,
+  type EntregaItem,
+} from "@/lib/diario/montar-dia";
 import type { DiarioCondicao, Tables } from "@/lib/types/database.types";
 import { urlsAssinadas } from "@/lib/storage/urls-assinadas";
 
@@ -41,6 +48,26 @@ export type DadosRdo = {
   responsaveis: string[];
   atividades: string | null;
   ocorrencias: string | null;
+  /**
+   * Visitas do dia — fiscal, cliente, órgão, fornecedor.
+   *
+   * Era campo SÓ DE ESCRITA: o formulário coletava, o banco guardava, e nada
+   * no sistema mostrava de volta. Nem a tela do dia, nem este documento. A
+   * tela de índice do diário ainda prometia que entrava no relatório.
+   * Registrar a visita do fiscal e não ter onde provar é o oposto do que um
+   * RDO serve.
+   */
+  visitas: string | null;
+  /** Tarefas do cronograma no dia. Congeladas no fechamento (`tarefas_snapshot`). */
+  tarefas: TarefaItem[];
+  /** Equipamentos vindos de locação cadastrada. */
+  equipamentos: EquipamentoItem[];
+  /** Equipamentos em obra sem locação cadastrada — texto livre da folha. */
+  equipamentosExtras: string | null;
+  /** Entregas vindas de ordem de compra. */
+  entregas: EntregaItem[];
+  /** Entregas sem ordem de compra — texto livre da folha. */
+  entregasExtras: string | null;
   fotos: FotoRdo[];
 };
 
@@ -249,6 +276,24 @@ export async function carregarRdo(
     responsaveis,
     atividades: diario?.atividades ?? null,
     ocorrencias: diario?.ocorrencias ?? null,
+    visitas: diario?.visitas ?? null,
+    /*
+     * Congelado primeiro, derivado depois — o mesmo padrão já usado acima para
+     * o efetivo e os responsáveis, e pela mesma razão: folha fechada é
+     * documento. Trocar uma locação em janeiro não pode reescrever quais
+     * equipamentos estavam em obra em outubro.
+     *
+     * O `derivarConteudoDia` só roda em dia ABERTO (ver o `Promise.all` acima),
+     * então em dia fechado o `conteudo` é nulo e só o congelado responde.
+     */
+    tarefas: ((diario?.tarefas_snapshot as TarefaItem[] | null) ?? conteudo?.tarefas ?? []),
+    equipamentos:
+      (diario?.equipamentos_snapshot as EquipamentoItem[] | null) ??
+      conteudo?.equipamentos ??
+      [],
+    equipamentosExtras: diario?.equipamentos_extras ?? null,
+    entregas: ((diario?.entregas_snapshot as EntregaItem[] | null) ?? conteudo?.entregas ?? []),
+    entregasExtras: diario?.entregas_extras ?? null,
     fotos: fotosComUrl,
   };
 }

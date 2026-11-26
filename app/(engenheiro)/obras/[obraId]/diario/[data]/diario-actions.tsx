@@ -42,9 +42,22 @@ export function FecharDiaButton({
      * nominal: o efetivo da folha agora é a contagem por função, digitada, e
      * não há o que ficar de fora por falta de confirmação.
      */
+    /*
+      A mensagem de fechar NOMEIA o que este caminho não salva.
+      
+      Ela dizia "ficam congelados como estão agora" e listava efetivo,
+      equipamentos, tarefas e entregas — que é exatamente o que `fecharDia`
+      grava. O que ela não dizia é que o texto do "Registro do dia" NÃO vai
+      junto, porque este botão não envia aquele formulário. Quem lia entendia
+      que o que estava na tela ia também, e perdia o texto.
+      
+      O caminho seguro agora é o botão "Salvar e fechar o dia", dentro do
+      formulário, que grava e fecha no mesmo envio. Este continua existindo
+      para fechar uma folha já salva — e avisa.
+    */
     const mensagem = fechado
       ? "Reabrir esse dia? Ele sai da vista do cliente e volta a acompanhar as outras telas. Fica registrado que foi reaberto."
-      : "Fechar esse dia? O efetivo, os equipamentos, as tarefas e as entregas ficam congelados como estão agora, e o cliente passa a ver essa folha.";
+      : "Fechar esse dia? O efetivo, os equipamentos, as tarefas e as entregas ficam congelados como estão agora, e o cliente passa a ver essa folha.\n\nATENÇÃO: o que você digitou no \"Registro do dia\" e ainda não salvou NÃO será gravado. Para salvar e fechar de uma vez, use o botão \"Salvar e fechar o dia\" no próprio formulário.";
     if (!confirm(mensagem)) return;
 
     startTransition(() => {
