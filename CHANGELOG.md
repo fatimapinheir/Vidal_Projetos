@@ -10,9 +10,7 @@ momento da publicação do site.
 
 ---
 
-## Não publicado
-
-> Pacote em preparo. Ao publicar, trocar este título pela data do deploy.
+## 26/11/2026 — Diário no calendário e lápis visível
 
 ### O lápis de corrigir o nome do cliente estava invisível
 
