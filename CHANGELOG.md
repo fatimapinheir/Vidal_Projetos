@@ -10,6 +10,24 @@ momento da publicação do site.
 
 ---
 
+## Não publicado
+
+> Pacote em preparo. Ao publicar, trocar este título pela data do deploy.
+
+### O diário do engenheiro abre no calendário
+
+Era a listagem; passa a ser o **calendário**. A listagem continua a um clique,
+na aba ao lado.
+
+A razão é a mesma que levou o calendário a existir do lado do cliente: a lista
+responde "o que foi registrado", e o calendário responde "o que aconteceu no
+mês" — incluindo os dias em que **não** houve registro. Numa lista, o dia sem
+folha simplesmente não aparece, e é justamente esse buraco que se procura.
+
+Links antigos com `?visao=calendario` continuam funcionando.
+
+---
+
 ## 26/11/2026 — Calendário do diário e correção do celular
 
 ### A visão geral parou de cortar à direita no celular

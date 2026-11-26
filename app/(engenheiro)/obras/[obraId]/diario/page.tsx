@@ -55,10 +55,17 @@ export default async function DiarioObraPage({
 
   /*
    * A aba vem da URL, não de estado de cliente — ver o cabeçalho de
-   * `diario-visao.tsx`. Qualquer valor diferente cai na listagem, que é o
-   * padrão histórico desta tela.
+   * `diario-visao.tsx`.
+   *
+   * O CALENDÁRIO é o padrão, a pedido. A listagem responde "o que foi
+   * registrado"; o calendário responde "o que aconteceu no mês" — e inclui os
+   * dias em que NÃO houve registro, que é o buraco que o engenheiro procura.
+   * Numa lista, um dia sem folha simplesmente não existe.
+   *
+   * Qualquer valor diferente de "lista" cai no calendário, então um link
+   * antigo com `?visao=calendario` continua funcionando.
    */
-  const visao: VisaoDoDiario = visaoParam === "calendario" ? "calendario" : "lista";
+  const visao: VisaoDoDiario = visaoParam === "lista" ? "lista" : "calendario";
 
   const { count } = await supabase
     .from("diario_obra")
@@ -173,9 +180,9 @@ export default async function DiarioObraPage({
                 aria-label="Mês anterior"
                 render={
                   anterior ? (
-                    /* `visao=calendario` viaja junto: sem ele o link cairia na
-                       listagem, que é o padrão de quem não manda a aba. */
-                    <Link href={`${base}?visao=calendario&mes=${anterior}`} scroll={false}>
+                    /* Sem `visao` no link: o calendário é o padrão, então
+                       `?mes=` sozinho já volta para cá. */
+                    <Link href={`${base}?mes=${anterior}`} scroll={false}>
                       <ChevronLeft className="size-4" />
                     </Link>
                   ) : undefined
@@ -198,7 +205,7 @@ export default async function DiarioObraPage({
                 aria-label="Próximo mês"
                 render={
                   proximo ? (
-                    <Link href={`${base}?visao=calendario&mes=${proximo}`} scroll={false}>
+                    <Link href={`${base}?mes=${proximo}`} scroll={false}>
                       <ChevronRight className="size-4" />
                     </Link>
                   ) : undefined
@@ -288,11 +295,18 @@ export default async function DiarioObraPage({
           )}
         </div>
 
+        {/*
+          `parametros` leva a aba adiante. Sem isso, paginar a listagem
+          perderia o `?visao=lista` e jogaria de volta no calendário, que
+          agora é o padrão — o espelho do problema que a aba na URL já
+          resolveu para a navegação de mês.
+        */}
         <Paginacao
           pagina={pagina}
           total={total}
           porPagina={POR_PAGINA_PADRAO}
           caminho={base}
+          parametros={{ visao: "lista" }}
           rotulo="dias"
         />
         </>

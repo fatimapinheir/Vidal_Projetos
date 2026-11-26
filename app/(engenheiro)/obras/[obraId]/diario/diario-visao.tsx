@@ -29,7 +29,7 @@ export function DiarioVisao({ base, visao }: { base: string; visao: VisaoDoDiari
         size="sm"
         variant={visao === "lista" ? "default" : "outline"}
         render={
-          <Link href={base} scroll={false}>
+          <Link href={`${base}?visao=lista`} scroll={false}>
             <List className="size-4" aria-hidden />
             Listagem
           </Link>
@@ -40,9 +40,10 @@ export function DiarioVisao({ base, visao }: { base: string; visao: VisaoDoDiari
         size="sm"
         variant={visao === "calendario" ? "default" : "outline"}
         render={
-          /* Sem `?mes=`: a aba abre no mês de hoje, e navegar a partir dali é
-             problema dos botões do próprio calendário. */
-          <Link href={`${base}?visao=calendario`} scroll={false}>
+          /* Endereço limpo, sem query: o calendário é o padrão da tela. Isso
+             também devolve ao mês de hoje, e navegar a partir dali é problema
+             dos botões do próprio calendário. */
+          <Link href={base} scroll={false}>
             <CalendarDays className="size-4" aria-hidden />
             Calendário
           </Link>
