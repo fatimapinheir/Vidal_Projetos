@@ -24,6 +24,7 @@ import { urlsAssinadas, urlsAssinadasPorBucket } from "@/lib/storage/urls-assina
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { pode } from "@/lib/auth/permissoes";
 
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -38,6 +39,16 @@ export async function CompraDetail({
 }) {
   const supabase = await createClient();
   const profile = await getSessao();
+
+  /*
+   * Quem pode pagar sem anexar o comprovante (0083).
+   *
+   * Só pergunta ao banco para engenheiro: `pode()` exige role de engenheiro e
+   * devolveria `false` para cliente de qualquer jeito, então a consulta no
+   * portal seria uma ida a São Paulo para receber a resposta que já se sabe.
+   */
+  const podeSemComprovante =
+    viewerRole === "engenheiro" ? await pode("pagamento.sem_comprovante") : false;
 
   const { data: compra } = await supabase
     .from("compras")
@@ -285,6 +296,7 @@ export async function CompraDetail({
               obraId={compra.obra_id}
               compraId={compra.id}
               parcelaUnicaId={parcelaUnica?.id}
+              podeSemComprovante={podeSemComprovante}
             />
           )}
           {viewerRole === "engenheiro" && compra.status === "cotada" && (
@@ -503,6 +515,7 @@ export async function CompraDetail({
                               parcelaId={p.id}
                               valor={p.valor}
                               vencimento={formatDate(p.data_vencimento)}
+                              podeSemComprovante={podeSemComprovante}
                             />
                           )}
                       </div>

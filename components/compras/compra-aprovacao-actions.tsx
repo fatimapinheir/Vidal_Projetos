@@ -23,10 +23,17 @@ export function CompraAprovacaoActions({
   obraId,
   compraId,
   parcelaUnicaId,
+  podeSemComprovante = false,
 }: {
   obraId: string;
   compraId: string;
   parcelaUnicaId?: string;
+  /**
+   * Dispensa o anexo (permissão `pagamento.sem_comprovante`, 0083). Padrão
+   * `false`: esquecer a prop exige o comprovante, que é o lado seguro. A RPC
+   * `aprovar_e_pagar_parcela` refaz a checagem no banco (0084).
+   */
+  podeSemComprovante?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [recusarOpen, setRecusarOpen] = useState(false);
@@ -58,31 +65,41 @@ export function CompraAprovacaoActions({
   function handlePagarAgora(formData: FormData) {
     if (!parcelaUnicaId) return;
 
-    const comprovante = formData.get("comprovante");
-    if (!(comprovante instanceof File) || comprovante.size === 0) {
+    const bruto = formData.get("comprovante");
+    const comprovante = bruto instanceof File && bruto.size > 0 ? bruto : null;
+
+    if (!comprovante && !podeSemComprovante) {
       toast.error("Anexe o comprovante de pagamento.");
       return;
     }
 
     startTransition(async () => {
-      // O comprovante sobe antes da ação: assim o único passo que resta é o
-      // RPC, que aprova e paga junto ou não faz nada.
-      const envio = await enviarArquivoParaStorage(
-        "comprovantes-pagamento",
-        `${obraId}/${compraId}`,
-        comprovante
-      );
-      if (envio.path === null) {
-        toast.error(envio.error);
-        return;
+      /*
+       * O comprovante sobe antes da ação: assim o único passo que resta é o
+       * RPC, que aprova e paga junto ou não faz nada. Sem arquivo não há
+       * upload, e o caminho vai nulo.
+       */
+      let caminho: string | null = null;
+
+      if (comprovante) {
+        const envio = await enviarArquivoParaStorage(
+          "comprovantes-pagamento",
+          `${obraId}/${compraId}`,
+          comprovante
+        );
+        if (envio.path === null) {
+          toast.error(envio.error);
+          return;
+        }
+        caminho = envio.path;
       }
 
       try {
-        await pagarCompraAgoraAction(compraId, parcelaUnicaId, envio.path);
+        await pagarCompraAgoraAction(compraId, parcelaUnicaId, caminho);
         toast.success("Ordem de compra aprovada e paga.");
         setPagarOpen(false);
       } catch (err) {
-        await removerArquivosDoStorage("comprovantes-pagamento", [envio.path]);
+        if (caminho) await removerArquivosDoStorage("comprovantes-pagamento", [caminho]);
         toast.error(err instanceof Error ? err.message : "Erro ao pagar.");
       }
     });
@@ -120,14 +137,17 @@ export function CompraAprovacaoActions({
             </DialogHeader>
             <form action={handlePagarAgora} className="flex flex-col gap-3">
               <p className="text-sm text-muted-foreground">
-                Anexe o comprovante de pagamento. A ordem de compra será aprovada e marcada como
-                paga.
+                {podeSemComprovante
+                  ? "A ordem será aprovada e marcada como paga. Você pode anexar o comprovante ou seguir sem ele."
+                  : "Anexe o comprovante de pagamento. A ordem de compra será aprovada e marcada como paga."}
               </p>
+              {/* `required` só quando o anexo é exigido: com a dispensa, o
+                  navegador barraria o envio antes de a ação ser chamada. */}
               <input
                 type="file"
                 name="comprovante"
                 accept="image/*,application/pdf"
-                required
+                required={!podeSemComprovante}
                 className="text-sm"
               />
               <DialogFooter>

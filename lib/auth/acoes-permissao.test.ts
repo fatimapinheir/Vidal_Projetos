@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ACOES_PERMISSAO, ehAcaoPermissao } from "./acoes-permissao";
 
@@ -14,20 +14,39 @@ import { ACOES_PERMISSAO, ehAcaoPermissao } from "./acoes-permissao";
  * Por isso a comparação é com o ARQUIVO DA MIGRAÇÃO e não com o banco: assim
  * ela roda no CI, sem credencial e sem rede.
  */
-function acoesDaMigracao(): string[] {
-  const sql = readFileSync("supabase/migrations/0082_permissoes_por_usuario.sql", "utf8");
+/**
+ * Varre TODAS as migrações, não uma só.
+ *
+ * A primeira versão deste teste lia apenas a 0082, que criou o catálogo. Na
+ * 0083 entrou `pagamento.sem_comprovante` e o teste falhou acusando deriva
+ * que não existia — ele mesmo estava desatualizado. Lendo o diretório, uma
+ * permissão nova é encontrada onde quer que tenha sido inserida.
+ */
+function acoesDasMigracoes(): string[] {
+  const dir = "supabase/migrations";
+  const acoes: string[] = [];
 
-  const inicio = sql.indexOf("insert into permissoes_catalogo");
-  expect(inicio, "o insert do catálogo mudou de forma — ajuste este teste").toBeGreaterThan(-1);
-  const bloco = sql.slice(inicio, sql.indexOf("on conflict (acao)", inicio));
+  for (const arquivo of readdirSync(dir).filter((f) => f.endsWith(".sql"))) {
+    const sql = readFileSync(`${dir}/${arquivo}`, "utf8");
+    let de = sql.indexOf("insert into permissoes_catalogo");
 
-  // Cada linha do values abre com ('<acao>',
-  return [...bloco.matchAll(/\(\s*'([a-z]+\.[a-z]+)'\s*,/g)].map((m) => m[1]);
+    while (de !== -1) {
+      const fim = sql.indexOf("on conflict", de);
+      expect(fim, `insert sem "on conflict" em ${arquivo} — ajuste este teste`).toBeGreaterThan(de);
+      // Cada linha do values abre com ('<acao>',
+      const bloco = sql.slice(de, fim);
+      acoes.push(...[...bloco.matchAll(/\(\s*'([a-z]+\.[a-z_]+)'\s*,/g)].map((m) => m[1]));
+      de = sql.indexOf("insert into permissoes_catalogo", fim);
+    }
+  }
+
+  expect(acoes.length, "nenhuma permissão encontrada nas migrações").toBeGreaterThan(0);
+  return acoes;
 }
 
 describe("catálogo de permissões", () => {
-  it("a migração e o TypeScript listam exatamente as mesmas ações", () => {
-    expect([...acoesDaMigracao()].sort()).toEqual([...ACOES_PERMISSAO].sort());
+  it("as migrações e o TypeScript listam exatamente as mesmas ações", () => {
+    expect([...acoesDasMigracoes()].sort()).toEqual([...ACOES_PERMISSAO].sort());
   });
 
   it("não tem ação repetida", () => {
@@ -38,9 +57,14 @@ describe("catálogo de permissões", () => {
    * O formato `dominio.verbo` é o que agrupa a tela e o que torna a lista
    * legível de bater o olho. Uma ação fora do padrão passaria pelo compilador.
    */
+  /*
+   * O `_` entra no verbo para `pagamento.sem_comprovante` ser legível —
+   * "semcomprovante" obriga a soletrar. O domínio segue sem separador, que é
+   * o que a tela usa para agrupar.
+   */
   it("toda ação segue o padrão dominio.verbo", () => {
     for (const acao of ACOES_PERMISSAO) {
-      expect(acao, `"${acao}" fora do padrão`).toMatch(/^[a-z]+\.[a-z]+$/);
+      expect(acao, `"${acao}" fora do padrão`).toMatch(/^[a-z]+\.[a-z_]+$/);
     }
   });
 

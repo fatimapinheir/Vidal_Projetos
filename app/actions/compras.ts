@@ -16,7 +16,7 @@ import {
 } from "@/lib/compras/anexos";
 import { etapaOrcamentoValida } from "@/lib/compras/etapa-orcamento";
 import { hojeNoFuso } from "@/lib/fuso";
-import { exigirPermissao, exigirPermissaoSeEngenheiro } from "@/lib/auth/permissoes";
+import { exigirPermissao, exigirPermissaoSeEngenheiro, pode } from "@/lib/auth/permissoes";
 
 const parcelaSchema = z.object({
   valor: z.coerce.number().positive("Valor da parcela deve ser positivo."),
@@ -718,7 +718,8 @@ export async function marcarPagamentoEnviado(
 export async function pagarParcelaAction(
   compraId: string,
   parcelaId: string,
-  comprovantePath: string
+  /** Nulo quando quem paga tem `pagamento.sem_comprovante` (0083). */
+  comprovantePath: string | null
 ) {
   const profile = await getSessao();
   if (!profile) redirect("/login");
@@ -726,14 +727,22 @@ export async function pagarParcelaAction(
   const negado = await exigirPermissaoSeEngenheiro("compra.pagar", profile.role);
   if (negado) throw new Error(negado);
 
-  if (!comprovantePath) throw new Error("Anexe o comprovante de pagamento.");
+  /*
+   * O comprovante segue obrigatório por padrão; `pagamento.sem_comprovante`
+   * (0083) é a exceção. A RPC refaz esta checagem no banco (0084), então
+   * pular por aqui não abre porta — isto existe para a mensagem chegar ao
+   * formulário em vez de vir como erro cru do Postgres.
+   */
+  if (!comprovantePath && !(await pode("pagamento.sem_comprovante"))) {
+    throw new Error("Anexe o comprovante de pagamento.");
+  }
 
   const supabase = await createClient();
   const obraId = await resolveObraIdForCompra(compraId);
 
   const { error } = await supabase.rpc("pagar_parcela", {
     p_parcela_id: parcelaId,
-    p_comprovante_path: comprovantePath,
+    p_comprovante_path: comprovantePath || null,
   });
 
   if (obraId) {
@@ -755,7 +764,8 @@ export async function pagarParcelaAction(
 export async function pagarCompraAgoraAction(
   compraId: string,
   parcelaId: string,
-  comprovantePath: string
+  /** Nulo quando quem paga tem `pagamento.sem_comprovante` (0083). */
+  comprovantePath: string | null
 ) {
   const profile = await getSessao();
   if (!profile) redirect("/login");
@@ -763,13 +773,21 @@ export async function pagarCompraAgoraAction(
   const negado = await exigirPermissaoSeEngenheiro("compra.pagar", profile.role);
   if (negado) throw new Error(negado);
 
-  if (!comprovantePath) throw new Error("Anexe o comprovante de pagamento.");
+  /*
+   * O comprovante segue obrigatório por padrão; `pagamento.sem_comprovante`
+   * (0083) é a exceção. A RPC refaz esta checagem no banco (0084), então
+   * pular por aqui não abre porta — isto existe para a mensagem chegar ao
+   * formulário em vez de vir como erro cru do Postgres.
+   */
+  if (!comprovantePath && !(await pode("pagamento.sem_comprovante"))) {
+    throw new Error("Anexe o comprovante de pagamento.");
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("aprovar_e_pagar_parcela", {
     p_compra_id: compraId,
     p_parcela_id: parcelaId,
-    p_comprovante_path: comprovantePath,
+    p_comprovante_path: comprovantePath || null,
   });
 
   const obraId = await resolveObraIdForCompra(compraId);

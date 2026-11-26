@@ -40,6 +40,7 @@ export function PagarParcelaDialog({
   parcelaId,
   valor,
   vencimento,
+  podeSemComprovante = false,
 }: {
   obraId: string;
   compraId: string;
@@ -47,6 +48,12 @@ export function PagarParcelaDialog({
   valor: number;
   /** Já formatado pela tela, que é quem conhece o fuso da obra. */
   vencimento: string | null;
+  /**
+   * Dispensa o anexo (permissão `pagamento.sem_comprovante`, 0083). Padrão
+   * `false`: esquecer a prop exige o comprovante, que é o lado seguro. A RPC
+   * `pagar_parcela` refaz a checagem no banco (0084).
+   */
+  podeSemComprovante?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const [arquivo, setArquivo] = useState<File | null>(null);
@@ -54,30 +61,43 @@ export function PagarParcelaDialog({
   const [enviando, iniciar] = useTransition();
 
   function confirmar() {
-    if (!arquivo) {
+    if (!arquivo && !podeSemComprovante) {
       setErro("Anexe o comprovante de pagamento.");
       return;
     }
     setErro(null);
 
     iniciar(async () => {
-      const envio = await enviarArquivoParaStorage(
-        "comprovantes-pagamento",
-        `${obraId}/${compraId}`,
-        arquivo
-      );
-      if (envio.path === null) {
-        setErro(envio.error);
-        return;
+      /*
+       * Sem arquivo não há upload: o caminho vai nulo e quem permite isso é a
+       * permissão, conferida de novo na ação e na RPC. Antes esta função
+       * assumia que `arquivo` existia, porque a guarda acima garantia — com a
+       * dispensa, essa garantia caiu.
+       */
+      let caminho: string | null = null;
+
+      if (arquivo) {
+        const envio = await enviarArquivoParaStorage(
+          "comprovantes-pagamento",
+          `${obraId}/${compraId}`,
+          arquivo
+        );
+        if (envio.path === null) {
+          setErro(envio.error);
+          return;
+        }
+        caminho = envio.path;
       }
 
       try {
-        await pagarParcelaAction(compraId, parcelaId, envio.path);
+        await pagarParcelaAction(compraId, parcelaId, caminho);
         toast.success("Parcela marcada como paga.");
         setArquivo(null);
         setAberto(false);
       } catch (err) {
-        await removerArquivosDoStorage("comprovantes-pagamento", [envio.path]);
+        // Só desfaz o upload se houve upload — senão apagaria nada e o
+        // `removerArquivosDoStorage` levaria uma lista com nulo dentro.
+        if (caminho) await removerArquivosDoStorage("comprovantes-pagamento", [caminho]);
         setErro(err instanceof Error ? err.message : "Erro ao marcar a parcela.");
       }
     });
@@ -126,7 +146,9 @@ export function PagarParcelaDialog({
             </span>
           </div>
           <FieldDescription>
-            Foto ou PDF do comprovante. Sem ele o pagamento não é registrado.
+            {podeSemComprovante
+              ? "Foto ou PDF do comprovante. Você pode registrar sem ele."
+              : "Foto ou PDF do comprovante. Sem ele o pagamento não é registrado."}
           </FieldDescription>
           {erro && <FieldError>{erro}</FieldError>}
         </div>
@@ -135,7 +157,7 @@ export function PagarParcelaDialog({
           <Button variant="outline" onClick={() => setAberto(false)} disabled={enviando}>
             Cancelar
           </Button>
-          <Button onClick={confirmar} disabled={enviando || !arquivo}>
+          <Button onClick={confirmar} disabled={enviando || (!arquivo && !podeSemComprovante)}>
             {enviando ? "Enviando..." : "Confirmar pagamento"}
           </Button>
         </DialogFooter>

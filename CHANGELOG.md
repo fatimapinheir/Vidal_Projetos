@@ -10,6 +10,47 @@ momento da publicação do site.
 
 ---
 
+## 26/11/2026 — Pagamento sem comprovante, por permissão
+
+### O comprovante deixa de ser obrigatório para quem você autorizar
+
+Até agora o comprovante era exigido sempre, em três lugares: ao registrar um
+lançamento, ao marcar uma parcela como paga e ao aprovar-e-pagar uma ordem de
+compra. A razão é boa e continua valendo — o lançamento descreve **dinheiro que
+já saiu**, e sem comprovante é uma afirmação sem lastro dentro do custo da obra.
+
+Por isso a obrigatoriedade **continua sendo o padrão**. O que mudou é que agora
+existe uma exceção nomeada: a permissão **"Registrar pagamento sem
+comprovante"**, na tela de Permissões, dentro do grupo Compras.
+
+**Só o Thiago tem.** Diferente das outras treze permissões, esta não foi dada
+ao Ardiles — aquelas preservavam o que ele já podia, e esta é capacidade nova,
+que não existia para ninguém. Você pode conceder a mais alguém na tela quando
+quiser.
+
+### O que ela não faz
+
+**Não vale para o portal do cliente.** Quem registra pagamento pelo portal
+continua obrigado a anexar, independente de qualquer chave — é a única escrita
+financeira aberta ao cliente, e é justamente a que mais precisa de lastro.
+
+Isso foi testado com a mesma pessoa: Ardiles, com a permissão concedida, é
+recusado quando está no perfil de cliente e aceito no perfil de engenheiro.
+
+### Na prática
+
+Quem tem a permissão vê o campo de comprovante deixar de ser obrigatório, e o
+texto do diálogo muda de *"Sem ele o pagamento não é registrado"* para *"Você
+pode registrar sem ele"*. Quem não tem continua vendo o campo exigido, igual a
+antes.
+
+A regra foi para **dentro do banco**, não só na tela: mesmo quem chamasse o
+sistema por fora continuaria barrado. E uma arrumação de bastidor que importa —
+um comprovante "vazio" deixou de ser possível de gravar, porque uma string
+vazia passaria por "tem comprovante" no cálculo de mensalidade de locação.
+
+---
+
 ## 26/11/2026 — Permissões por usuário
 
 ### Agora dá para dizer o que cada engenheiro pode

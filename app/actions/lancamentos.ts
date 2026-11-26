@@ -7,6 +7,7 @@ import { requireAuth, requireRole } from "@/lib/auth/require-role";
 import { lerAnexosDoForm, salvarAnexosDaCompra } from "@/lib/compras/anexos";
 import { etapaOrcamentoValida } from "@/lib/compras/etapa-orcamento";
 import { subtotalDosItens } from "@/lib/compras/total-item";
+import { pode } from "@/lib/auth/permissoes";
 
 const itemSchema = z.object({
   orcamento_item_id: z.uuid().optional(),
@@ -96,21 +97,23 @@ const schema = z.object({
    * sempre a soma — calculada aqui para o insert e confirmada pelo gatilho
    * `trg_compra_itens_recalcula`, que é quem manda em `compras.valor_total`.
    */
-  // O primeiro arquivo anexado. Continua obrigatório e continua indo para a
-  // parcela — ver o insert da parcela, mais abaixo.
   /*
-   * `null` vira string vazia antes da checagem.
+   * O primeiro arquivo anexado. Vai para a parcela — ver o insert, mais abaixo.
    *
-   * O caminho é `formData.set("comprovante_path", ...)` no navegador, e ele só
-   * acontece havendo arquivo — sem anexo o campo nem existe no envio, e
-   * `formData.get()` devolve `null`. `z.string()` recusaria o `null` com a
-   * mensagem crua do Zod, em inglês, no lugar da frase que está escrita aqui
-   * justamente para explicar o que fazer.
+   * O schema NÃO exige mais, e isso não é afrouxamento: a exigência saiu daqui
+   * para logo depois do parse, onde dá para consultar a permissão
+   * `pagamento.sem_comprovante` (0083). Zod não tem como fazer isso — a regra
+   * depende de quem está logado, e o schema é estático.
+   *
+   * Vale notar que `schemaEdicao` nunca incluiu este campo: editar um
+   * lançamento não mexe no comprovante, então não há porta aberta por aqui.
+   *
+   * `null` vira string vazia porque `formData.set("comprovante_path", ...)` só
+   * acontece havendo arquivo: sem anexo o campo nem existe no envio, e
+   * `formData.get()` devolve `null`, que `z.string()` recusaria com a mensagem
+   * crua do Zod em inglês.
    */
-  comprovante_path: z.preprocess(
-    (v) => v ?? "",
-    z.string().min(1, "Anexe o comprovante do pagamento.")
-  ),
+  comprovante_path: z.preprocess((v) => v ?? "", z.string()),
 });
 
 export type LancamentoState = { error: string | null; sucesso?: boolean };
@@ -154,6 +157,19 @@ export async function criarLancamento(
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  /*
+   * O comprovante continua OBRIGATÓRIO por padrão, pela razão no cabeçalho
+   * desta função: lançamento é dinheiro que já saiu, e sem lastro é afirmação
+   * sem nada atrás. Quem tem `pagamento.sem_comprovante` (0083) é a exceção.
+   *
+   * Para o CLIENTE isto nunca dispensa: `pode()` exige role de engenheiro,
+   * então pelo portal o anexo é sempre exigido — e é justamente a única
+   * escrita financeira aberta a ele, a que mais precisa de lastro.
+   */
+  if (!parsed.data.comprovante_path && !(await pode("pagamento.sem_comprovante"))) {
+    return { error: "Anexe o comprovante do pagamento." };
   }
 
   const supabase = await createClient();
@@ -272,7 +288,16 @@ export async function criarLancamento(
      * Deixar a parcela sem comprovante faria um pagamento pago aparecer sem
      * prova em todas essas telas.
      */
-    comprovante_pagamento_path: parsed.data.comprovante_path,
+    /*
+     * `|| null` e não o valor cru: o schema transforma ausência em string
+     * VAZIA (ver o `z.preprocess` acima), e a restrição
+     * `compra_parcelas_comprovante_nao_vazio` (0084) recusa `''`. Sem isto, o
+     * primeiro lançamento sem comprovante estouraria com erro do Postgres.
+     *
+     * E a restrição está certa em recusar: `''` passaria por "tem
+     * comprovante" na lógica de mensalidade da 0054/0064.
+     */
+    comprovante_pagamento_path: parsed.data.comprovante_path || null,
   });
 
   if (erroParcela) {

@@ -1646,12 +1646,19 @@ export interface Database {
         Args: { p_cotacao_id: string; p_motivo: string };
         Returns: undefined;
       };
+      /**
+       * `p_comprovante_path` aceita nulo desde a 0084: sem anexo, quem tem
+       * `pagamento.sem_comprovante` paga sem ele. A função normaliza string
+       * vazia para NULL — `''` passaria por "tem comprovante" na lógica de
+       * mensalidade da 0054/0064.
+       */
       pagar_parcela: {
-        Args: { p_parcela_id: string; p_comprovante_path: string };
+        Args: { p_parcela_id: string; p_comprovante_path: string | null };
         Returns: undefined;
       };
+      /** `p_comprovante_path` aceita nulo desde a 0084 — ver `pagar_parcela`. */
       aprovar_e_pagar_parcela: {
-        Args: { p_compra_id: string; p_parcela_id: string; p_comprovante_path: string };
+        Args: { p_compra_id: string; p_parcela_id: string; p_comprovante_path: string | null };
         Returns: undefined;
       };
       cli_marcar_entrega_lancamento: {

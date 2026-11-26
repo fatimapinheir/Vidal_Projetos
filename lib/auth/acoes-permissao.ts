@@ -17,6 +17,7 @@ export const ACOES_PERMISSAO = [
   "cotacao.excluir",
   "compra.aprovar",
   "compra.pagar",
+  "pagamento.sem_comprovante",
   "compra.excluir",
   "fechamento.pagar",
   "diario.reabrir",

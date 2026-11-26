@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { LancamentoForm } from "@/components/compras/lancamento-form";
 import { etapasDoOrcamentoAtivo } from "@/lib/compras/etapa-orcamento";
 import { buscarInsumosAtivos } from "@/lib/compras/insumos-ativos";
+import { pode } from "@/lib/auth/permissoes";
 
 export default async function NovoLancamentoPage({
   params,
@@ -37,6 +38,7 @@ export default async function NovoLancamentoPage({
       </CardHeader>
       <CardContent>
         <LancamentoForm
+          podeSemComprovante={await pode("pagamento.sem_comprovante")}
           obraId={obraId}
           fornecedores={fornecedores ?? []}
           categorias={categorias ?? []}

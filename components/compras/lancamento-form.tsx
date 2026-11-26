@@ -87,6 +87,7 @@ export function LancamentoForm({
   voltarPara,
   etapasOrcamento = [],
   permiteCadastrarFornecedor = true,
+  podeSemComprovante = false,
   inicial,
 }: {
   obraId: string;
@@ -103,6 +104,15 @@ export function LancamentoForm({
   /** Para onde ir depois de salvar. */
   voltarPara: string;
   permiteCadastrarFornecedor?: boolean;
+  /**
+   * Dispensa o anexo (permissão `pagamento.sem_comprovante`, 0083).
+   *
+   * Padrão `false` de propósito: quem esquecer de passar a prop obtém o
+   * comportamento SEGURO, que é exigir. E mesmo passando `true` por engano,
+   * a Server Action e a RPC refazem a checagem no banco — isto aqui é só
+   * para a pessoa não preencher o formulário inteiro e levar erro no fim.
+   */
+  podeSemComprovante?: boolean;
   /**
    * Presente = edição de um lançamento existente.
    *
@@ -188,7 +198,7 @@ export function LancamentoForm({
       return;
     }
 
-    if (!comprovantes.length) {
+    if (!comprovantes.length && !podeSemComprovante) {
       setErroArquivo("Anexe o comprovante do pagamento.");
       return;
     }
