@@ -10,6 +10,69 @@ momento da publicação do site.
 
 ---
 
+## 26/11/2026 — Permissões por usuário
+
+### Agora dá para dizer o que cada engenheiro pode
+
+Até hoje "engenheiro" era o teto do sistema: quem tinha esse perfil podia
+exatamente tudo que outro engenheiro podia — inclusive **excluir uma obra
+inteira**, aprovar ordem de compra e criar acesso para clientes. Com um
+engenheiro novo entrando, ele nasceria com esses mesmos poderes.
+
+Existe agora uma tela de **Permissões** (em Cadastros, visível só para quem
+administra) com uma chave por permissão e por pessoa. São 13 permissões,
+agrupadas por assunto:
+
+| Assunto | O que se controla |
+| ------- | ----------------- |
+| Obras | criar, excluir |
+| Orçamento | tornar uma versão oficial |
+| Cotações | escolher ou recusar proposta, excluir |
+| Compras | aprovar ou recusar, registrar pagamento, excluir |
+| RH | marcar fechamento como pago |
+| Diário | reabrir dia fechado, excluir RDO |
+| Acessos | convidar e vincular clientes |
+| Cadastros | publicar nova tabela SINAPI |
+
+**O trabalho do dia a dia não passa por aqui.** Lançar tarefa no cronograma,
+salvar RDO, montar orçamento, registrar presença, tirar foto — todo engenheiro
+continua fazendo, sem chave nenhuma. A lista cobre só o que é irreversível,
+move dinheiro, ou decide quem entra no sistema. Fossem as 121 ações do sistema,
+a tela seria ilegível e atrapalharia quem só quer trabalhar.
+
+### Quem administra
+
+Thiago e Fátima administram permissões. Isso é separado do perfil de
+engenheiro, de propósito: administrar não é uma cadeira onde se senta, é uma
+chave que se carrega — ninguém quer "entrar no modo administrador" para aprovar
+uma compra e sair depois. Administrador pode tudo e não aparece na lista de
+chaves, porque as dele estariam todas ligadas e travadas.
+
+Duas travas: ninguém retira a própria administração (tem que pedir a outro
+administrador), e o sistema nunca fica sem nenhum.
+
+### Como cada um ficou
+
+- **Ardiles** entrou com **todas as 13 permissões marcadas** — exatamente o que
+  ele já podia. Nada mudou para ele, e retirar passa a ser decisão consciente
+  na tela, não efeito colateral desta atualização.
+- **O engenheiro que entra hoje** começa **sem nenhuma** permissão de decisão.
+  Ele trabalha normalmente desde o primeiro minuto; o que depende de liberação
+  é aprovar, excluir e pagar.
+- **Revogar vale na hora.** A verificação lê o banco a cada clique, não o
+  token — então uma chave desligada tem efeito no clique seguinte, sem esperar
+  a pessoa sair e entrar de novo.
+
+### Uma observação honesta
+
+Quem tem perfil duplo (Ardiles e Fátima) pode aprovar uma compra **pelo lado do
+cliente** numa obra em que é cliente, mesmo sem a permissão de engenheiro.
+Está coerente — ali ele age como cliente da obra, e a permissão restringe a
+capacidade de engenheiro, não os direitos de cliente — mas vale saber que o
+caminho existe.
+
+---
+
 ## 26/11/2026
 
 ### A tela de login abre na hora, não em cinco segundos

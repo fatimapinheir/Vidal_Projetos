@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 
 const abrirFechamentoSchema = z.object({
   trabalhador_id: z.uuid(),
@@ -97,6 +98,10 @@ export async function marcarFechamentoPago(
   comprovantePath: string | null
 ): Promise<FechamentoFormState> {
   await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("fechamento.pagar");
+  if (negado) return { error: negado };
+
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -241,6 +246,10 @@ export async function marcarFechamentoEquipePago(
   comprovantePath: string | null
 ): Promise<FechamentoFormState> {
   await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("fechamento.pagar");
+  if (negado) return { error: negado };
+
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -332,6 +341,10 @@ export async function marcarFechamentoEntregaPago(
   comprovantePath: string | null
 ): Promise<FechamentoFormState> {
   await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("fechamento.pagar");
+  if (negado) return { error: negado };
+
   const supabase = await createClient();
 
   const { error } = await supabase

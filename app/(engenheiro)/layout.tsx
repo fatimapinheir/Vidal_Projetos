@@ -17,40 +17,51 @@ import { papeisDoUsuario } from "@/lib/auth/papeis";
  * a página monta, então aqui no servidor ele ainda pode estar uma obra
  * atrasado. Ver `resolverHref`.
  */
-const navItems: NavEntry[] = [
-  /*
-   * "Dashboard" está FORA do menu por enquanto, a pedido.
-   *
-   * A rota continua existindo e sendo alcançável — é para onde `requireRole`
-   * manda quem erra o lado, e onde o engenheiro sem obra padrão cai depois do
-   * login. Só não ocupa mais uma linha da coluna. Para trazer de volta:
-   *   { href: "/dashboard", label: "Dashboard", icone: "dashboard" },
-   */
+/**
+ * Recebe `administrador` porque "Permissões" só existe para quem administra
+ * (0082). É APARÊNCIA: esconder o item não protege nada — quem barra a tela é
+ * `is_admin()` no banco, dentro da própria página.
+ */
+function montarNav(administrador: boolean): NavEntry[] {
+  return [
+    /*
+     * "Dashboard" está FORA do menu por enquanto, a pedido.
+     *
+     * A rota continua existindo e sendo alcançável — é para onde `requireRole`
+     * manda quem erra o lado, e onde o engenheiro sem obra padrão cai depois
+     * do login. Só não ocupa mais uma linha da coluna. Para trazer de volta:
+     *   { href: "/dashboard", label: "Dashboard", icone: "dashboard" },
+     */
 
-  { secao: "Obra" },
-  ...entradasDaObra(),
+    { secao: "Obra" },
+    ...entradasDaObra(),
 
-  /*
-   * Sem rótulo de seção antes de Cadastros.
-   *
-   * Era "GERENCIAR", e com o cartão RH logo acima ficaram dois cartões
-   * separados por um texto que não dizia nada além de "daqui para baixo é
-   * outra coisa" — que os próprios cartões já dizem, por serem cartões. Os
-   * dois agora fecham a coluna juntos, no fim da lista.
-   */
-  {
-    label: "Cadastros",
-    icone: "cadastros",
-    items: [
-      { href: "/obras", label: "Obras", icone: "obras" },
-      { href: "/clientes", label: "Clientes", icone: "clientes" },
-      { href: "/trabalhadores", label: "Colaboradores e equipes", icone: "equipes" },
-      { href: "/fornecedores", label: "Fornecedores", icone: "fornecedores" },
-      { href: "/insumos", label: "Insumos", icone: "insumos" },
-      { href: "/sinapi", label: "Tabela SINAPI", icone: "tabela" },
-    ],
-  },
-];
+    /*
+     * Sem rótulo de seção antes de Cadastros.
+     *
+     * Era "GERENCIAR", e com o cartão RH logo acima ficaram dois cartões
+     * separados por um texto que não dizia nada além de "daqui para baixo é
+     * outra coisa" — que os próprios cartões já dizem, por serem cartões. Os
+     * dois agora fecham a coluna juntos, no fim da lista.
+     */
+    {
+      label: "Cadastros",
+      icone: "cadastros",
+      items: [
+        { href: "/obras", label: "Obras", icone: "obras" },
+        { href: "/clientes", label: "Clientes", icone: "clientes" },
+        { href: "/trabalhadores", label: "Colaboradores e equipes", icone: "equipes" },
+        { href: "/fornecedores", label: "Fornecedores", icone: "fornecedores" },
+        { href: "/insumos", label: "Insumos", icone: "insumos" },
+        { href: "/sinapi", label: "Tabela SINAPI", icone: "tabela" },
+        // Último da lista: é a tela que menos se abre.
+        ...(administrador
+          ? [{ href: "/permissoes", label: "Permissões", icone: "cadastros" as const }]
+          : []),
+      ],
+    },
+  ];
+}
 
 export default async function EngenheiroLayout({ children }: { children: React.ReactNode }) {
   /*
@@ -88,7 +99,7 @@ export default async function EngenheiroLayout({ children }: { children: React.R
 
   return (
     <AppShell
-      navItems={navItems}
+      navItems={montarNav(conta?.administrador ?? false)}
       userName={profile.nome}
       userLabel="Engenheiro"
       userRole={profile.role}

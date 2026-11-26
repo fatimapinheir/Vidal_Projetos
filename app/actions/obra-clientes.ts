@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth/require-role";
 import { soDigitos, validarDocumento } from "@/lib/documento";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 
 /*
  * O nome é OBRIGATÓRIO, e já foi opcional.
@@ -37,6 +38,9 @@ export async function vincularCliente(
   formData: FormData
 ): Promise<VincularClienteState> {
   await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("cliente.gerenciar");
+  if (negado) return { error: negado };
 
   const parsed = vincularSchema.safeParse({
     email: formData.get("email"),
@@ -122,6 +126,10 @@ export async function vincularCliente(
 
 export async function desvincularCliente(obraId: string, clienteId: string) {
   await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("cliente.gerenciar");
+  if (negado) throw new Error(negado);
+
   const supabase = await createClient();
   await supabase
     .from("obra_clientes")
@@ -178,6 +186,9 @@ export async function criarClienteParaObra(
   formData: FormData
 ): Promise<CriarClienteState> {
   await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("cliente.gerenciar");
+  if (negado) return { error: negado };
 
   const parsed = clienteSchema.safeParse({
     tipo_pessoa: formData.get("tipo_pessoa"),

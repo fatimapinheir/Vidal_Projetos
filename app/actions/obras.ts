@@ -9,6 +9,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { CATEGORIAS_OBRA } from "@/lib/obra-cadastro";
 import { parseNumeroBR } from "@/lib/parse-numero-br";
 import { BUCKET_IMAGENS_OBRA, type CampoImagemObra } from "@/lib/obras/imagens";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 
 /** Campo de texto opcional: string vazia do formulário vira null no banco. */
 const textoOpcional = z
@@ -126,6 +127,9 @@ export async function createObra(
   formData: FormData
 ): Promise<ObraFormState> {
   const profile = await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("obra.criar");
+  if (negado) return { error: negado };
 
   const parsed = lerFormulario(formData);
 
@@ -477,6 +481,10 @@ export async function excluirObra(
   nomeConfirmado: string
 ): Promise<ExclusaoResultado> {
   const perfil = await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("obra.excluir");
+  if (negado) return { error: negado };
+
   const supabase = await createClient();
 
   const { data: obra } = await supabase

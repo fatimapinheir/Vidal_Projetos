@@ -9,6 +9,7 @@ import { requireRole, requireAuth } from "@/lib/auth/require-role";
 import { subtotalDosItens, aplicarDescontoDaNota } from "@/lib/compras/total-item";
 import { etapaOrcamentoValida } from "@/lib/compras/etapa-orcamento";
 import { lerAnexosDoForm } from "@/lib/compras/anexos";
+import { exigirPermissao, exigirPermissaoSeEngenheiro } from "@/lib/auth/permissoes";
 
 export type CotacaoFormState = { error: string | null };
 
@@ -327,6 +328,10 @@ export async function definirEnvioAoCliente(cotacaoId: string, enviar: boolean) 
  */
 export async function excluirCotacao(cotacaoId: string): Promise<{ error: string | null }> {
   await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("cotacao.excluir");
+  if (negado) return { error: negado };
+
   const supabase = await createClient();
 
   const { data: cotacao } = await supabase
@@ -573,6 +578,10 @@ async function gravarFilhosDaProposta(
 
 export async function excluirProposta(propostaId: string): Promise<{ error: string | null }> {
   await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("cotacao.excluir");
+  if (negado) return { error: negado };
+
   const supabase = await createClient();
 
   const { data: proposta } = await supabase
@@ -625,6 +634,10 @@ export async function excluirProposta(propostaId: string): Promise<{ error: stri
  */
 export async function escolherPropostaAction(propostaId: string) {
   const perfil = await requireAuth();
+
+  const negado = await exigirPermissaoSeEngenheiro("cotacao.decidir", perfil.role);
+  if (negado) throw new Error(negado);
+
   const supabase = await createClient();
 
   const { data: proposta } = await supabase
@@ -659,7 +672,11 @@ export async function escolherPropostaAction(propostaId: string) {
 }
 
 export async function recusarCotacaoAction(cotacaoId: string, formData: FormData) {
-  await requireAuth();
+  const sessao = await requireAuth();
+
+  const negado = await exigirPermissaoSeEngenheiro("cotacao.decidir", sessao.role);
+  if (negado) throw new Error(negado);
+
   const supabase = await createClient();
 
   const { data: cotacao } = await supabase

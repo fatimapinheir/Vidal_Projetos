@@ -11,6 +11,7 @@ import { normalizarUnidade } from "@/lib/orcamento/unidades";
 import type { ItemPlanilha } from "@/components/upload/spreadsheet-upload-wizard";
 import type { Database } from "@/lib/types/database.types";
 import { ETAPAS_ORCAMENTO, TEMPLATE_RESIDENCIAL, type ParametrosObra } from "@/lib/orcamento/templates";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 
 async function requireRascunho(supabase: Awaited<ReturnType<typeof createClient>>, versaoId: string) {
   const { data: versao } = await supabase
@@ -285,6 +286,10 @@ export async function removerItemOrcamento(obraId: string, itemId: string) {
 
 export async function ativarOrcamento(obraId: string, versaoId: string) {
   await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("orcamento.ativar");
+  if (negado) throw new Error(negado);
+
   const supabase = await createClient();
 
   await requireRascunho(supabase, versaoId);

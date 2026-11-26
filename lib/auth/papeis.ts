@@ -16,6 +16,18 @@ export type PapeisDoUsuario = {
   role: UserRole;
   /** Obra em que o perfil de engenheiro abre. Nula = escolher ao entrar. */
   obraPadraoId: string | null;
+  /**
+   * Administra permissões dos outros (0082).
+   *
+   * Vem de carona nesta consulta de propósito: o layout do engenheiro precisa
+   * dela para decidir se mostra "Permissões" no menu, e buscá-la numa consulta
+   * própria custaria outra ida a São Paulo em TODA tela. Aqui o `select` já
+   * estava sendo feito.
+   *
+   * O menu é só aparência — quem barra a tela é `is_admin()` no banco, dentro
+   * da própria página.
+   */
+  administrador: boolean;
 };
 
 /**
@@ -39,7 +51,7 @@ export async function papeisDoUsuario(
 ): Promise<PapeisDoUsuario | null> {
   const { data } = await supabase
     .from("profiles")
-    .select("papeis, role, obra_padrao_id")
+    .select("papeis, role, obra_padrao_id, administrador")
     .eq("id", usuarioId)
     .maybeSingle();
 
@@ -51,6 +63,7 @@ export async function papeisDoUsuario(
     // para o caso de o PostgREST devolver nulo por algum motivo nosso.
     papeis: data.papeis ?? [],
     obraPadraoId: data.obra_padrao_id,
+    administrador: data.administrador === true,
   };
 }
 

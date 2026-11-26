@@ -16,6 +16,7 @@ import {
 } from "@/lib/compras/anexos";
 import { etapaOrcamentoValida } from "@/lib/compras/etapa-orcamento";
 import { hojeNoFuso } from "@/lib/fuso";
+import { exigirPermissao, exigirPermissaoSeEngenheiro } from "@/lib/auth/permissoes";
 
 const parcelaSchema = z.object({
   valor: z.coerce.number().positive("Valor da parcela deve ser positivo."),
@@ -554,6 +555,9 @@ export async function aprovarCompraAction(compraId: string) {
   const profile = await getSessao();
   if (!profile) redirect("/login");
 
+  const negado = await exigirPermissaoSeEngenheiro("compra.aprovar", profile.role);
+  if (negado) throw new Error(negado);
+
   const supabase = await createClient();
   const { error } = await supabase.rpc("aprovar_compra", { p_compra_id: compraId });
 
@@ -570,6 +574,9 @@ export async function aprovarCompraAction(compraId: string) {
 export async function recusarCompraAction(compraId: string, formData: FormData) {
   const profile = await getSessao();
   if (!profile) redirect("/login");
+
+  const negado = await exigirPermissaoSeEngenheiro("compra.aprovar", profile.role);
+  if (negado) throw new Error(negado);
 
   const motivo = String(formData.get("motivo") ?? "");
   const supabase = await createClient();
@@ -662,6 +669,10 @@ export async function marcarPagamentoEnviado(
   enviado: boolean
 ) {
   const profile = await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("compra.pagar");
+  if (negado) throw new Error(negado);
+
   const supabase = await createClient();
 
   const { data: parcela } = await supabase
@@ -712,6 +723,9 @@ export async function pagarParcelaAction(
   const profile = await getSessao();
   if (!profile) redirect("/login");
 
+  const negado = await exigirPermissaoSeEngenheiro("compra.pagar", profile.role);
+  if (negado) throw new Error(negado);
+
   if (!comprovantePath) throw new Error("Anexe o comprovante de pagamento.");
 
   const supabase = await createClient();
@@ -745,6 +759,9 @@ export async function pagarCompraAgoraAction(
 ) {
   const profile = await getSessao();
   if (!profile) redirect("/login");
+
+  const negado = await exigirPermissaoSeEngenheiro("compra.pagar", profile.role);
+  if (negado) throw new Error(negado);
 
   if (!comprovantePath) throw new Error("Anexe o comprovante de pagamento.");
 
@@ -780,7 +797,11 @@ export async function pagarCompraAgoraAction(
  * é justamente o motivo de existir: um lançamento errado mente no total.
  */
 export async function excluirCompra(compraId: string): Promise<{ error: string | null }> {
-  await requireAuth();
+  const sessao = await requireAuth();
+
+  const negado = await exigirPermissaoSeEngenheiro("compra.excluir", sessao.role);
+  if (negado) return { error: negado };
+
   const supabase = await createClient();
 
   const { data: compra } = await supabase

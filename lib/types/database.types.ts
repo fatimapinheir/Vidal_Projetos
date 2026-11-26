@@ -60,6 +60,13 @@ export interface Database {
           papeis: UserRole[];
           /** Obra em que o perfil de engenheiro abre. Nula = cai no Dashboard. */
           obra_padrao_id: string | null;
+          /**
+           * Pode conceder e revogar permissões dos outros (0082). Ortogonal a
+           * `role`: responde "decide quem pode", não "qual cadeira ocupa".
+           * Fora do catálogo de permissões de propósito — se fosse uma
+           * permissão comum, seria circular.
+           */
+          administrador: boolean;
           nome: string;
           telefone: string | null;
           email: string | null;
@@ -76,6 +83,7 @@ export interface Database {
           /** Omitido, o gatilho `trg_profiles_papeis_iniciais` grava `[role]`. */
           papeis?: UserRole[];
           obra_padrao_id?: string | null;
+          administrador?: boolean;
           nome: string;
           telefone?: string | null;
           email?: string | null;
@@ -87,6 +95,53 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
+        Relationships: [];
+      };
+      /**
+       * As permissões que EXISTEM (0082). Tabela e não enum porque a tela de
+       * gerenciamento a lê para montar a lista, e acrescentar uma permissão
+       * passa a ser um insert em vez de uma migração de tipo.
+       */
+      permissoes_catalogo: {
+        Row: {
+          acao: string;
+          /** Rótulo do agrupamento na tela: "Compras", "Diário", "Acessos". */
+          grupo: string;
+          rotulo: string;
+          /** O que a permissão deixa fazer, em português, para a tela mostrar. */
+          descricao: string;
+          ordem: number;
+        };
+        Insert: {
+          acao: string;
+          grupo: string;
+          rotulo: string;
+          descricao: string;
+          ordem: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["permissoes_catalogo"]["Insert"]>;
+        Relationships: [];
+      };
+      /**
+       * Quem pode o quê (0082). Presença da linha concede, ausência nega — a
+       * omissão é o "não", para quem entra no sistema nascer sem poder de
+       * decisão. Escrita só pela RPC `definir_permissao`: não existe policy de
+       * INSERT nem DELETE nesta tabela.
+       */
+      permissoes_usuario: {
+        Row: {
+          usuario_id: string;
+          acao: string;
+          concedida_em: string;
+          concedida_por: string | null;
+        };
+        Insert: {
+          usuario_id: string;
+          acao: string;
+          concedida_em?: string;
+          concedida_por?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["permissoes_usuario"]["Insert"]>;
         Relationships: [];
       };
       obras: {
@@ -1614,6 +1669,30 @@ export interface Database {
       };
       definir_obra_padrao: {
         Args: { p_obra_id: string | null };
+        Returns: undefined;
+      };
+      /** Quem administra permissões (0082). Não olha `role`. */
+      is_admin: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      /**
+       * O portão único de permissão (0082). Lê o banco AO VIVO, não o token,
+       * então revogar vale no clique seguinte em vez de esperar o token
+       * expirar. Admin passa em tudo; cliente nunca passa.
+       */
+      pode: {
+        Args: { p_acao: string };
+        Returns: boolean;
+      };
+      /** Lança quando quem chama não administra, ou o alvo não é engenheiro (0082). */
+      definir_permissao: {
+        Args: { p_usuario: string; p_acao: string; p_conceder: boolean };
+        Returns: undefined;
+      };
+      /** Lança ao tentar retirar a própria administração ou deixar o sistema sem nenhuma (0082). */
+      definir_administrador: {
+        Args: { p_usuario: string; p_admin: boolean };
         Returns: undefined;
       };
     };

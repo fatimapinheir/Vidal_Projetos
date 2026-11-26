@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import type { ItemPlanilha } from "@/components/upload/spreadsheet-upload-wizard";
+import { exigirPermissao } from "@/lib/auth/permissoes";
 
 const itemSchema = z.object({
   codigo_sinapi: z.string().optional(),
@@ -25,6 +26,9 @@ export async function ativarNovaTabelaSinapi(params: {
   mesReferencia?: string;
 }): Promise<SinapiUploadState> {
   const profile = await requireRole("engenheiro");
+
+  const negado = await exigirPermissao("sinapi.publicar");
+  if (negado) return { error: negado };
 
   const itens = z.array(itemSchema).safeParse(params.itens);
   if (!itens.success || !itens.data.length || !params.mesReferencia) {
