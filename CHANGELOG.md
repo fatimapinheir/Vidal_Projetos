@@ -14,6 +14,20 @@ momento da publicação do site.
 
 > Pacote em preparo. Ao publicar, trocar este título pela data do deploy.
 
+### O lápis de corrigir o nome do cliente estava invisível
+
+Em Cadastros → Clientes dá para corrigir o nome de um cliente pelo lápis ao
+lado dele. Só que o lápis **só aparecia quando o mouse passava por cima** — e
+no celular isso simplesmente não existe, então ele ficava permanentemente
+invisível. O botão estava lá e era clicável; só não havia como vê-lo.
+
+Agora ele fica sempre visível, apagado, e ganha contraste quando o cursor
+passa. A lista continua calma e a ação deixa de depender de adivinhação.
+
+Isso aparece com frequência: cliente convidado só pelo e-mail nasce com o
+e-mail no lugar do nome, e o portal cumprimenta com ele — "Olá,
+fulano@email.com!".
+
 ### O diário do engenheiro abre no calendário
 
 Era a listagem; passa a ser o **calendário**. A listagem continua a um clique,

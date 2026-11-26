@@ -12,8 +12,17 @@ import { renomearCliente } from "@/app/actions/obra-clientes";
  * Corrige o nome de um cliente, na própria linha da lista.
  *
  * Em linha e não em diálogo: é um campo só, e abrir uma janela para trocar uma
- * palavra é cerimônia demais. O lápis fica escondido até o cursor passar, para
- * a lista continuar sendo uma lista.
+ * palavra é cerimônia demais.
+ *
+ * O lápis ERA invisível até o cursor passar, para "a lista continuar sendo uma
+ * lista". A intenção era boa e o efeito foi ruim de dois jeitos: no desktop só
+ * se descobria por acidente, e no CELULAR não havia como descobrir — o
+ * Tailwind v4 envolve `hover:` em `@media (hover: hover)`, então em tela de
+ * toque a regra nunca aplica e o botão ficava permanentemente invisível,
+ * clicável só por quem adivinhasse a posição.
+ *
+ * Agora ele está sempre visível, apagado. Ganha contraste no hover e no foco,
+ * então a lista continua calma sem esconder a única porta para a ação.
  *
  * Existe porque cliente convidado só com o e-mail ficava com o e-mail no lugar
  * do nome — e até agora não havia como arrumar em tela nenhuma.
@@ -58,7 +67,7 @@ export function RenomearCliente({ id, nome }: { id: string; nome: string }) {
           aria-label={`Corrigir o nome de ${nome}`}
           title="Corrigir nome"
           onClick={() => setEditando(true)}
-          className="text-muted-foreground opacity-0 transition-opacity group-hover/nome:opacity-100 focus-visible:opacity-100"
+          className="text-muted-foreground opacity-45 transition-opacity group-hover/nome:opacity-100 focus-visible:opacity-100"
         >
           <Pencil className="size-3.5" />
         </Button>
