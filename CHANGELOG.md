@@ -10,6 +10,42 @@ momento da publicação do site.
 
 ---
 
+## 26/11/2026 — Histórico de permissões e a tela no celular
+
+### Agora fica registrado quem mudou o quê
+
+Liberar uma permissão já ficava registrado, mas **retirar não deixava rastro
+nenhum**. Isso ficou concreto hoje: cinco permissões foram revogadas pela tela,
+e só deu para saber quais porque o estado anterior estava anotado fora do
+sistema. A pergunta *"quem tirou essa permissão, e quando?"* o sistema não
+sabia responder.
+
+A tela de Permissões ganhou uma seção de **Histórico de alterações**: cada
+liberação e cada retirada, com quem fez e quando. Promover e rebaixar
+administrador entra no mesmo histórico — é a mudança mais grave do conjunto.
+
+Duas observações honestas:
+
+- **Mudanças anteriores a hoje não aparecem.** Elas eram apagadas, não
+  guardadas, e isso não tem recuperação. Dar a elas uma data inventada seria
+  fabricar registro de auditoria, que é pior do que não ter.
+- Clicar numa chave que já estava na posição desejada **não gera registro** —
+  só mudança de verdade entra, para o histórico não encher de linhas iguais.
+
+### A tela de Permissões no celular
+
+No telefone a matriz tinha 640px de largura e rolava para o lado. Ao rolar, a
+primeira coluna — o **nome da permissão** — saía de vista, e você ficava
+mexendo numa chave sem ver do que era. Como não havia nenhuma dica de que
+rolava, a tela simplesmente parecia cortada à direita.
+
+No celular agora você **escolhe a pessoa** e vê a lista de permissões dela,
+uma por linha, com o nome sempre ao lado da chave. Nada rola para o lado. No
+computador a matriz continua, porque lá a pergunta é comparativa: "quem pode
+aprovar compra?".
+
+---
+
 ## 26/11/2026 — RDO: correção de perda de texto e quatro seções novas
 
 ### O registro do dia estava sendo perdido ao fechar

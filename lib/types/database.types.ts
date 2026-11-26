@@ -144,6 +144,40 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["permissoes_usuario"]["Insert"]>;
         Relationships: [];
       };
+      /**
+       * Log append-only de concessões e revogações (0085).
+       *
+       * Existe porque revogar era um `delete` e sumia sem rastro — o banco não
+       * sabia responder "quem tirou esta permissão, e quando?". Inclui
+       * `acao = 'administrador'`, que é a mudança mais grave do conjunto.
+       *
+       * Sem FK de propósito: cascade de `permissoes_catalogo` ou de `profiles`
+       * apagaria histórico, e um log que o sistema pode apagar sozinho não é
+       * log. Por isso os ids são `string` solta, não relação.
+       */
+      permissoes_eventos: {
+        Row: {
+          id: number;
+          usuario_id: string;
+          /** Ação do catálogo, ou o literal `"administrador"`. */
+          acao: string;
+          /** `true` concedeu, `false` revogou. */
+          concedida: boolean;
+          em: string;
+          /** Nulo nos eventos semeados pela migração. */
+          por: string | null;
+        };
+        Insert: {
+          usuario_id: string;
+          acao: string;
+          concedida: boolean;
+          em?: string;
+          por?: string | null;
+        };
+        /** Append-only: não há policy de UPDATE nem DELETE nesta tabela. */
+        Update: never;
+        Relationships: [];
+      };
       obras: {
         Row: {
           id: string;

@@ -54,6 +54,15 @@ export function MatrizDePermissoes({
   );
   const [, iniciar] = useTransition();
 
+  /*
+   * Quem está aberto na versão de celular. Começa no primeiro que NÃO
+   * administra: abrir num administrador mostraria uma lista sem nenhuma chave
+   * para mexer, o que parece tela quebrada.
+   */
+  const [pessoaAberta, setPessoaAberta] = useState(
+    () => (usuarios.find((u) => !u.administrador) ?? usuarios[0])?.id ?? ""
+  );
+
   function alternarPermissao(usuarioId: string, acao: string, conceder: boolean) {
     const k = chave(usuarioId, acao);
     setMarcadas((atual) => {
@@ -119,7 +128,10 @@ export function MatrizDePermissoes({
         <ul className="mt-4 flex flex-col divide-y">
           {usuarios.map((u) => (
             <li key={u.id} className="flex items-center justify-between gap-4 py-2.5">
-              <div className="min-w-0">
+              {/* `flex-1` junto com `min-w-0`: sem ele o `truncate` não tem
+                  largura definida contra a qual cortar, e um nome longo
+                  empurrava a chave para fora da tela no celular. */}
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">
                   {u.nome}
                   {u.id === meuId && (
@@ -138,9 +150,18 @@ export function MatrizDePermissoes({
         </ul>
       </section>
 
-      {/* A matriz rola dentro de si: com cinco engenheiros a tabela passa da
-          largura da tela, e o corpo da página nunca deve rolar na horizontal. */}
-      <div className="overflow-x-auto rounded-lg border">
+      {/*
+        A matriz existe só a partir de `md`, e isto não é preguiça de layout.
+        
+        Ela tem 640px de largura mínima. Num telefone de 375px ela rolava para o
+        lado — e ao rolar, a primeira coluna (o NOME da permissão) saía de vista.
+        A pessoa ficava mexendo numa chave sem ver do que era. Pior: por não ter
+        nenhuma dica de que rolava, a tela parecia simplesmente cortada à
+        direita, que foi exatamente como o problema chegou relatado.
+        
+        No celular a mesma informação aparece embaixo, uma pessoa por vez.
+      */}
+      <div className="hidden overflow-x-auto rounded-lg border md:block">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b bg-muted/40">
@@ -204,6 +225,82 @@ export function MatrizDePermissoes({
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/*
+        Celular: escolhe-se a PESSOA e vê-se a lista de permissões dela.
+        
+        Uma pessoa por vez em vez de empilhar as três por permissão (que daria
+        42 linhas de rolagem) — e é assim que a tarefa realmente acontece:
+        "vou ajustar o Ardiles", não "vou ajustar aprovar-compra em todo mundo".
+        Nada rola para o lado, e o nome da permissão fica sempre visível ao lado
+        da chave.
+      */}
+      <div className="flex flex-col gap-4 md:hidden">
+        <div className="flex flex-wrap gap-2">
+          {usuarios.map((u) => (
+            <button
+              key={u.id}
+              type="button"
+              onClick={() => setPessoaAberta(u.id)}
+              aria-pressed={pessoaAberta === u.id}
+              className={
+                pessoaAberta === u.id
+                  ? "rounded-lg border border-primary bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+                  : "rounded-lg border px-3 py-1.5 text-sm"
+              }
+            >
+              {u.nome.split(" ")[0]}
+              {admins.has(u.id) && " · admin"}
+            </button>
+          ))}
+        </div>
+
+        {(() => {
+          const u = usuarios.find((x) => x.id === pessoaAberta);
+          if (!u) return null;
+
+          if (admins.has(u.id)) {
+            return (
+              <p className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">{u.nome.split(" ")[0]}</span>{" "}
+                administra permissões, então pode tudo — não há chaves para ajustar aqui.
+                Para mudar isso, desligue a administração dele acima.
+              </p>
+            );
+          }
+
+          return (
+            <div className="rounded-lg border">
+              {grupos.map(({ grupo, itens }) => (
+                <Fragment key={grupo}>
+                  <p className="border-b bg-muted/20 px-3 py-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    {grupo}
+                  </p>
+                  {itens.map((item) => (
+                    <div
+                      key={item.acao}
+                      className="flex items-start justify-between gap-3 border-b p-3 last:border-0"
+                    >
+                      {/* `min-w-0` para o texto poder encolher em vez de
+                          empurrar a chave fora da tela. */}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium">{item.rotulo}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{item.descricao}</p>
+                      </div>
+                      <Switch
+                        checked={marcadas.has(chave(u.id, item.acao))}
+                        onCheckedChange={(v) => alternarPermissao(u.id, item.acao, v)}
+                        aria-label={`${item.rotulo}: ${u.nome}`}
+                        className="mt-0.5 shrink-0"
+                      />
+                    </div>
+                  ))}
+                </Fragment>
+              ))}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
