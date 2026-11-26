@@ -10,6 +10,44 @@ momento da publicação do site.
 
 ---
 
+## Não publicado
+
+> Pacote em preparo. Ao publicar, trocar este título pela data do deploy.
+
+### A visão geral parou de cortar à direita no celular
+
+Na visão geral da obra, todos os cartões eram amputados do lado direito no
+celular — "O engenheiro ainda não env…", "à frente dos valores pagos em…". Não
+era um cartão: era a coluna inteira estourando e levando todos juntos.
+
+A causa estava na trilha de etapas, que tem 144px por etapa e passa de 860px com
+seis etapas. Ela tem rolagem própria e deveria rolar dentro de si, mas a coluna
+do layout crescia com ela antes disso. E o corte era mudo: não aparecia nem
+barra de rolagem avisando que havia conteúdo sobrando.
+
+O portal do cliente, que mostra a mesma tela, nunca teve o problema — monta o
+conteúdo de outro jeito.
+
+### O diário de obra ganhou visão de calendário para o engenheiro
+
+O cliente já via o diário em calendário; o engenheiro só tinha a listagem.
+Agora a tela tem duas abas, **Listagem** e **Calendário**, como o cronograma já
+faz com a timeline.
+
+Duas diferenças em relação ao calendário do cliente, as duas propositais:
+
+- **Mostra também os dias abertos.** O cliente só enxerga folha fechada; o
+  engenheiro precisa ver a que está em andamento — senão a folha que ele acabou
+  de salvar sumiria do próprio calendário dele.
+- **Clicar num dia sem registro abre a folha para preencher**, em vez de abrir
+  um aviso de que não houve registro. É justamente por isso que se procura um
+  buraco no calendário.
+
+A aba fica no endereço, então trocar de mês não joga você de volta para a
+listagem, e o link pode ser compartilhado já no calendário.
+
+---
+
 ## 26/11/2026 — Histórico de permissões e a tela no celular
 
 ### Agora fica registrado quem mudou o quê

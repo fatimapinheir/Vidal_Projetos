@@ -8,15 +8,7 @@ import { CalendarioDiarios, type DiaCalendario } from "@/components/charts/calen
 import { praticabilidade } from "@/lib/diario/condicao";
 import { hojeNoFuso } from "@/lib/fuso";
 import { formatDateBR } from "@/lib/format-date";
-
-const MES_ISO = /^\d{4}-\d{2}$/;
-
-/** Mês vizinho, sem passar por `Date` com fuso — tudo em aritmética de ISO. */
-function mesVizinho(mes: string, passo: number): string {
-  const [ano, m] = mes.split("-").map(Number);
-  const total = ano * 12 + (m - 1) + passo;
-  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
-}
+import { faixaDeMeses } from "@/lib/diario/meses-do-calendario";
 
 /**
  * O diário de obra do cliente, em calendário.
@@ -45,7 +37,6 @@ export default async function PortalDiarioPage({
   if (!obra) notFound();
 
   const hoje = hojeNoFuso();
-  const mesAtual = MES_ISO.test(mes ?? "") ? mes! : hoje.slice(0, 7);
 
   // A RLS já limita a dias fechados — o filtro aqui é só para a consulta não
   // depender disso silenciosamente.
@@ -62,21 +53,24 @@ export default async function PortalDiarioPage({
   ]);
 
   const todos = dias ?? [];
+
+  /*
+   * O mês a mostrar e os limites de navegação saíram daqui para
+   * `lib/diario/meses-do-calendario.ts` quando a mesma visão nasceu no lado do
+   * engenheiro — duas cópias da aritmética de mês divergiriam na primeira
+   * correção. A versão antiga usava `todos.at(-1)` para achar o mês mais
+   * antigo, o que dependia em silêncio de o `select` vir ordenado por data
+   * decrescente; a função agora procura a menor data.
+   */
+  const { mesAtual, anterior, proximo } = faixaDeMeses({
+    datas: todos.map((d) => d.data),
+    hoje,
+    mes,
+  });
+
   const doMes: DiaCalendario[] = todos
     .filter((d) => d.data.startsWith(mesAtual))
     .map((d) => ({ data: d.data, clima: praticabilidade(d.clima) }));
-
-  /*
-   * Até onde dá para navegar.
-   *
-   * Para trás, o mês do registro mais antigo; para frente, o mês corrente.
-   * Sem esses limites o cliente clicaria a vida inteira em meses vazios, sem
-   * nada indicando que não há mais nada ali.
-   */
-  const primeiroMes = todos.at(-1)?.data.slice(0, 7) ?? hoje.slice(0, 7);
-  const ultimoMes = hoje.slice(0, 7);
-  const anterior = mesAtual > primeiroMes ? mesVizinho(mesAtual, -1) : null;
-  const proximo = mesAtual < ultimoMes ? mesVizinho(mesAtual, 1) : null;
 
   const base = `/portal/obras/${obraId}`;
 
