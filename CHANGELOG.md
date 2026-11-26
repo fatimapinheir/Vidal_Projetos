@@ -10,9 +10,7 @@ momento da publicação do site.
 
 ---
 
-## Não publicado
-
-> Pacote em preparo. Ao publicar, trocar este título pela data do deploy.
+## 26/11/2026 — Calendário do diário e correção do celular
 
 ### A visão geral parou de cortar à direita no celular
 
